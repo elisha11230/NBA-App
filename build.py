@@ -452,20 +452,38 @@ def norm_name(n):
     return re.sub(r"\s+", " ", n).strip()
 
 
-def fetch_2k_team(slug):
+TWOK_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+TWOK_PLAYERS = "nba2k_players.json"
+ATTR_GROUPS = ["Outside Scoring", "Inside Scoring", "Athleticism", "Playmaking", "Defense", "Defending", "Rebounding"]
+ATTR_NAMES = ["Close Shot", "Mid-Range Shot", "Three-Point Shot", "Free Throw", "Shot IQ", "Offensive Consistency",
+              "Layup", "Standing Dunk", "Driving Dunk", "Post Hook", "Post Fade", "Post Control", "Draw Foul", "Hands",
+              "Speed", "Agility", "Strength", "Vertical", "Stamina", "Hustle", "Overall Durability",
+              "Pass Accuracy", "Ball Handle", "Speed with Ball", "Pass IQ", "Pass Vision",
+              "Interior Defense", "Perimeter Defense", "Steal", "Block", "Help Defense IQ", "Pass Perception",
+              "Defensive Consistency", "Offensive Rebound", "Defensive Rebound", "Intangibles", "Potential"]
+ATTR_KEY = {n.lower(): n for n in ATTR_NAMES}
+
+
+def get_page(url, route):
+    """Fetch a 2KRatings page directly, or through r.jina.ai (which fetches it
+    from its own servers and hands back the HTML), since the site refuses GitHub."""
+    if route == "direct":
+        req = urllib.request.Request(url, headers={"User-Agent": TWOK_UA, "Accept": "text/html", "Accept-Language": "en-US,en;q=0.9"})
+    else:
+        req = urllib.request.Request("https://r.jina.ai/" + url, headers={
+            "User-Agent": "NBA-Rosters personal app", "X-Return-Format": "html", "X-Timeout": "30"})
+    with urllib.request.urlopen(req, timeout=70) as r:
+        return r.read().decode("utf-8", "ignore")
+
+
+def parse_2k_html(html):
     from bs4 import BeautifulSoup
-    req = urllib.request.Request(f"https://www.2kratings.com/teams/{slug}", headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9"})
-    with urllib.request.urlopen(req, timeout=40) as r:
-        html = r.read().decode("utf-8", "ignore")
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
     team = None
     m = re.search(r"T(\d)\s*TIER\s*(\d+)\s*OVR\s*(\d+)\s*INS\s*(\d+)\s*OUT\s*(\d+)\s*ATH\s*(\d+)\s*PLA\s*(\d+)\s*DEF\s*(\d+)\s*REB\s*(\d+)\s*INT", text)
     if m:
-        v = [int(x) for x in m.groups()]
-        team = dict(zip(["tier", "ovr", "ins", "out", "ath", "pla", "def", "reb", "int"], v))
+        team = dict(zip(["tier", "ovr", "ins", "out", "ath", "pla", "def", "reb", "int"], [int(x) for x in m.groups()]))
     players = []
     for tr in soup.find_all("tr"):
         pos_links = [a for a in tr.find_all("a", href=True) if "/lists/" in a["href"] and a["href"].rstrip("/").split("/")[-1] in POS_SLUG]
@@ -481,11 +499,11 @@ def fetch_2k_team(slug):
                 break
         if not nums or nums[0] is None:
             continue
-        name = None
+        name, slug = None, None
         for a in tr.find_all("a", href=True):
             t = a.get_text(strip=True)
-            if t and "/lists/" not in a["href"] and "/countries/" not in a["href"] and "/teams/" not in a["href"]:
-                name = t
+            if t and not any(k in a["href"] for k in ("/lists/", "/countries/", "/teams/")):
+                name, slug = t, a["href"].rstrip("/").split("/")[-1]
                 break
         if not name:
             continue
@@ -495,14 +513,11 @@ def fetch_2k_team(slug):
         if arch and re.search(r"\d'\d", arch):
             arch = None
         b = re.search(r"(\d+)\s+" + re.escape(name), cell)
-        players.append({
-            "name": name, "ovr": nums[0],
-            "tpt": nums[1] if len(nums) > 1 else None, "dnk": nums[2] if len(nums) > 2 else None,
-            "pos": "/".join(POS_SLUG[a["href"].rstrip("/").split("/")[-1]] for a in pos_links[:2]),
-            "arch": arch, "badges": int(b.group(1)) if b else None,
-            "star": bool(tr.find("img", src=re.compile("all-star"))),
-        })
-    # Last edition's ratings for players who were on this team then
+        players.append({"name": name, "slug": slug, "ovr": nums[0],
+                        "tpt": nums[1] if len(nums) > 1 else None, "dnk": nums[2] if len(nums) > 2 else None,
+                        "pos": "/".join(POS_SLUG[a["href"].rstrip("/").split("/")[-1]] for a in pos_links[:2]),
+                        "arch": arch, "badges": int(b.group(1)) if b else None,
+                        "star": bool(tr.find("img", src=re.compile("all-star"))) or "all-star" in str(tr)})
     prev = {}
     h = soup.find(string=re.compile(r"^\s*NBA 2K26\s*$"))
     if h:
@@ -514,58 +529,42 @@ def fetch_2k_team(slug):
     return team, players, prev
 
 
-def parse_2k_markdown(md):
-    """Same data as fetch_2k_team, read from a text (markdown) copy of the page."""
-    text = re.sub(r"\s+", " ", md)
-    team = None
-    m = re.search(r"T(\d)\s*TIER\s*(\d+)\s*OVR\s*(\d+)\s*INS\s*(\d+)\s*OUT\s*(\d+)\s*ATH\s*(\d+)\s*PLA\s*(\d+)\s*DEF\s*(\d+)\s*REB\s*(\d+)\s*INT", text)
-    if m:
-        team = dict(zip(["tier", "ovr", "ins", "out", "ath", "pla", "def", "reb", "int"], [int(x) for x in m.groups()]))
-    players = []
-    for line in md.splitlines():
-        if not line.startswith("|") or "/lists/" not in line:
+def parse_2k_player_html(html):
+    """Archetype, every attribute, the category scores and the badges from a player page."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    out = {"arch": None, "groups": {}, "attrs": {}, "badges": []}
+    for p in soup.find_all("p"):
+        t = p.get_text(" ", strip=True)
+        if t.startswith("Archetype:"):
+            sp = p.find("span")
+            out["arch"] = (sp.get_text(strip=True) if sp else t.split(":", 1)[1].strip()) or None
+            break
+    for el in soup.find_all(["h4", "h5", "li", "div", "span", "p"]):
+        if el.find(["li", "ul", "h4", "div"]):
+            continue  # leaf elements only
+        t = el.get_text(" ", strip=True)
+        m = re.match(r"^(\d{2})\s*(?:[+-]\d+)?\s+([A-Za-z][A-Za-z -]+?)\s*$", t) or re.match(r"^([A-Za-z][A-Za-z -]+?)\s+(\d{2})\s*(?:[+-]\d+)?$", t)
+        if not m:
             continue
-        pos = [POS_SLUG[s] for s in re.findall(r"/lists/(point-guard|shooting-guard|small-forward|power-forward|center)\b", line)]
-        if not pos:
+        a, b = m.groups()
+        val, label = (int(a), b) if a.isdigit() else (int(b), a)
+        key = label.strip().lower()
+        if key in ATTR_KEY:
+            out["attrs"].setdefault(ATTR_KEY[key], val)
+        elif label.strip() in ATTR_GROUPS:
+            out["groups"].setdefault("Defense" if label.strip() == "Defending" else label.strip(), val)
+    for card in soup.select("div.badge-card, .badge-card"):
+        img = card.find("img")
+        if not img:
             continue
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
-        nums = []
-        for c in reversed(cells):
-            if re.fullmatch(r"\d{2}|--", c):
-                nums.insert(0, None if c == "--" else int(c))
-            else:
-                break
-        if not nums or nums[0] is None:
-            continue
-        names = re.findall(r"\[([^\]\[!]+?)\]\(https?://www\.2kratings\.com/[a-z0-9-]+/?(?:\s+\"[^\"]*\")?\)", line)
-        names = [n.strip() for n in names if n.strip() and n.strip() not in ("PG", "SG", "SF", "PF", "C")]
-        if not names:
-            continue
-        name = names[0]
-        body = " | ".join(cells[:len(cells) - len(nums)])
-        parts = [p.strip() for p in re.split(r"\\\|", body)]
-        arch = parts[-1] if len(parts) >= 3 else None
-        if arch and (re.search(r"\d'\d", arch) or "](" in arch):
-            arch = None
-        b = re.search(r"(\d+)\s*!\[Badges\]", line)
-        players.append({"name": name, "ovr": nums[0], "tpt": nums[1] if len(nums) > 1 else None,
-                        "dnk": nums[2] if len(nums) > 2 else None, "pos": "/".join(dict.fromkeys(pos[:2])),
-                        "arch": arch, "badges": int(b.group(1)) if b else None, "star": "all-star" in line.lower()})
-    prev = {}
-    sec = re.search(r"NBA 2K26\s*\n(.*?)(?:#####|\Z)", md, re.S)
-    if sec:
-        for row in re.findall(r"^\|\s*\d*\s*\|\s*([^|]+?)\s*\|\s*(\d{2})\s*\|", sec.group(1), re.M):
-            prev[row[0]] = int(row[1])
-    return team, players, prev
-
-
-def fetch_2k_team_via_reader(slug):
-    # r.jina.ai fetches a page from its own servers and returns it as text, so a
-    # site that refuses GitHub's servers can still be read. Free, keyless, 20 a minute.
-    req = urllib.request.Request(f"https://r.jina.ai/https://www.2kratings.com/teams/{slug}",
-                                 headers={"User-Agent": "NBA-Rosters personal app", "Accept": "text/plain"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return parse_2k_markdown(r.read().decode("utf-8", "ignore"))
+        name = (img.get("title") or img.get("alt") or "").strip()
+        srcs = " ".join(filter(None, [img.get("data-src"), img.get("src"), " ".join(card.get("class") or [])])).lower()
+        tier = next((t for t, k in (("Legend", "legend"), ("Hall of Fame", "hall-of-fame"), ("Hall of Fame", "hof"),
+                                   ("Gold", "gold"), ("Silver", "silver"), ("Bronze", "bronze")) if k in srcs), None)
+        if name:
+            out["badges"].append([name, tier])
+    return out
 
 
 def load_2k():
@@ -581,19 +580,16 @@ def load_2k():
         tm = pl = pv = None
         for attempt in (["direct", "reader"] if route == "direct" else ["reader"]):
             try:
-                if attempt == "direct":
-                    tm, pl, pv = fetch_2k_team(slug)
-                else:
-                    tm, pl, pv = fetch_2k_team_via_reader(slug)
+                tm, pl, pv = parse_2k_html(get_page(f"https://www.2kratings.com/teams/{slug}", attempt))
                 if pl:
                     if attempt != route:
-                        print(f"2k   direct route refused, switching to the reader route")
-                        route = attempt
+                        print("2k   direct route refused, switching to the reader route")
+                    route = attempt
                     break
             except Exception as e:
                 print(f"2k   {slug} ({attempt}): {e.__class__.__name__} {getattr(e, 'code', '')}")
-                if attempt == "direct":
-                    route = "reader"  # stop knocking on a door that is closed
+            if attempt == "direct":
+                route = "reader"  # stop knocking on a door that is closed
         if pl:
             ok += 1
             teams_2k[abbr] = tm
@@ -610,9 +606,52 @@ def load_2k():
     if ok < 25:
         print(f"2k   only {ok} of 30 team pages parsed, using cached ratings")
         return None
-    data = {"fetched": dt.date.today().isoformat(), "teams": teams_2k, "players": players_2k, "prev": prev_2k}
+    print(f"2k   {len(players_2k)} players from {ok} teams via the {route} route, "
+          f"{sum(1 for p in players_2k if p['arch'])} with archetypes, team ratings for {sum(1 for t in teams_2k.values() if t)}")
+
+    # Player pages: every attribute, category scores and badges. About 540 pages, so
+    # they are cached and refreshed in a rolling way: missing ones first, then any
+    # whose overall moved, then anything older than a week, up to MAX per run.
+    import os
+    cache = json.load(open(TWOK_PLAYERS)) if os.path.exists(TWOK_PLAYERS) else {}
+    today = dt.date.today()
+    MAX = int(os.environ.get("TWOK_PLAYER_PAGES", "600"))
+
+    def stale(p):
+        c = cache.get(p["slug"])
+        if not c or not c.get("attrs"):
+            return 0
+        if c.get("ovr") != p["ovr"]:
+            return 1
+        age = (today - dt.date.fromisoformat(c["fetched"])).days
+        return 2 if age >= 7 else None
+
+    todo = sorted((p for p in players_2k if p.get("slug") and stale(p) is not None), key=stale)[:MAX]
+    got = bad = 0
+    started = time.time()
+    for p in todo:
+        if time.time() - started > 75 * 60:
+            print("2k   player pages: time budget reached, the rest continue next run")
+            break
+        try:
+            d = parse_2k_player_html(get_page(f"https://www.2kratings.com/{p['slug']}", route))
+            if d["attrs"]:
+                cache[p["slug"]] = dict(d, ovr=p["ovr"], fetched=today.isoformat())
+                got += 1
+            else:
+                bad += 1
+        except Exception as e:
+            bad += 1
+            print(f"2k   {p['slug']}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+            if got == 0 and bad >= 5:
+                print("2k   player pages are not coming through, stopping for this run")
+                break
+        time.sleep(3.2 if route == "reader" else 1.0)
+    json.dump(cache, open(TWOK_PLAYERS, "w"), ensure_ascii=False)
+    print(f"2k   player pages: {got} refreshed, {bad} failed, {sum(1 for v in cache.values() if v.get('attrs'))} cached with full attributes")
+
+    data = {"fetched": today.isoformat(), "teams": teams_2k, "players": players_2k, "prev": prev_2k}
     json.dump(data, open(TWOK_CACHE, "w"), ensure_ascii=False)
-    print(f"2k   {len(players_2k)} players from {ok} teams via the {route} route")
     return data
 
 
@@ -626,6 +665,10 @@ if twok is None:
         print("2k   no ratings available yet")
 
 player_2k, team_2k, twok_meta = {}, {}, None
+try:
+    pages_2k = json.load(open(TWOK_PLAYERS))
+except Exception:
+    pages_2k = {}
 if twok:
     import os
     hist = json.load(open(TWOK_HISTORY)) if os.path.exists(TWOK_HISTORY) else {}
@@ -655,7 +698,9 @@ if twok:
         h[:] = h[-12:]
         move = h[-1][1] - h[-2][1] if len(h) > 1 else None
         prev = twok["prev"].get(p["name"])
-        player_2k[pid] = {"o": p["ovr"], "a": p["arch"], "p": p["pos"], "b": p["badges"], "s": p["star"],
+        det = pages_2k.get(p.get("slug") or "", {})
+        player_2k[pid] = {"o": p["ovr"], "a": p["arch"] or det.get("arch"), "p": p["pos"], "b": p["badges"] if p["badges"] is not None else (len(det.get("badges", [])) or None), "s": p["star"],
+                          "g": det.get("groups") or None, "at": det.get("attrs") or None, "bd": det.get("badges") or None,
                           "t3": p["tpt"], "dk": p["dnk"], "rk": all_ovr.index(p["ovr"]) + 1,
                           "prk": [pos_pool[prim].index(p["ovr"]) + 1, len(pos_pool[prim]), prim],
                           "last": prev, "mv": move, "mvd": h[-2][0] if len(h) > 1 else None}
