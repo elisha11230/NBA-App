@@ -514,6 +514,60 @@ def fetch_2k_team(slug):
     return team, players, prev
 
 
+def parse_2k_markdown(md):
+    """Same data as fetch_2k_team, read from a text (markdown) copy of the page."""
+    text = re.sub(r"\s+", " ", md)
+    team = None
+    m = re.search(r"T(\d)\s*TIER\s*(\d+)\s*OVR\s*(\d+)\s*INS\s*(\d+)\s*OUT\s*(\d+)\s*ATH\s*(\d+)\s*PLA\s*(\d+)\s*DEF\s*(\d+)\s*REB\s*(\d+)\s*INT", text)
+    if m:
+        team = dict(zip(["tier", "ovr", "ins", "out", "ath", "pla", "def", "reb", "int"], [int(x) for x in m.groups()]))
+    players = []
+    for line in md.splitlines():
+        if not line.startswith("|") or "/lists/" not in line:
+            continue
+        pos = [POS_SLUG[s] for s in re.findall(r"/lists/(point-guard|shooting-guard|small-forward|power-forward|center)\b", line)]
+        if not pos:
+            continue
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+        nums = []
+        for c in reversed(cells):
+            if re.fullmatch(r"\d{2}|--", c):
+                nums.insert(0, None if c == "--" else int(c))
+            else:
+                break
+        if not nums or nums[0] is None:
+            continue
+        names = re.findall(r"\[([^\]\[!]+?)\]\(https?://www\.2kratings\.com/[a-z0-9-]+/?(?:\s+\"[^\"]*\")?\)", line)
+        names = [n.strip() for n in names if n.strip() and n.strip() not in ("PG", "SG", "SF", "PF", "C")]
+        if not names:
+            continue
+        name = names[0]
+        body = " | ".join(cells[:len(cells) - len(nums)])
+        parts = [p.strip() for p in re.split(r"\\\|", body)]
+        arch = parts[-1] if len(parts) >= 3 else None
+        if arch and (re.search(r"\d'\d", arch) or "](" in arch):
+            arch = None
+        b = re.search(r"(\d+)\s*!\[Badges\]", line)
+        players.append({"name": name, "ovr": nums[0], "tpt": nums[1] if len(nums) > 1 else None,
+                        "dnk": nums[2] if len(nums) > 2 else None, "pos": "/".join(dict.fromkeys(pos[:2])),
+                        "arch": arch, "badges": int(b.group(1)) if b else None, "star": "all-star" in line.lower()})
+    prev = {}
+    sec = re.search(r"NBA 2K26\s*\n(.*?)(?:#####|\Z)", md, re.S)
+    if sec:
+        for row in re.findall(r"^\|\s*\d*\s*\|\s*([^|]+?)\s*\|\s*(\d{2})\s*\|", sec.group(1), re.M):
+            prev[row[0]] = int(row[1])
+    return team, players, prev
+
+
+def fetch_2k_team_via_reader(slug):
+    # r.jina.ai fetches a page from its own servers and returns it as text, so a
+    # site that refuses GitHub's servers can still be read. Free, keyless, 20 a minute.
+    req = urllib.request.Request(f"https://r.jina.ai/https://www.2kratings.com/teams/{slug}",
+                                 headers={"User-Agent": "NBA-Rosters personal app", "Accept": "text/plain"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return parse_2k_markdown(r.read().decode("utf-8", "ignore"))
+
+
 def load_2k():
     import time
     teams_2k, players_2k, prev_2k, ok, fails = {}, [], {}, 0, 0
@@ -522,29 +576,43 @@ def load_2k():
     except ImportError:
         print("2k   beautifulsoup4 missing, using cached ratings")
         return None
+    route = "direct"
     for abbr, slug in TWOK_SLUGS.items():
-        try:
-            tm, pl, pv = fetch_2k_team(slug)
-            if pl:
-                ok += 1
-                teams_2k[abbr] = tm
-                for p in pl:
-                    p["team"] = abbr
-                players_2k += pl
-                prev_2k.update(pv)
-            time.sleep(1.5)
-        except Exception as e:
-            print(f"2k   {slug}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+        tm = pl = pv = None
+        for attempt in (["direct", "reader"] if route == "direct" else ["reader"]):
+            try:
+                if attempt == "direct":
+                    tm, pl, pv = fetch_2k_team(slug)
+                else:
+                    tm, pl, pv = fetch_2k_team_via_reader(slug)
+                if pl:
+                    if attempt != route:
+                        print(f"2k   direct route refused, switching to the reader route")
+                        route = attempt
+                    break
+            except Exception as e:
+                print(f"2k   {slug} ({attempt}): {e.__class__.__name__} {getattr(e, 'code', '')}")
+                if attempt == "direct":
+                    route = "reader"  # stop knocking on a door that is closed
+        if pl:
+            ok += 1
+            teams_2k[abbr] = tm
+            for p in pl:
+                p["team"] = abbr
+            players_2k += pl
+            prev_2k.update(pv or {})
+        else:
             fails += 1
             if ok == 0 and fails >= 3:
-                print("2k   first three team pages failed, not trying the rest")
+                print("2k   first three team pages failed on both routes, not trying the rest")
                 break
+        time.sleep(3.2 if route == "reader" else 1.5)
     if ok < 25:
         print(f"2k   only {ok} of 30 team pages parsed, using cached ratings")
         return None
     data = {"fetched": dt.date.today().isoformat(), "teams": teams_2k, "players": players_2k, "prev": prev_2k}
     json.dump(data, open(TWOK_CACHE, "w"), ensure_ascii=False)
-    print(f"2k   {len(players_2k)} players from {ok} teams")
+    print(f"2k   {len(players_2k)} players from {ok} teams via the {route} route")
     return data
 
 
