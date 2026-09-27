@@ -319,20 +319,36 @@ def slot_order(pids, P):
 
 def pick_projection(ids, P):
     """Best five by last season's starts, with a sane positional mix."""
-    def score(pid):
+    def role(pid):
+        """(start share, minutes, points) when he played, from last season, or from
+        the last season he played if he missed it or barely played (injury)."""
         s = season_line.get(pid)
-        if s:
-            return (s["gs"] / max(s["gp"], 1)) * min(s["gp"], 82) * 3 + s["gp"] * (s["min"] or 0) / 10
-        # Missed the whole season (injury): judge him on the last season he played,
-        # if it was recent, as a full healthy season at that role.
         hist = yearly.get(pid) or []
-        if hist:
+        prev = None
+        for r in reversed(hist):
+            if int("20" + r[0][-2:]) < stats_season and int("20" + r[0][-2:]) >= stats_season - 2 and r[2] >= 20:
+                prev = r
+                break
+        if s and s["gp"] >= 10:
+            return s["gs"] / s["gp"], s["min"] or 0, s["pts"] or 0
+        if prev:
+            return prev[3] / prev[2], prev[4] or 0, prev[5] or 0
+        if s:
+            return s["gs"] / max(s["gp"], 1), s["min"] or 0, s["pts"] or 0
+        if hist and int("20" + hist[-1][0][-2:]) >= stats_season - 2:
             r = hist[-1]
-            if int("20" + r[0][-2:]) >= stats_season - 2 and r[2] and r[3] / r[2] >= .5:
-                return (r[3] / r[2]) * 82 * 3 + 82 * (r[4] or 0) / 10
-            if int("20" + r[0][-2:]) >= stats_season - 2 and r[2]:
-                return r[2] * (r[4] or 0) / 20  # a returning reserve: bench, low in the order
-        return 0
+            return r[3] / max(r[2], 1), r[4] or 0, r[5] or 0
+        return None
+
+    def score(pid):
+        # Judge the role he holds when healthy, not how many games he was
+        # available for: a star who missed half a season is still a starter.
+        r = role(pid)
+        if not r:
+            return 0
+        share, mpg, ppg = r
+        return share * 60 + mpg + ppg * 0.8
+
     ranked = sorted(ids, key=score, reverse=True)
     five = []
     for pid in ranked:
@@ -346,8 +362,13 @@ def pick_projection(ids, P):
         five.append(pid)
         if len(five) == 5:
             break
-    if not any(P[x]["pos"] in ("C", "F") for x in five[:5]):
-        pass
+    # Every lineup needs a center. If none made it, bring in the best center with a
+    # real role (a regular starter) in place of the lowest ranked non center.
+    if five and not any(P[x]["pos"] == "C" for x in five):
+        bigs = [x for x in ranked if P[x]["pos"] == "C" and x not in five and (role(x) or (0,))[0] >= .5]
+        if bigs:
+            out = min((x for x in five), key=score)
+            five = [bigs[0] if x == out else x for x in five]
     return five, ranked
 
 
@@ -562,8 +583,17 @@ def parse_2k_player_html(html):
         srcs = " ".join(filter(None, [img.get("data-src"), img.get("src"), " ".join(card.get("class") or [])])).lower()
         tier = next((t for t, k in (("Legend", "legend"), ("Hall of Fame", "hall-of-fame"), ("Hall of Fame", "hof"),
                                    ("Gold", "gold"), ("Silver", "silver"), ("Bronze", "bronze")) if k in srcs), None)
-        if name:
+        if name and all(b[0] != name for b in out["badges"]):  # each badge appears twice on the page
             out["badges"].append([name, tier])
+    return out
+
+
+def dedupe_badges(bd):
+    seen, out = set(), []
+    for name, tier in bd or []:
+        if name not in seen:
+            seen.add(name)
+            out.append([name, tier])
     return out
 
 
@@ -699,8 +729,8 @@ if twok:
         move = h[-1][1] - h[-2][1] if len(h) > 1 else None
         prev = twok["prev"].get(p["name"])
         det = pages_2k.get(p.get("slug") or "", {})
-        player_2k[pid] = {"o": p["ovr"], "a": p["arch"] or det.get("arch"), "p": p["pos"], "b": p["badges"] if p["badges"] is not None else (len(det.get("badges", [])) or None), "s": p["star"],
-                          "g": det.get("groups") or None, "at": det.get("attrs") or None, "bd": det.get("badges") or None,
+        player_2k[pid] = {"o": p["ovr"], "a": p["arch"] or det.get("arch"), "p": p["pos"], "b": p["badges"] if p["badges"] is not None else (len(dedupe_badges(det.get("badges"))) or None), "s": p["star"],
+                          "g": det.get("groups") or None, "at": det.get("attrs") or None, "bd": dedupe_badges(det.get("badges")) or None,
                           "t3": p["tpt"], "dk": p["dnk"], "rk": all_ovr.index(p["ovr"]) + 1,
                           "prk": [pos_pool[prim].index(p["ovr"]) + 1, len(pos_pool[prim]), prim],
                           "last": prev, "mv": move, "mvd": h[-2][0] if len(h) > 1 else None}
@@ -802,6 +832,9 @@ if sal:
         by_tn[(r.team_abbreviation, norm_name(r.display_name))] = int(r.athlete_id)
         by_n.setdefault(norm_name(r.display_name), []).append((int(r.athlete_id), r.team_abbreviation))
     cur_team = {int(r.athlete_id): r.team_abbreviation for r in rost.itertuples()}
+    rows_per_player = {}
+    for r in sal["rows"]:
+        rows_per_player[r["bbr"]] = rows_per_player.get(r["bbr"], 0) + 1
     for r in sal["rows"]:
         n = norm_name(r["name"])
         pid = by_tn.get((r["team"], n))
@@ -810,14 +843,26 @@ if sal:
             pid, t = by_n[n][0]
             dead = t != r["team"]  # he is owed money by a team he no longer plays for
         y0 = r["years"][0][0] if r["years"] else None
-        ts = team_sal.setdefault(r["team"], {"total": 0, "next": 0, "dead": [], "n": 0})
+        ts = team_sal.setdefault(r["team"], {"total": 0, "next": 0, "dead": [], "camp": [], "n": 0})
+        if (pid is None or dead) and not (r["gtd"] or 0):
+            # Not on this team's roster and nothing guaranteed: a training camp or
+            # exhibit deal (or a signing ESPN has not added yet). Money with no
+            # guarantee cannot be dead money, so it is listed, not counted.
+            if y0:
+                ts["camp"].append([r["name"], y0])
+            continue
         if y0:
             ts["total"] += y0
         if len(r["years"]) > 1 and r["years"][1][0]:
             ts["next"] += r["years"][1][0]
         if pid is None or dead:
             if y0:
-                ts["dead"].append([r["name"], y0])
+                if dead and rows_per_player.get(r["bbr"], 0) == 1:
+                    # His only contract is with this team, so he is on it: a trade or
+                    # signing ESPN's roster file has not caught up with yet.
+                    ts.setdefault("new", []).append([r["name"], y0])
+                else:
+                    ts["dead"].append([r["name"], y0])  # waived, still being paid
             continue
         ts["n"] += 1
         player_sal[pid] = {"y": r["years"], "g": r["gtd"], "bbr": r["bbr"]}
@@ -841,6 +886,7 @@ OLD_TEAMS = {"Seattle SuperSonics": "SEA", "New Jersey Nets": "NJ", "Charlotte B
 id_abbr = {int(r.team_id): r.team_abbreviation for r in rost.drop_duplicates("team_id").itertuples()}
 roster_ids = set(int(i) for i in rost.athlete_id.dropna())
 yearly = {}
+top_scorer = {}
 
 
 def f_or_none(v):
@@ -856,6 +902,16 @@ for yr in range(2002, stats_season + 1):
     if df is None:
         continue
     df = df[df.category == "averages"]
+    try:
+        ap = df[df.stat_name == "avgPoints"].copy()
+        gp = df[df.stat_name == "gamesPlayed"].set_index("athlete_id").value
+        ap["gp"] = ap.athlete_id.map(gp)
+        ap = ap[ap.gp.fillna(0) >= 20]
+        for tid_, g_ in ap.groupby("team_id"):
+            r_ = g_.sort_values("value", ascending=False).iloc[0]
+            top_scorer.setdefault(int(tid_), {})[yr] = [r_.athlete_display_name, round(float(r_.value), 1)]
+    except Exception:
+        pass
     df = df[pd.to_numeric(df.athlete_id, errors="coerce").isin(roster_ids)]
     for (aid, tid, tname), g in df.groupby(["athlete_id", "team_id", "team_display_name"], dropna=False):
         v = dict(zip(g.stat_name, g.value))
@@ -1024,6 +1080,137 @@ leaders = {"season": season_label(stats_season),
            "po": build_leaders(box[box.season_type == 3], playoffs=True)}
 print(f"lead {len(leaders['reg'] or [])} regular season boards, {len(leaders['po'] or [])} playoff boards")
 
+# ---------------------------------------------------------------- schedule
+# The full regular season schedule, published by sportsdataverse from ESPN. Scores
+# fill in as games are played; the app's Scores page covers anything live.
+schedule = {}
+sch = get("espn_nba_schedules", f"nba_schedule_{S}.parquet")
+if sch is not None and not sch.empty:
+    sch = sch.sort_values("date")
+    for r in sch.itertuples():
+        done = str(r.status_type_state) == "post"
+        for side, opp, ha in (("home", "away", ""), ("away", "home", "@")):
+            tid_ = int(getattr(r, f"{side}_id"))
+            me_s, op_s = getattr(r, f"{side}_score"), getattr(r, f"{opp}_score")
+            schedule.setdefault(tid_, []).append([
+                str(r.id), str(r.date), getattr(r, f"{opp}_abbreviation"), ha,
+                (r.broadcast_name if isinstance(r.broadcast_name, str) else "") or "",
+                int(me_s) if done and pd.notna(me_s) else None, int(op_s) if done and pd.notna(op_s) else None,
+                int(r.season_type)])
+    print(f"sched {len(sch)} games for {len(schedule)} teams")
+
+# ---------------------------------------------------------------- team history
+# Ten seasons of record, seed and playoff run from ESPN standings and box scores.
+history = {}
+for yr in range(max(2002, stats_season - 9), stats_season + 1):
+    st_ = get("espn_nba_standings", f"standings_{yr}.parquet")
+    tb_ = get("espn_nba_team_boxscores", f"team_box_{yr}.parquet")
+    if st_ is None:
+        continue
+    po_ = {}
+    if tb_ is not None and not tb_.empty:
+        p3 = tb_[tb_.season_type == 3].copy()
+        p3["won"] = p3.team_score.astype(float) > p3.opponent_team_score.astype(float)
+        for tid_, g_ in p3.sort_values("game_date").groupby("team_id"):
+            series = []
+            for opp_, gg in g_.groupby("opponent_team_id", sort=False):
+                series.append([gg.game_date.min(), gg.opponent_team_abbreviation.iloc[0], int(gg.won.sum()), int((~gg.won).sum())])
+            series.sort()
+            rounds = len(series)
+            last = series[-1] if series else None
+            champ = rounds >= 4 and last and last[2] > last[3]
+            po_[int(tid_)] = {"rounds": rounds, "champ": bool(champ),
+                              "last": [last[1], last[2], last[3]] if last else None}
+    for tid_, g_ in st_.groupby("team_id"):
+        d_ = dict(zip(g_.stat_name, g_.display_value))
+        v_ = dict(zip(g_.stat_name, g_.value))
+        name_ = g_.team_display_name.iloc[0]
+        p_ = po_.get(int(tid_))
+        rnd = ["Missed playoffs", "First round", "Conference semifinals", "Conference finals", "NBA Finals"]
+        result = "Champions" if p_ and p_["champ"] else (f"Lost in {rnd[min(p_['rounds'], 4)].lower()}" if p_ and p_["rounds"] else "Missed playoffs")
+        if p_ and p_["rounds"] == 1 and p_["last"] and p_["last"][1] + p_["last"][2] <= 1:
+            result = "Play-in"
+        history.setdefault(int(tid_), []).append({
+            "s": season_label(yr), "name": name_, "w": int(v_.get("wins") or 0), "l": int(v_.get("losses") or 0),
+            "seed": int(v_["playoffSeed"]) if pd.notna(v_.get("playoffSeed")) else None,
+            "po": result, "vs": p_["last"] if p_ and p_["last"] else None,
+            "top": top_scorer.get(int(tid_), {}).get(yr)})
+print(f"hist {len(history)} teams, {sum(len(v) for v in history.values())} team seasons")
+
+# ---------------------------------------------------------------- draft picks
+# RealGM's future draft page lists every team's first and second round picks for
+# the next seven drafts, protections and swaps included. One page; last good copy
+# kept in draft_picks.json.
+PICKS_CACHE = "draft_picks.json"
+REALGM_CODES = {"SAN": "SA", "UTH": "UTAH", "BRK": "BKN", "GOS": "GS", "PHL": "PHI", "NOP": "NO", "NYK": "NY",
+                "WAS": "WSH", "SAC": "SAC", "PHX": "PHX", "CHA": "CHA", "LAC": "LAC", "LAL": "LAL"}
+
+
+def fetch_picks():
+    from bs4 import BeautifulSoup
+    html = None
+    for route in ("direct", "reader"):
+        try:
+            html = get_page("https://basketball.realgm.com/nba/draft/future_drafts/team", route)
+            if "Future NBA Draft Picks" in html:
+                break
+        except Exception as e:
+            print(f"picks {route}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+            html = None
+    if not html:
+        raise ValueError("draft pick page not reachable")
+    soup = BeautifulSoup(html, "html.parser")
+    teams_ = {}
+    full_to_abbr = {}
+    for r in rost.drop_duplicates("team_id").itertuples():
+        full_to_abbr[r.team_display_name.replace("LA Clippers", "Los Angeles Clippers").replace("Philadelphia 76ers", "Philadelphia Sixers")] = r.team_abbreviation
+    fix = lambda t: re.sub(r"\b(" + "|".join(REALGM_CODES) + r")\b", lambda m: REALGM_CODES[m.group(1)], t)
+    for h in soup.find_all(["h2", "h3"]):
+        m = re.match(r"(.+?) Future NBA Draft Picks", h.get_text(" ", strip=True))
+        if not m:
+            continue
+        abbr = full_to_abbr.get(m.group(1).strip())
+        tbl = h.find_next("table")
+        if not abbr or not tbl:
+            continue
+        rows = []
+        for tr in tbl.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) < 3 or not re.match(r"\d{4}$", tds[0].get_text(strip=True)):
+                continue
+            out = [int(tds[0].get_text(strip=True))]
+            for td in tds[1:3]:
+                for br in td.find_all("br"):
+                    br.replace_with("\n")
+                txt = td.get_text(" ", strip=False)
+                txt = re.sub(r"[ \t\xa0]+", " ", txt).strip()
+                cm = re.search(r"(\d+(?:\s*\+\s*\d+)?)\s*$", txt)
+                count = cm.group(1).replace(" ", "") if cm else None
+                if cm:
+                    txt = txt[:cm.start()].strip()
+                txt = re.sub(r"\s*\n\s*", "\n", txt).strip(" ;\n").replace(" ;", ";")
+                out += [fix(txt), count]
+            rows.append(out)
+        if rows:
+            teams_[abbr] = rows
+    if len(teams_) < 28:
+        raise ValueError(f"only {len(teams_)} teams parsed")
+    return {"fetched": dt.date.today().isoformat(), "teams": teams_}
+
+
+picks = None
+try:
+    picks = fetch_picks()
+    json.dump(picks, open(PICKS_CACHE, "w"), ensure_ascii=False)
+    print(f"picks {len(picks['teams'])} teams, drafts {picks['teams'][next(iter(picks['teams']))][0][0]} on")
+except Exception as e:
+    print(f"picks fetch failed: {e.__class__.__name__} {e}")
+    try:
+        picks = json.load(open(PICKS_CACHE))
+        print(f"picks cached copy from {picks.get('fetched')}")
+    except Exception:
+        print("picks no draft pick data available yet")
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -1085,6 +1272,8 @@ for tid, g in rost.groupby("team_id"):
         "rec": recs.get(tid), "games": games.get(tid, []),
         "sh": shot_teams.get(tid), "shd": shot_def.get(tid), "k": team_2k.get(abbr), "$": team_sal.get(abbr),
         "coach": (coaches or {}).get("teams", {}).get(abbr),
+        "sched": schedule.get(tid, []), "hist": history.get(tid, []),
+        "picks": (picks or {}).get("teams", {}).get(abbr),
         "st": {k: [num(v, 1), team_ranks[tid][k]] for k, v in st.items()},
     }
 
@@ -1098,7 +1287,7 @@ data = {
         "stats": season_label(stats_season), "roster": season_label(roster_season),
         "mode": lineup_mode, "qualN": QUAL_N, "gpMin": GP_MIN,
         "lg": {k: num(v, 1) for k, v in LEAGUE_AVG.items()},
-        "lz": league_zones, "zones": ZONES, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"),
+        "lz": league_zones, "zones": ZONES, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"), "picksDate": (picks or {}).get("fetched"),
     },
     "divs": DIVS, "teams": teams, "players": players, "leaders": leaders,
 }
