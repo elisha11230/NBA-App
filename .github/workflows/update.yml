@@ -26,5 +26,5 @@ jobs:
           git config user.name "nba-bot"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          for f in nba2k.json nba2k_history.json nba2k_players.json salaries.json coaches.json draft_picks.json awards.json bios.json transactions.json bbref_history.json prospects.json; do if [ -f "$f" ]; then git add "$f"; fi; done
+          for f in nba2k.json nba2k_history.json nba2k_players.json salaries.json coaches.json draft_picks.json awards.json bios.json transactions.json bbref_history.json prospects.json photos.json nba_games.json; do if [ -f "$f" ]; then git add "$f"; fi; done
           git diff --cached --quiet || (git commit -m "Update NBA data" && git push)
