@@ -35,9 +35,18 @@ TEAM_ABBRS = {a for v in DIVS.values() for a in v}
 
 def get(release, name):
     url = f"{BASE}/{release}/{name}"
+    import os as _os
+    cache_dir = _os.environ.get("PARQUET_CACHE")  # optional, for local test runs only
+    cpath = _os.path.join(cache_dir, f"{release}__{name}") if cache_dir else None
     try:
+        if cpath and _os.path.exists(cpath):
+            raw = open(cpath, "rb").read()
+            df = pd.read_parquet(io.BytesIO(raw))
+            return df
         with urllib.request.urlopen(url, timeout=120) as r:
             raw = r.read()
+        if cpath:
+            open(cpath, "wb").write(raw)
         df = pd.read_parquet(io.BytesIO(raw))
         print(f"ok   {release}/{name}  {len(df)} rows")
         return df
@@ -473,6 +482,7 @@ def norm_name(n):
     return re.sub(r"\s+", " ", n).strip()
 
 
+TWOK_EDITIONS = {}  # player name -> {"2K25": 88, ...}
 TWOK_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
 TWOK_PLAYERS = "nba2k_players.json"
 ATTR_GROUPS = ["Outside Scoring", "Inside Scoring", "Athleticism", "Playmaking", "Defense", "Defending", "Rebounding"]
@@ -540,13 +550,17 @@ def parse_2k_html(html):
                         "arch": arch, "badges": int(b.group(1)) if b else None,
                         "star": bool(tr.find("img", src=re.compile("all-star"))) or "all-star" in str(tr)})
     prev = {}
-    h = soup.find(string=re.compile(r"^\s*NBA 2K26\s*$"))
-    if h:
+    # Every past edition table on the page ("NBA 2K26", "NBA 2K25", ...): the
+    # players on this team that year and their overall rating in that game.
+    for h in soup.find_all(string=re.compile(r"^\s*NBA 2K(\d\d)\s*$")):
+        ed = "2K" + re.search(r"2K(\d\d)", h).group(1)
         tbl = h.find_next("table")
         for tr in tbl.find_all("tr") if tbl else []:
             tds = [td.get_text(strip=True) for td in tr.find_all("td")]
             if len(tds) >= 3 and tds[2].isdigit():
-                prev[tds[1]] = int(tds[2])
+                TWOK_EDITIONS.setdefault(tds[1], {})[ed] = int(tds[2])
+                if ed == "2K26":
+                    prev[tds[1]] = int(tds[2])
     return team, players, prev
 
 
@@ -680,7 +694,7 @@ def load_2k():
     json.dump(cache, open(TWOK_PLAYERS, "w"), ensure_ascii=False)
     print(f"2k   player pages: {got} refreshed, {bad} failed, {sum(1 for v in cache.values() if v.get('attrs'))} cached with full attributes")
 
-    data = {"fetched": today.isoformat(), "teams": teams_2k, "players": players_2k, "prev": prev_2k}
+    data = {"fetched": today.isoformat(), "teams": teams_2k, "players": players_2k, "prev": prev_2k, "editions": TWOK_EDITIONS}
     json.dump(data, open(TWOK_CACHE, "w"), ensure_ascii=False)
     return data
 
@@ -729,8 +743,10 @@ if twok:
         move = h[-1][1] - h[-2][1] if len(h) > 1 else None
         prev = twok["prev"].get(p["name"])
         det = pages_2k.get(p.get("slug") or "", {})
+        eds = (twok.get("editions") or {}).get(p["name"]) or {}
         player_2k[pid] = {"o": p["ovr"], "a": p["arch"] or det.get("arch"), "p": p["pos"], "b": p["badges"] if p["badges"] is not None else (len(dedupe_badges(det.get("badges"))) or None), "s": p["star"],
                           "g": det.get("groups") or None, "at": det.get("attrs") or None, "bd": dedupe_badges(det.get("badges")) or None,
+                          "eds": dict(sorted(eds.items())) or None,
                           "t3": p["tpt"], "dk": p["dnk"], "rk": all_ovr.index(p["ovr"]) + 1,
                           "prk": [pos_pool[prim].index(p["ovr"]) + 1, len(pos_pool[prim]), prim],
                           "last": prev, "mv": move, "mvd": h[-2][0] if len(h) > 1 else None}
@@ -1096,13 +1112,13 @@ if sch is not None and not sch.empty:
                 str(r.id), str(r.date), getattr(r, f"{opp}_abbreviation"), ha,
                 (r.broadcast_name if isinstance(r.broadcast_name, str) else "") or "",
                 int(me_s) if done and pd.notna(me_s) else None, int(op_s) if done and pd.notna(op_s) else None,
-                int(r.season_type)])
+                int(r.season_type), r.venue_full_name if isinstance(r.venue_full_name, str) else ""])
     print(f"sched {len(sch)} games for {len(schedule)} teams")
 
 # ---------------------------------------------------------------- team history
 # Ten seasons of record, seed and playoff run from ESPN standings and box scores.
 history = {}
-for yr in range(max(2002, stats_season - 9), stats_season + 1):
+for yr in range(2002, stats_season + 1):
     st_ = get("espn_nba_standings", f"standings_{yr}.parquet")
     tb_ = get("espn_nba_team_boxscores", f"team_box_{yr}.parquet")
     if st_ is None:
@@ -1211,6 +1227,628 @@ except Exception as e:
     except Exception:
         print("picks no draft pick data available yet")
 
+# ---------------------------------------------------------------- historical rosters
+# (ESPN box scores carry each player's latest jersey number, not that season's, so
+# past jersey numbers are left out.)
+# Every team's roster and starting five for every season back to 2001-02, rebuilt
+# from ESPN box scores: the five who started the most games, then everyone else
+# by minutes. A player traded midseason appears on each team he played for.
+PAST_FROM = 2002
+past = {}          # team id -> {season label: {...}}
+past_people = {}   # athlete id -> [name, position]
+reg_games_by_year = {}
+SLOT_W = {"PG": 0, "SG": 1, "G": 0.5, "SF": 2, "GF": 1.5, "F": 2.5, "PF": 3, "FC": 3.5, "C": 4}
+
+
+def past_slots(rows):
+    """Order five starters PG, SG, SF, PF, C from listed positions and their numbers."""
+    def key(r):
+        pw = SLOT_W.get(r["pos"], 2)
+        return pw * 10 + 0.4 * r["reb"] - 0.6 * r["ast"]
+    order = sorted(rows, key=key)
+    small = order[:3]
+    pg = max(small, key=lambda r: (r["pos"] == "PG", r["ast"]))
+    return [pg] + [r for r in order if r is not pg]
+
+
+for yr in range(PAST_FROM, stats_season + 1):
+    pb = box if yr == stats_season else get("espn_nba_player_boxscores", f"player_box_{yr}.parquet")
+    if pb is None or pb.empty:
+        continue
+    pb = pb[(pb.season_type == 2) & (pb.did_not_play != True) & (pb.minutes.fillna(0) > 0)].copy()
+    reg_games_by_year[yr] = set(pb.game_id.astype(str))
+    pb["athlete_id"] = pd.to_numeric(pb.athlete_id, errors="coerce")
+    pb = pb.dropna(subset=["athlete_id"])
+    label = season_label(yr)
+    agg_ = pb.groupby(["team_id", "athlete_id"]).agg(
+        gp=("game_id", "nunique"), gs=("starter", "sum"), mins=("minutes", "sum"), pts=("points", "sum"),
+        reb=("rebounds", "sum"), ast=("assists", "sum"), stl=("steals", "sum"), blk=("blocks", "sum"),
+        fgm=("field_goals_made", "sum"), fga=("field_goals_attempted", "sum"),
+        tpm=("three_point_field_goals_made", "sum"), tpa=("three_point_field_goals_attempted", "sum"),
+        ftm=("free_throws_made", "sum"), fta=("free_throws_attempted", "sum"),
+        name=("athlete_display_name", "last"), pos=("athlete_position_abbreviation", "last"),
+        jersey=("athlete_jersey", "last")).reset_index()
+    meta_ = pb.groupby("team_id").agg(tn=("team_display_name", "last"), ta=("team_abbreviation", "last"))
+    for tid_, g_ in agg_.groupby("team_id"):
+        try:
+            tid_i = int(tid_)
+        except Exception:
+            continue
+        if meta_.loc[tid_, "ta"] not in TEAM_ABBRS and tid_i not in id_abbr:
+            continue  # all star and exhibition teams
+        rows = []
+        for r in g_.itertuples():
+            gp_ = int(r.gp)
+            rows.append({"id": int(r.athlete_id), "gp": gp_, "gs": int(r.gs), "min": r.mins / gp_,
+                         "pts": r.pts / gp_, "reb": r.reb / gp_, "ast": r.ast / gp_, "stl": r.stl / gp_, "blk": r.blk / gp_,
+                         "fgp": 100 * r.fgm / r.fga if r.fga else None, "tpp": 100 * r.tpm / r.tpa if r.tpa else None,
+                         "ftp": 100 * r.ftm / r.fta if r.fta else None, "tot": r.mins,
+                         "pos": r.pos if isinstance(r.pos, str) else "F", "j": None if pd.isna(r.jersey) else str(r.jersey)})
+            past_people[int(r.athlete_id)] = [r.name, rows[-1]["pos"]]
+        starters = sorted(rows, key=lambda r: (-r["gs"], -r["tot"]))[:5]
+        five = past_slots(starters)
+        bench = sorted((r for r in rows if r not in five), key=lambda r: -r["tot"])
+        pack = lambda r: [r["id"], r["gp"], r["gs"], num(r["min"]), num(r["pts"]), num(r["reb"]), num(r["ast"]),
+                          num(r["stl"]), num(r["blk"]), num(r["fgp"]), num(r["tpp"]), num(r["ftp"])]
+        past.setdefault(tid_i, {})[label] = {"n": meta_.loc[tid_, "tn"], "a": meta_.loc[tid_, "ta"],
+                                             "five": [pack(r) for r in five], "bench": [pack(r) for r in bench]}
+print(f"past {sum(len(v) for v in past.values())} team seasons, {len(past_people)} players")
+
+# ================================================================ expansion sources
+import numpy as np
+import os
+import time
+import urllib.parse
+from collections import defaultdict
+
+roster_ids_all = set(int(i) for i in rost.athlete_id.dropna())
+
+
+def zone_of(x, y):
+    d = np.hypot(x - 25, y)
+    three = (d >= 23.5) | ((y < 9) & ((x - 25).abs() >= 21.5))
+    return np.select([three & (y < 9), three, d < 4, ((x - 25).abs() < 8) & (y <= 13.75)], [3, 4, 0, 1], default=2)
+
+
+# ---------------------------------------------------------------- 1. shot history
+# Shot locations back to 2001-02. Kept compact: each current player's career shot
+# chart plus his zone numbers season by season; each team season's zone numbers
+# (for the history slider); and the league's zone averages each season.
+career_hex = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+career_zone_by = defaultdict(dict)
+team_zone = {}
+league_zone_by = {}
+for yr in range(2002, stats_season + 1):
+    shx = shots if yr == stats_season and shots is not None else get("espn_nba_shots", f"shots_{yr}.parquet")
+    if shx is None or shx.empty:
+        continue
+    g_ = shx[shx.game_id.astype(str).isin(reg_games_by_year.get(yr, set()))]
+    g_ = g_[~g_.type_text.fillna("").str.contains("Free Throw")].dropna(subset=["coordinate_x_raw", "coordinate_y_raw"])
+    if g_.empty:
+        continue
+    x_, y_ = g_.coordinate_x_raw.astype(float), g_.coordinate_y_raw.astype(float)
+    g_ = g_.assign(z=zone_of(x_, y_), m=g_.scoring_play.astype(bool).astype(int),
+                   pid=pd.to_numeric(g_.athlete_id_1, errors="coerce"), tid=pd.to_numeric(g_.team_id, errors="coerce"))
+    label = season_label(yr)
+    lz_ = g_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
+    league_zone_by[label] = [[int(a), int(b)] for a, b in lz_.values]
+    for tid_, t_ in g_.groupby("tid"):
+        zz = t_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
+        team_zone[(int(tid_), label)] = [[int(a), int(b)] for a, b in zz.values]
+    mine = g_[g_.pid.isin(roster_ids_all)]
+    for pid_, p_ in mine.groupby("pid"):
+        zz = p_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
+        career_zone_by[int(pid_)][label] = [[int(a), int(b)] for a, b in zz.values]
+    keep = mine[(mine.coordinate_y_raw.astype(float) + 5.25) <= 36]
+    for pid_, xx, yy, mm in zip(keep.pid, keep.coordinate_x_raw.astype(float), keep.coordinate_y_raw.astype(float), keep.m):
+        c = career_hex[int(pid_)][hex_of(xx, yy)]
+        c[0] += 1
+        c[1] += int(mm)
+    print(f"shots {label}: {len(g_)} attempts")
+career_shots = {}
+for pid_, hx in career_hex.items():
+    by = career_zone_by.get(pid_, {})
+    tot = [[sum(v[i][0] for v in by.values()), sum(v[i][1] for v in by.values())] for i in range(5)]
+    career_shots[pid_] = {"n": sum(a for a, _ in tot), "z": tot, "h": [[k, v[0], v[1]] for k, v in hx.items()], "by": by}
+for (tid_, label), zz in team_zone.items():
+    if tid_ in past and label in past[tid_]:
+        past[tid_][label]["z"] = zz
+print(f"shots career charts for {len(career_shots)} players")
+
+# ---------------------------------------------------------------- 2. college
+# ESPN uses one athlete id for college and the NBA, so a current player's college
+# seasons join straight to his card. Box scores back to 2002-03.
+college = defaultdict(list)
+for yr in range(2003, stats_season + 1):
+    cb = get("espn_mens_college_basketball_player_boxscores", f"player_box_{yr}.parquet")
+    if cb is None or cb.empty:
+        continue
+    cb = cb[(cb.did_not_play != True) & (cb.minutes.fillna(0) > 0)].copy()
+    cb["aid"] = pd.to_numeric(cb.athlete_id, errors="coerce")
+    cb = cb[cb.aid.isin(roster_ids_all)]
+    for (aid_, tn_), g_ in cb.groupby(["aid", "team_display_name"]):
+        n = g_.game_id.nunique()
+        s_ = g_[["minutes", "points", "rebounds", "assists", "steals", "blocks", "field_goals_made", "field_goals_attempted",
+                 "three_point_field_goals_made", "three_point_field_goals_attempted", "free_throws_made", "free_throws_attempted"]].sum()
+        college[int(aid_)].append([season_label(yr), tn_, int(n), num(s_.minutes / n), num(s_.points / n), num(s_.rebounds / n),
+                                  num(s_.assists / n), num(s_.steals / n), num(s_.blocks / n),
+                                  num(100 * s_.field_goals_made / s_.field_goals_attempted) if s_.field_goals_attempted else None,
+                                  num(100 * s_.three_point_field_goals_made / s_.three_point_field_goals_attempted) if s_.three_point_field_goals_attempted else None,
+                                  num(100 * s_.free_throws_made / s_.free_throws_attempted) if s_.free_throws_attempted else None,
+                                  g_.team_logo.iloc[0] if "team_logo" in g_ else None])
+print(f"college {len(college)} current players with college seasons")
+
+# ---------------------------------------------------------------- name matching
+name_ids = defaultdict(set)
+for r in rost.itertuples():
+    name_ids[norm_name(r.display_name)].add(int(r.athlete_id))
+for pid_, v in past_people.items():
+    name_ids[norm_name(v[0])].add(pid_)
+
+
+def id_for(name):
+    ids = name_ids.get(norm_name(name))
+    return next(iter(ids)) if ids and len(ids) == 1 else None
+
+
+# ---------------------------------------------------------------- 6. awards (Wikipedia)
+AWARD_PAGES = [("MVP", "NBA Most Valuable Player Award"), ("Finals MVP", "Bill Russell NBA Finals Most Valuable Player Award"),
+               ("Defensive Player of the Year", "NBA Defensive Player of the Year Award"), ("Rookie of the Year", "NBA Rookie of the Year Award"),
+               ("Sixth Man of the Year", "NBA Sixth Man of the Year Award"), ("Most Improved Player", "NBA Most Improved Player Award"),
+               ("All-NBA", "All-NBA Team"), ("All-Defensive", "NBA All-Defensive Team")]
+AWARDS_CACHE = "awards.json"
+
+
+def season_from_text(t):
+    m = re.search(r"(19\d{2}|20\d{2})\s*[–\-]\s*(\d{2,4})", t)
+    if not m:
+        return None
+    y0 = int(m.group(1))
+    return f"{y0}-{str(y0 + 1)[-2:]}"
+
+
+def fetch_awards():
+    from bs4 import BeautifulSoup
+    out = defaultdict(list)
+    for label, page in AWARD_PAGES:
+        try:
+            html = wiki_json({"action": "parse", "page": page, "prop": "text"})["parse"]["text"]
+        except Exception as e:
+            print(f"award {page}: {e.__class__.__name__}")
+            continue
+        soup = BeautifulSoup(html, "html.parser")
+        found = 0
+        for tbl in soup.select("table.wikitable"):
+            heads = [th.get_text(" ", strip=True) for th in (tbl.find("tr").find_all(["th", "td"]) if tbl.find("tr") else [])]
+            season = None
+            for tr in tbl.find_all("tr")[1:]:
+                cells = tr.find_all(["td", "th"])
+                if not cells:
+                    continue
+                s_ = season_from_text(cells[0].get_text(" ", strip=True))
+                season = s_ or season
+                if not season:
+                    continue
+                offset = len(heads) - len(cells)  # rows under a spanning season cell are shorter
+                for i, c in enumerate(cells):
+                    head = heads[i + offset] if 0 <= i + offset < len(heads) else ""
+                    tier = next((t for t in ("First", "Second", "Third") if t.lower() in head.lower()), None)
+                    for a in c.find_all("a"):
+                        pid_ = id_for(a.get_text(strip=True))
+                        if pid_:
+                            name = label if not tier else f"{label} {tier} Team"
+                            if [season, name] not in out[pid_]:
+                                out[pid_].append([season, name])
+                                found += 1
+        print(f"award {label}: {found} player seasons matched")
+    # All-Star selections: one Wikipedia page per All-Star Game
+    for yr in range(2002, stats_season + 1):
+        try:
+            html = wiki_json({"action": "parse", "page": f"{yr} NBA All-Star Game", "prop": "text"})["parse"]["text"]
+        except Exception:
+            continue
+        soup = BeautifulSoup(html, "html.parser")
+        season = season_label(yr)
+        for tbl in soup.select("table.wikitable"):
+            if not re.search(r"Pos|Player|Starters|Reserves", tbl.get_text(" ", strip=True)[:300]):
+                continue
+            for a in tbl.find_all("a"):
+                pid_ = id_for(a.get_text(strip=True))
+                if pid_ and [season, "All-Star"] not in out[pid_]:
+                    out[pid_].append([season, "All-Star"])
+    return {str(k): sorted(v) for k, v in out.items()}
+
+
+awards = {}
+try:
+    awards = fetch_awards()
+    if sum(len(v) for v in awards.values()) < 200:
+        raise ValueError("too few awards matched")
+    json.dump({"fetched": dt.date.today().isoformat(), "awards": awards}, open(AWARDS_CACHE, "w"))
+except Exception as e:
+    print(f"award fetch failed: {e.__class__.__name__} {e}")
+    try:
+        awards = json.load(open(AWARDS_CACHE))["awards"]
+        print("award cached copy")
+    except Exception:
+        awards = {}
+print(f"award {len(awards)} players with awards")
+
+# ---------------------------------------------------------------- 7. bios (Wikidata + Wikipedia)
+# Wikidata links each ESPN player id to his Wikipedia article, so there is no name
+# guessing. The article's infobox gives college, high school and draft details.
+BIO_CACHE = "bios.json"
+
+
+def fetch_bios():
+    q = 'SELECT ?espn ?article WHERE { ?item wdt:P3685 ?espn . ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> . }'
+    req = urllib.request.Request("https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(q), headers=WIKI_UA)
+    with urllib.request.urlopen(req, timeout=90) as r:
+        rows = json.loads(r.read())["results"]["bindings"]
+    title_for = {}
+    for b in rows:
+        try:
+            title_for[int(b["espn"]["value"])] = urllib.parse.unquote(b["article"]["value"].rsplit("/wiki/", 1)[1]).replace("_", " ")
+        except Exception:
+            pass
+    want = [(pid_, title_for[pid_]) for pid_ in roster_ids_all if pid_ in title_for]
+    print(f"bios  {len(title_for)} ESPN ids linked on Wikidata, {len(want)} on current rosters")
+    bios = {}
+    for i in range(0, len(want), 40):
+        chunk = want[i:i + 40]
+        res = wiki_json({"action": "query", "prop": "revisions", "rvprop": "content", "rvslots": "main",
+                         "titles": "|".join(t for _, t in chunk), "redirects": 1})
+        pages = {p["title"]: p for p in res.get("query", {}).get("pages", [])}
+        redir = {r_["from"]: r_["to"] for r_ in res.get("query", {}).get("redirects", [])}
+        for pid_, title in chunk:
+            p = pages.get(redir.get(title, title))
+            try:
+                wt = p["revisions"][0]["slots"]["main"]["content"]
+            except Exception:
+                continue
+            f = {}
+            for key in ("college", "high_school", "draft_year", "draft_round", "draft_pick", "draft_team", "nationality"):
+                m = re.search(r"\|\s*" + key + r"\s*=\s*(.*)", wt)
+                if m:
+                    v = m.group(1)
+                    v = re.sub(r"<ref[^>]*/>|<ref[^>]*>.*?</ref>|<!--.*?-->", "", v)
+                    v = re.sub(r"\{\{\s*(?:nowrap|ubl|plainlist|hlist)\s*\|", "", v, flags=re.I)
+                    v = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]*)\]\]", r"\1", v)
+                    v = re.sub(r"\{\{[^{}]*\}\}|<br\s*/?>", ", ", v)
+                    v = re.sub(r"[{}\[\]']", "", v).strip(" ,|*")
+                    v = re.sub(r"\s*,\s*,+", ",", v)
+                    if v:
+                        f[key] = v[:120]
+            f["wiki"] = title
+            bios[str(pid_)] = f
+        time.sleep(0.5)
+    return bios
+
+
+import time
+bios = {}
+try:
+    bios = fetch_bios()
+    if len(bios) < 200:
+        raise ValueError(f"only {len(bios)} bios")
+    json.dump({"fetched": dt.date.today().isoformat(), "bios": bios}, open(BIO_CACHE, "w"), ensure_ascii=False)
+except Exception as e:
+    print(f"bios  fetch failed: {e.__class__.__name__} {e}")
+    try:
+        bios = json.load(open(BIO_CACHE))["bios"]
+        print("bios  cached copy")
+    except Exception:
+        bios = {}
+print(f"bios  {len(bios)} players")
+
+# ---------------------------------------------------------------- 8. transactions (RealGM)
+TX_CACHE = "transactions.json"
+
+
+def fetch_transactions():
+    from bs4 import BeautifulSoup
+    html = None
+    for route in ("direct", "reader"):
+        try:
+            html = get_page("https://basketball.realgm.com/nba/transactions/league", route)
+            if "Transactions" in html:
+                break
+        except Exception as e:
+            print(f"tx    {route}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+            html = None
+    if not html:
+        raise ValueError("transactions page not reachable")
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text("\n", strip=True)
+    items, day = [], None
+    for line in text.split("\n"):
+        m = re.match(r"^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (20\d\d)$", line)
+        if m:
+            day = dt.datetime.strptime(line, "%B %d, %Y").date().isoformat()
+            continue
+        if day and len(line) > 25 and re.search(r"\b(sign|waive|trade|acquire|claim|release|convert|exercise|decline|extend|re-sign|assign|recall)", line, re.I):
+            items.append([day, line[:300]])
+    if len(items) < 10:
+        raise ValueError(f"only {len(items)} transactions parsed")
+    return {"fetched": dt.date.today().isoformat(), "items": items[:400]}
+
+
+tx = None
+try:
+    tx = fetch_transactions()
+    json.dump(tx, open(TX_CACHE, "w"), ensure_ascii=False)
+    print(f"tx    {len(tx['items'])} transactions")
+except Exception as e:
+    print(f"tx    fetch failed: {e.__class__.__name__} {e}")
+    try:
+        tx = json.load(open(TX_CACHE))
+        print("tx    cached copy")
+    except Exception:
+        tx = None
+team_tx = defaultdict(list)
+if tx:
+    for r in rost.drop_duplicates("team_id").itertuples():
+        nm_ = r.team_display_name.replace("LA Clippers", "Los Angeles Clippers")
+        keys = [nm_, nm_.split(" ")[-1] if not nm_.endswith("Trail Blazers") else "Trail Blazers"]
+        for day, line in tx["items"]:
+            if any(k in line for k in keys):
+                team_tx[r.team_abbreviation].append([day, line])
+
+# ---------------------------------------------------------------- 9. Basketball Reference
+# (a) Advanced stats for the latest season: one page, every player.
+# (b) Seasons before 2001-02: one totals page, one standings page and one playoffs
+#     page per season, fetched once and saved for good in bbref_history.json.
+BBR_CACHE = "bbref_history.json"
+BBR_FROM = int(os.environ.get("BBREF_FROM", "1980"))
+BBR_CODE = {"ATL": "ATL", "BOS": "BOS", "CHI": "CHI", "CLE": "CLE", "DAL": "DAL", "DEN": "DEN", "DET": "DET", "GSW": "GS",
+            "HOU": "HOU", "IND": "IND", "KCK": "SAC", "SAC": "SAC", "LAL": "LAL", "LAC": "LAC", "SDC": "LAC", "MIL": "MIL",
+            "NJN": "BKN", "BRK": "BKN", "NYK": "NY", "PHI": "PHI", "PHO": "PHX", "POR": "POR", "SAS": "SA", "SEA": "OKC",
+            "OKC": "OKC", "UTA": "UTAH", "WSB": "WSH", "WAS": "WSH", "CHH": "CHA", "CHA": "CHA", "MIA": "MIA", "ORL": "ORL",
+            "MIN": "MIN", "TOR": "TOR", "VAN": "MEM", "MEM": "MEM", "NOH": "NO", "NOP": "NO"}
+import os
+abbr_tid = {r.team_abbreviation: int(r.team_id) for r in rost.drop_duplicates("team_id").itertuples()}
+
+
+def bbr_page(path):
+    for route in ("direct", "reader"):
+        try:
+            h = get_page("https://www.basketball-reference.com" + path, route)
+            if "<table" in h:
+                return h
+        except Exception as e:
+            print(f"bbref {path} ({route}): {e.__class__.__name__} {getattr(e, 'code', '')}")
+    return None
+
+
+def bbr_tables(html):
+    from bs4 import BeautifulSoup, Comment
+    soup = BeautifulSoup(html, "html.parser")
+    tables = soup.find_all("table")
+    for c in soup.find_all(string=lambda t: isinstance(t, Comment) and "<table" in t):
+        tables += BeautifulSoup(c, "html.parser").find_all("table")
+    return soup, tables
+
+
+def cell(tr, *keys):
+    for k in keys:
+        td = tr.find(["td", "th"], attrs={"data-stat": k})
+        if td is not None:
+            return td
+    return None
+
+
+def fval(tr, *keys):
+    td = cell(tr, *keys)
+    try:
+        return float(td.get_text(strip=True))
+    except Exception:
+        return None
+
+
+advanced = {}
+try:
+    html = bbr_page(f"/leagues/NBA_{stats_season}_advanced.html")
+    if html:
+        _, tables = bbr_tables(html)
+        for tbl in tables:
+            for tr in tbl.find_all("tr"):
+                nm_ = cell(tr, "name_display", "player")
+                if nm_ is None or not nm_.get_text(strip=True) or nm_.name == "th" and not tr.find("td"):
+                    continue
+                team_ = (cell(tr, "team_name_abbr", "team_id") or nm_).get_text(strip=True)
+                pid_ = id_for(nm_.get_text(strip=True))
+                if not pid_ or pid_ not in players_all:
+                    continue
+                row = {"per": fval(tr, "per"), "ws": fval(tr, "ws"), "ws48": fval(tr, "ws_per_48"), "bpm": fval(tr, "bpm"),
+                       "vorp": fval(tr, "vorp"), "usg": fval(tr, "usg_pct"), "obpm": fval(tr, "obpm"), "dbpm": fval(tr, "dbpm"),
+                       "g": fval(tr, "games", "g")}
+                if str(pid_) not in advanced or re.match(r"\d?TM|TOT", team_):
+                    advanced[str(pid_)] = row  # combined row wins for traded players
+    print(f"adv   {len(advanced)} players with advanced stats")
+except Exception as e:
+    print(f"adv   failed: {e.__class__.__name__} {e}")
+
+bbr = {}
+try:
+    bbr = json.load(open(BBR_CACHE))
+except Exception:
+    bbr = {}
+fetched_now = 0
+for yr in range(BBR_FROM, 2002):
+    label = season_label(yr)
+    if label in bbr and bbr[label].get("teams"):
+        continue
+    if fetched_now >= int(os.environ.get("BBREF_MAX_SEASONS", "25")):
+        break
+    try:
+        tot_html = bbr_page(f"/leagues/NBA_{yr}_totals.html")
+        time.sleep(3.5)
+        std_html = bbr_page(f"/leagues/NBA_{yr}.html")
+        time.sleep(3.5)
+        po_html = bbr_page(f"/playoffs/NBA_{yr}.html")
+        time.sleep(3.5)
+        if not tot_html:
+            continue
+        teams_ = defaultdict(list)
+        _, tables = bbr_tables(tot_html)
+        for tbl in tables:
+            for tr in tbl.find_all("tr"):
+                nm_ = cell(tr, "name_display", "player")
+                tm_ = cell(tr, "team_name_abbr", "team_id")
+                if nm_ is None or tm_ is None or not tr.find("td"):
+                    continue
+                code = tm_.get_text(strip=True)
+                if code in ("TOT", "2TM", "3TM", "4TM", "5TM") or code not in BBR_CODE:
+                    continue
+                g = fval(tr, "games", "g") or 0
+                if not g:
+                    continue
+                slug = nm_.get("data-append-csv") or (nm_.find("a")["href"].split("/")[-1].replace(".html", "") if nm_.find("a") else nm_.get_text(strip=True))
+                gs = fval(tr, "games_started", "gs")
+                mp = fval(tr, "mp") or 0
+                fga, fg = fval(tr, "fga") or 0, fval(tr, "fg") or 0
+                tpa, tp = fval(tr, "fg3a") or 0, fval(tr, "fg3") or 0
+                fta, ft = fval(tr, "fta") or 0, fval(tr, "ft") or 0
+                teams_[code].append([slug, nm_.get_text(strip=True), (cell(tr, "pos").get_text(strip=True) if cell(tr, "pos") else ""),
+                                     int(g), None if gs is None else int(gs), mp, fval(tr, "pts") or 0, fval(tr, "trb") or 0,
+                                     fval(tr, "ast") or 0, fval(tr, "stl") or 0, fval(tr, "blk") or 0,
+                                     100 * fg / fga if fga else None, 100 * tp / tpa if tpa else None, 100 * ft / fta if fta else None])
+        standings = {}
+        if std_html:
+            _, tables = bbr_tables(std_html)
+            for tbl in tables:
+                if not re.search(r"standings", tbl.get("id", "")):
+                    continue
+                rank = 0
+                for tr in tbl.find_all("tr"):
+                    a = tr.find("a", href=re.compile(r"/teams/[A-Z]{3}/"))
+                    if not a:
+                        continue
+                    code = re.search(r"/teams/([A-Z]{3})/", a["href"]).group(1)
+                    w, l = fval(tr, "wins"), fval(tr, "losses")
+                    if w is None:
+                        continue
+                    rank += 1
+                    standings.setdefault(code, {"w": int(w), "l": int(l), "name": a.get_text(strip=True), "seed": rank})
+        playoffs = []
+        if po_html:
+            psoup, _ = bbr_tables(po_html)
+            txt = psoup.get_text(" ", strip=True)
+            for m in re.finditer(r"(Finals|Conference Finals|Conference Semifinals|Conference First Round|First Round|Western Conference Finals|Eastern Conference Finals)\s+(.+?)\s+over\s+(.+?)\s*\((\d)-(\d)\)", txt):
+                playoffs.append([m.group(1), m.group(2).strip(), m.group(3).strip(), int(m.group(4)), int(m.group(5))])
+        bbr[label] = {"teams": teams_, "standings": standings, "playoffs": playoffs}
+        fetched_now += 1
+        print(f"bbref {label}: {sum(len(v) for v in teams_.values())} player lines, {len(standings)} teams, {len(playoffs)} series")
+    except Exception as e:
+        print(f"bbref {label} failed: {e.__class__.__name__} {e}")
+json.dump(bbr, open(BBR_CACHE, "w"), ensure_ascii=False)
+
+# fold the saved seasons into the history slider and the team history
+ROUND = {"First Round": 1, "Conference First Round": 1, "Conference Semifinals": 2, "Conference Finals": 3,
+         "Eastern Conference Finals": 3, "Western Conference Finals": 3, "Finals": 4}
+RESULT = {1: "first round", 2: "conference semifinals", 3: "conference finals", 4: "NBA Finals"}
+bbr_people = {}
+for label, sd in bbr.items():
+    names_ = {v["name"]: code for code, v in sd.get("standings", {}).items()}
+    for code, rows_ in sd.get("teams", {}).items():
+        ab_ = BBR_CODE.get(code)
+        tid_ = abbr_tid.get(ab_)
+        if not tid_ or not rows_:
+            continue
+        people_rows = []
+        for r_ in rows_:
+            slug, nm_, pos_, g, gs, mp, pts, trb, ast, stl, blk, fgp, tpp, ftp = r_
+            pid_ = id_for(nm_) or ("b:" + slug)  # join to ESPN when the name matches
+            if isinstance(pid_, str):
+                bbr_people[pid_] = [nm_, (pos_ or "").split("-")[0]]
+            people_rows.append({"id": pid_, "gp": g, "gs": gs if gs is not None else 0, "min": mp / g, "pts": pts / g,
+                                "reb": trb / g, "ast": ast / g, "stl": stl / g, "blk": blk / g, "fgp": fgp, "tpp": tpp,
+                                "ftp": ftp, "tot": mp, "pos": (pos_ or "F").split("-")[0]})
+        has_gs = any(r["gs"] for r in people_rows)
+        starters = sorted(people_rows, key=lambda r: (-(r["gs"] if has_gs else 0), -r["tot"]))[:5]
+        five = past_slots(starters)
+        bench = sorted((r for r in people_rows if r not in five), key=lambda r: -r["tot"])
+        pack = lambda r: [r["id"], r["gp"], r["gs"], num(r["min"]), num(r["pts"]), num(r["reb"]), num(r["ast"]),
+                          num(r["stl"]), num(r["blk"]), num(r["fgp"]), num(r["tpp"]), num(r["ftp"])]
+        st_ = sd.get("standings", {}).get(code, {})
+        past.setdefault(tid_, {})[label] = {"n": st_.get("name") or code, "a": code, "five": [pack(r) for r in five],
+                                            "bench": [pack(r) for r in bench], "src": "bbref", "gs": has_gs}
+        # playoff result for this team
+        tname = st_.get("name")
+        res, vs = "Missed playoffs", None
+        mine = [p for p in sd.get("playoffs", []) if tname and (p[1] == tname or p[2] == tname)]
+        if mine:
+            deepest = max(mine, key=lambda p: ROUND.get(p[0], 0))
+            if deepest[0] == "Finals" and deepest[1] == tname:
+                res, vs = "Champions", [names_.get(deepest[2], deepest[2]), deepest[3], deepest[4]]
+            else:
+                lost = next((p for p in mine if p[2] == tname), deepest)
+                res = f"Lost in {RESULT.get(ROUND.get(lost[0], 1), 'playoffs')}"
+                vs = [names_.get(lost[1], lost[1]), lost[4], lost[3]]
+        top = max(people_rows, key=lambda r: r["pts"] if r["gp"] >= 20 else 0)
+        entry = {"s": label, "name": tname or code, "w": st_.get("w", 0), "l": st_.get("l", 0), "seed": st_.get("seed"),
+                 "po": res, "vs": vs, "top": [bbr_people.get(top["id"], [None])[0] if isinstance(top["id"], str) else past_people.get(top["id"], [None])[0], num(top["pts"])]}
+        history.setdefault(tid_, [])
+        if not any(h["s"] == label for h in history[tid_]):
+            history[tid_].append(entry)
+for tid_ in history:
+    history[tid_].sort(key=lambda h: h["s"])
+print(f"bbref {len(bbr)} seasons before 2001-02 saved, {fetched_now} fetched this run, {len(bbr_people)} extra players")
+
+# ---------------------------------------------------------------- 10. Tankathon
+TANK_CACHE = "prospects.json"
+TANK_TEAMS = {"hawks": "ATL", "celtics": "BOS", "nets": "BKN", "hornets": "CHA", "bulls": "CHI", "cavaliers": "CLE", "mavericks": "DAL",
+              "nuggets": "DEN", "pistons": "DET", "warriors": "GS", "rockets": "HOU", "pacers": "IND", "clippers": "LAC", "lakers": "LAL",
+              "grizzlies": "MEM", "heat": "MIA", "bucks": "MIL", "timberwolves": "MIN", "pelicans": "NO", "knicks": "NY", "thunder": "OKC",
+              "magic": "ORL", "76ers": "PHI", "suns": "PHX", "trail-blazers": "POR", "kings": "SAC", "spurs": "SA", "raptors": "TOR",
+              "jazz": "UTAH", "wizards": "WSH"}
+
+
+def parse_prospects(html, with_teams):
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    out, team, seen = [], None, set()
+    for a in soup.find_all("a", href=True):
+        h = a["href"].rstrip("/")
+        slug = h.split("/")[-1]
+        if with_teams and re.search(r"tankathon\.com/[a-z0-9-]+$|^/[a-z0-9-]+$", h) and slug in TANK_TEAMS:
+            team = TANK_TEAMS[slug]
+            continue
+        if "/players/" in h and slug not in seen and slug != "compare":
+            t = a.get_text(" ", strip=True)
+            m = re.match(r"(.+?)\s+([A-Z]{1,2}(?:/[A-Z]{1,2})?)\s*\|\s*(.+)$", t)
+            if not m:
+                continue
+            seen.add(slug)
+            out.append([len(out) + 1, m.group(1).strip(), m.group(2), m.group(3).strip(), team if with_teams else None])
+    return out
+
+
+prospects = None
+try:
+    bb_html = mk_html = None
+    for route in ("direct", "reader"):
+        try:
+            bb_html = get_page("https://www.tankathon.com/big-board", route)
+            mk_html = get_page("https://www.tankathon.com/mock-draft", route)
+            break
+        except Exception as e:
+            print(f"tank  {route}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+    board = parse_prospects(bb_html, False)[:100] if bb_html else []
+    mock = parse_prospects(mk_html, True)[:60] if mk_html else []
+    if len(board) < 20:
+        raise ValueError(f"only {len(board)} prospects parsed")
+    prospects = {"fetched": dt.date.today().isoformat(), "board": board, "mock": mock}
+    json.dump(prospects, open(TANK_CACHE, "w"), ensure_ascii=False)
+    print(f"tank  {len(board)} prospects, {len(mock)} mock picks")
+except Exception as e:
+    print(f"tank  fetch failed: {e.__class__.__name__} {e}")
+    try:
+        prospects = json.load(open(TANK_CACHE))
+        print("tank  cached copy")
+    except Exception:
+        prospects = None
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -1227,6 +1865,7 @@ for r in rost.itertuples():
         "from": ", ".join(x for x in [r.birth_place_city, r.birth_place_state if isinstance(r.birth_place_state, str) else r.birth_place_country] if isinstance(x, str)),
         "t": int(r.team_id), "s": s, "po": po_line.get(pid), "sp": splits.get(pid),
         "log": logs.get(pid, []), "sh": shot_players.get(pid), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
+        "shc": career_shots.get(pid), "col": college.get(pid), "aw": awards.get(str(pid)), "bio": bios.get(str(pid)), "adv": advanced.get(str(pid)),
         "prev": lt if lt and lt != r.team_abbreviation else None,
         "_h": height_in(r.height),
     }
@@ -1274,6 +1913,7 @@ for tid, g in rost.groupby("team_id"):
         "coach": (coaches or {}).get("teams", {}).get(abbr),
         "sched": schedule.get(tid, []), "hist": history.get(tid, []),
         "picks": (picks or {}).get("teams", {}).get(abbr),
+        "past": past.get(tid, {}), "tx": team_tx.get(abbr, [])[:25],
         "st": {k: [num(v, 1), team_ranks[tid][k]] for k, v in st.items()},
     }
 
@@ -1290,9 +1930,26 @@ data = {
         "lz": league_zones, "zones": ZONES, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"), "picksDate": (picks or {}).get("fetched"),
     },
     "divs": DIVS, "teams": teams, "players": players, "leaders": leaders,
+    "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
+               **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
+    "prospects": prospects, "lzs": league_zone_by,
 }
 
-blob = json.dumps(data, separators=(",", ":"), ensure_ascii=False, default=lambda o: (o.item() if hasattr(o, "item") else None))
+def clean(o):
+    """Browsers reject NaN and Infinity in JSON, so turn any that slipped through into null."""
+    if isinstance(o, float):
+        return None if o != o or o in (float("inf"), float("-inf")) else o
+    if isinstance(o, dict):
+        return {k: clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [clean(v) for v in o]
+    if hasattr(o, "item"):
+        return clean(o.item())
+    return o
+
+
+blob = json.dumps(clean(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+                  default=lambda o: (o.item() if hasattr(o, "item") else None))
 blob = blob.replace("</", "<\\/")
 html = open("index.html", encoding="utf-8").read()
 new = re.sub(r"(<script id=\"nba-data\" type=\"application/json\">).*?(</script>)",
