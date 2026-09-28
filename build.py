@@ -1760,7 +1760,66 @@ ROUND = {"First Round": 1, "Conference First Round": 1, "Conference Semifinals":
          "Eastern Conference Finals": 3, "Western Conference Finals": 3, "Finals": 4}
 RESULT = {1: "first round", 2: "conference semifinals", 3: "conference finals", 4: "NBA Finals"}
 bbr_people = {}
+def bbr_divisions(yr):
+    """Division of each team for a season before 2001-02 (yr = the season's end year)."""
+    if yr == 1980:
+        d = {"Atlantic": "BOS NJN NYK PHI WSB", "Central": "ATL CLE DET HOU IND SAS",
+             "Midwest": "CHI DEN KCK MIL UTA", "Pacific": "GSW LAL PHO POR SDC SEA"}
+    elif yr <= 1988:
+        d = {"Atlantic": "BOS NJN NYK PHI WSB", "Central": "ATL CHI CLE DET IND MIL",
+             "Midwest": "DAL DEN HOU KCK SAC SAS UTA", "Pacific": "GSW LAL LAC PHO POR SDC SEA"}
+    elif yr == 1989:
+        d = {"Atlantic": "BOS CHH NJN NYK PHI WSB", "Central": "ATL CHI CLE DET IND MIL",
+             "Midwest": "DAL DEN HOU MIA SAS UTA", "Pacific": "GSW LAC LAL PHO POR SAC SEA"}
+    elif yr == 1990:
+        d = {"Atlantic": "BOS MIA NJN NYK PHI WSB", "Central": "ATL CHI CLE DET IND MIL ORL",
+             "Midwest": "CHH DAL DEN HOU MIN SAS UTA", "Pacific": "GSW LAC LAL PHO POR SAC SEA"}
+    else:
+        d = {"Atlantic": "BOS MIA NJN NYK ORL PHI WSB WAS", "Central": "ATL CHH CHI CLE DET IND MIL TOR",
+             "Midwest": "DAL DEN HOU MIN SAS UTA VAN", "Pacific": "GSW LAC LAL PHO POR SAC SEA"}
+    out = {}
+    for div, codes in d.items():
+        for c in codes.split():
+            out[c] = ("East" if div in ("Atlantic", "Central") else "West", div)
+    return out
+
+
+def bbr_seeds(label, standings):
+    """Seeds as the NBA set them then: the two division winners in each conference
+    get the top two seeds, everyone else follows by record."""
+    yr = int(label[:4]) + 1
+    divs = bbr_divisions(yr)
+    pct = lambda c: standings[c]["w"] / max(1, standings[c]["w"] + standings[c]["l"])
+    seeds = {}
+    for conf in ("East", "West"):
+        teams_c = [c for c in standings if divs.get(c, ("?",))[0] == conf]
+        winners = []
+        for div in {divs[c][1] for c in teams_c}:
+            in_div = [c for c in teams_c if divs[c][1] == div]
+            winners.append(max(in_div, key=pct))
+        order = sorted(winners, key=pct, reverse=True) + sorted((c for c in teams_c if c not in winners), key=pct, reverse=True)
+        for i, c in enumerate(order, 1):
+            seeds[c] = i
+    return seeds
+
+
+def clean_series(sd):
+    """Series lines read from the playoffs page can carry page text before the
+    winner's name; keep only the real team names."""
+    names = [v["name"] for v in sd.get("standings", {}).values()]
+    out = []
+    for rnd, win, lose, a, b in sd.get("playoffs", []):
+        w = win if win in names else next((n for n in sorted(names, key=len, reverse=True) if win.endswith(n)), None)
+        l = lose if lose in names else next((n for n in sorted(names, key=len, reverse=True) if lose.startswith(n)), None)
+        if w and l:
+            out.append([rnd, w, l, a, b])
+    return out
+
+
 for label, sd in bbr.items():
+    sd["playoffs"] = clean_series(sd)
+    for code, seed in bbr_seeds(label, sd.get("standings", {})).items():
+        sd["standings"][code]["seed"] = seed
     names_ = {v["name"]: code for code, v in sd.get("standings", {}).items()}
     for code, rows_ in sd.get("teams", {}).items():
         ab_ = BBR_CODE.get(code)
@@ -1915,7 +1974,8 @@ try:
         nba_ = b.get("nba", {}).get("value")
         img_ = b.get("img", {}).get("value")
         img_ = urllib.parse.unquote(img_.rsplit("/", 1)[-1]) if img_ else None
-        for key in ([b["espn"]["value"]] if "espn" in b else []) + (["b:" + b["bbref"]["value"]] if "bbref" in b else []):
+        # Wikidata keeps Basketball Reference ids with their letter folder ("j/jordami01")
+        for key in ([b["espn"]["value"]] if "espn" in b else []) + (["b:" + b["bbref"]["value"].split("/")[-1]] if "bbref" in b else []):
             cur_ = wd.get(key, [None, None])
             wd[key] = [cur_[0] or (int(nba_) if nba_ and nba_.isdigit() else None), cur_[1] or img_]
     if len(wd) > 1000:
@@ -1933,17 +1993,106 @@ try:
     print(f"photo {len(rows)} players in the nba_api list")
 except Exception as e:
     print(f"photo nba_api list failed: {e.__class__.__name__}; using cached")
-json.dump(photo_cache, open(PHOTO_CACHE, "w"), separators=(",", ":"))
-photos = {}
+# NBA.com answers every id with an image, and players it has no photo of get the same
+# generic silhouette (4,937 bytes at 260x190). Check each id once and remember it, so
+# the page only asks NBA.com for real photos and otherwise moves on to ESPN or Commons.
+SILHOUETTE_BYTES = 4937
+checked = photo_cache.setdefault("nbaok", {})
+
+
+def nba_photo_ok(pid_):
+    try:
+        req = urllib.request.Request(f"https://cdn.nba.com/headshots/nba/latest/260x190/{pid_}.png", method="HEAD",
+                                     headers={"User-Agent": TWOK_UA, "Referer": "https://www.nba.com/"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            n = r.headers.get("Content-Length")
+        if n is None:
+            with urllib.request.urlopen(urllib.request.Request(req.full_url, headers=req.headers), timeout=20) as r:
+                n = len(r.read())
+        return 0 if int(n) == SILHOUETTE_BYTES else 1
+    except Exception:
+        return None  # unknown: could not check this run
+
+
+def all_nba_ids():
+    ids_ = set()
+    names_ = photo_cache.get("names", {})
+    for key, name in everyone.items():
+        w_ = photo_cache.get("wd", {}).get(key, [None, None])
+        n_ = w_[0] or names_.get(norm_name(name))
+        if n_:
+            ids_.add(int(n_))
+    return ids_
+
+
 everyone = {str(k): v[0] for k, v in past_people.items()}
 everyone.update({k: v[0] for k, v in bbr_people.items()})
 everyone.update({str(int(r.athlete_id)): r.display_name for r in rost.itertuples()})
+todo_ids = [i for i in all_nba_ids() if str(i) not in checked]
+if todo_ids:
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(16) as ex:
+        results = list(ex.map(nba_photo_ok, todo_ids))
+    for i, ok in zip(todo_ids, results):
+        if ok is not None:
+            checked[str(i)] = ok
+    unknown = sum(1 for r_ in results if r_ is None)
+    print(f"photo checked {len(todo_ids) - unknown} NBA.com photos ({sum(1 for r_ in results if r_ == 1)} real, "
+          f"{sum(1 for r_ in results if r_ == 0)} silhouettes){f', {unknown} not reachable' if unknown else ''}")
+json.dump(photo_cache, open(PHOTO_CACHE, "w"), separators=(",", ":"))
+photos = {}
 for key, name in everyone.items():
     w_ = photo_cache.get("wd", {}).get(key, [None, None])
     nba_ = w_[0] or photo_cache.get("names", {}).get(norm_name(name))
+    if nba_ and checked.get(str(nba_)) == 0:
+        nba_ = None  # NBA.com only has the silhouette for him
     if nba_ or w_[1]:
         photos[key] = [nba_ or 0, w_[1] or ""]
 print(f"photo {len(photos)} of {len(everyone)} players have an NBA.com id or a Commons photo")
+
+# ---------------------------------------------------------------- NBA.com game ids
+# NBA.com's replay pages are addressed by its own game id (0022501159). The season
+# schedule file on NBA.com's CDN lists every game with that id. Ids are kept across
+# runs in nba_games.json, so past seasons stay linked after the file moves on.
+NBAG_CACHE = "nba_games.json"
+try:
+    nba_games = json.load(open(NBAG_CACHE))
+except Exception:
+    nba_games = {}
+try:
+    raw_ = None
+    for route in ("direct", "reader"):
+        try:
+            if route == "direct":
+                req = urllib.request.Request("https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
+                                             headers={"User-Agent": TWOK_UA, "Referer": "https://www.nba.com/", "Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    raw_ = r.read().decode()
+            else:
+                req = urllib.request.Request("https://r.jina.ai/https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
+                                             headers={"User-Agent": "NBA-Rosters personal app", "X-Return-Format": "text"})
+                with urllib.request.urlopen(req, timeout=90) as r:
+                    raw_ = r.read().decode()
+                raw_ = raw_[raw_.index("{"):raw_.rindex("}") + 1]
+            sched_ = json.loads(raw_)
+            break
+        except Exception as e:
+            print(f"nbaid {route}: {e.__class__.__name__} {getattr(e, 'code', '')}")
+            sched_ = None
+    added = 0
+    for day in (sched_ or {}).get("leagueSchedule", {}).get("gameDates", []):
+        for g in day.get("games", []):
+            d_ = (g.get("gameDateEst") or "")[:10]
+            a_, h_ = g.get("awayTeam", {}).get("teamTricode"), g.get("homeTeam", {}).get("teamTricode")
+            if d_ and a_ and h_ and g.get("gameId"):
+                key = f"{d_}|{a_}|{h_}"
+                if key not in nba_games:
+                    added += 1
+                nba_games[key] = g["gameId"]
+    json.dump(nba_games, open(NBAG_CACHE, "w"), separators=(",", ":"))
+    print(f"nbaid {len(nba_games)} NBA.com game ids ({added} new)")
+except Exception as e:
+    print(f"nbaid failed: {e.__class__.__name__} {e}")
 
 players, teams = {}, {}
 for r in rost.itertuples():
@@ -2029,7 +2178,7 @@ data = {
     "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
-    "prospects": prospects, "lzs": league_zone_by, "photos": photos,
+    "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games,
 }
 
 def clean(o):
