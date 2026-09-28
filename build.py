@@ -1035,10 +1035,15 @@ except Exception as e:
 # Built from every box score, so players no longer in the league still count.
 # Qualifying rules follow the NBA's: per game leaders need 70% of games, and the
 # shooting leaders need a minimum number of makes (scaled early in a season).
-def build_leaders(src, playoffs=False):
+def build_leaders(src, playoffs=False, top=25):
     g = src[(src.did_not_play != True) & (src.minutes.fillna(0) > 0)].copy()
     if g.empty:
         return None
+    if not playoffs:
+        tg_ = g.groupby("team_abbreviation").game_id.nunique()
+        g = g[g.team_abbreviation.isin(tg_[tg_ >= 20].index)]
+        if g.empty:
+            return None
     g["pm"] = pd.to_numeric(g.plus_minus.astype(str).str.replace("+", "", regex=False), errors="coerce")
     g["dd"] = ((g[["points", "rebounds", "assists", "steals", "blocks"]] >= 10).sum(axis=1) >= 2).astype(int)
     a = g.groupby("athlete_id").agg(gp=("game_id", "nunique"), pm=("pm", "sum"), dd=("dd", "sum"),
@@ -1055,7 +1060,7 @@ def build_leaders(src, playoffs=False):
 
     def add(key, label, grp, series, fmt=1, asc=False, note=None):
         s = series.dropna()
-        s = s.sort_values(ascending=asc).head(25)
+        s = s.sort_values(ascending=asc).head(top)
         rows = []
         for aid, v in s.items():
             r = a.loc[aid]
@@ -1095,6 +1100,7 @@ leaders = {"season": season_label(stats_season),
            "reg": build_leaders(box[box.season_type == 2]),
            "po": build_leaders(box[box.season_type == 3], playoffs=True)}
 print(f"lead {len(leaders['reg'] or [])} regular season boards, {len(leaders['po'] or [])} playoff boards")
+leaders_by = {leaders["season"]: {"reg": leaders["reg"], "po": leaders["po"]}}
 
 # ---------------------------------------------------------------- schedule
 # The full regular season schedule, published by sportsdataverse from ESPN. Scores
@@ -1255,6 +1261,12 @@ for yr in range(PAST_FROM, stats_season + 1):
     pb = box if yr == stats_season else get("espn_nba_player_boxscores", f"player_box_{yr}.parquet")
     if pb is None or pb.empty:
         continue
+    if yr != stats_season:
+        try:
+            leaders_by[season_label(yr)] = {"reg": build_leaders(pb[pb.season_type == 2], top=15),
+                                            "po": build_leaders(pb[pb.season_type == 3], playoffs=True, top=15)}
+        except Exception as e:
+            print(f"lead {season_label(yr)} skipped: {e.__class__.__name__}")
     pb = pb[(pb.season_type == 2) & (pb.did_not_play != True) & (pb.minutes.fillna(0) > 0)].copy()
     reg_games_by_year[yr] = set(pb.game_id.astype(str))
     pb["athlete_id"] = pd.to_numeric(pb.athlete_id, errors="coerce")
@@ -1791,6 +1803,36 @@ for label, sd in bbr.items():
         history.setdefault(tid_, [])
         if not any(h["s"] == label for h in history[tid_]):
             history[tid_].append(entry)
+for label, sd in bbr.items():
+    if label in leaders_by:
+        continue
+    tot_ = {}
+    for code, rows_ in sd.get("teams", {}).items():
+        for r_ in rows_:
+            slug, nm_, pos_, g, gs, mp, pts, trb, ast, stl, blk = r_[:11]
+            key = id_for(nm_) or ("b:" + slug)
+            t = tot_.setdefault(key, {"n": nm_, "t": BBR_CODE.get(code, code), "gp": 0, "pts": 0, "reb": 0, "ast": 0, "stl": 0, "blk": 0, "min": 0})
+            t["gp"] += g; t["pts"] += pts; t["reb"] += trb; t["ast"] += ast; t["stl"] += stl; t["blk"] += blk; t["min"] += mp
+            t["t"] = BBR_CODE.get(code, code)
+    if not tot_:
+        continue
+    import math
+    team_g = max((max((r_[3] for r_ in rows_), default=0) for rows_ in sd.get("teams", {}).values()), default=82)
+    min_gp = max(1, math.ceil(min(team_g, 82) * .7))
+    cats = []
+
+    def board(key, label, grp, per, fmt=1, note=None):
+        pool = [(k, v) for k, v in tot_.items() if (not per or v["gp"] >= min_gp) and v[key]]
+        pool.sort(key=lambda kv: -(kv[1][key] / kv[1]["gp"] if per else kv[1][key]))
+        rows = [[k if isinstance(k, int) and k in players_all else None, v["n"], v["t"],
+                 round(v[key] / v["gp"], 1) if per else int(v[key]), int(v["gp"]), k] for k, v in pool[:15]]
+        cats.append({"k": ("" if per else "t") + key, "l": label, "g": grp, "note": note, "rows": rows, "fmt": fmt if per else None})
+    pgn = f"{min_gp}+ games"
+    for k_, l_ in (("pts", "Points"), ("reb", "Rebounds"), ("ast", "Assists"), ("stl", "Steals"), ("blk", "Blocks"), ("min", "Minutes")):
+        board(k_, l_, "Per game", True, note=pgn)
+    for k_, l_ in (("pts", "Points"), ("reb", "Rebounds"), ("ast", "Assists"), ("gp", "Games played")):
+        board(k_, l_, "Totals", False)
+    leaders_by[label] = {"reg": cats, "po": None, "src": "bbref"}
 for tid_ in history:
     history[tid_].sort(key=lambda h: h["s"])
 print(f"bbref {len(bbr)} seasons before 2001-02 saved, {fetched_now} fetched this run, {len(bbr_people)} extra players")
@@ -1848,6 +1890,60 @@ except Exception as e:
         print("tank  cached copy")
     except Exception:
         prospects = None
+
+# ---------------------------------------------------------------- photos for every player
+# NBA.com has official headshots for nearly everyone who has played, keyed by NBA
+# person id. Ids come from Wikidata (linked to the ESPN and Basketball Reference
+# ids this app uses) and, failing that, from the nba_api player list on GitHub,
+# matched by name when the name is unique. Wikidata also gives a Wikimedia Commons
+# photo as a last resort. The page tries NBA.com, then ESPN, then Commons.
+PHOTO_CACHE = "photos.json"
+try:
+    photo_cache = json.load(open(PHOTO_CACHE))
+except Exception:
+    photo_cache = {"wd": {}, "names": {}}
+try:
+    q = """SELECT ?espn ?bbref ?nba ?img WHERE {
+      { ?p wdt:P3685 ?espn } UNION { ?p wdt:P2685 ?bbref }
+      OPTIONAL { ?p wdt:P3685 ?espn } OPTIONAL { ?p wdt:P2685 ?bbref }
+      OPTIONAL { ?p wdt:P3647 ?nba } OPTIONAL { ?p wdt:P18 ?img } }"""
+    req = urllib.request.Request("https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(q), headers=WIKI_UA)
+    with urllib.request.urlopen(req, timeout=120) as r:
+        rows = json.loads(r.read())["results"]["bindings"]
+    wd = {}
+    for b in rows:
+        nba_ = b.get("nba", {}).get("value")
+        img_ = b.get("img", {}).get("value")
+        img_ = urllib.parse.unquote(img_.rsplit("/", 1)[-1]) if img_ else None
+        for key in ([b["espn"]["value"]] if "espn" in b else []) + (["b:" + b["bbref"]["value"]] if "bbref" in b else []):
+            cur_ = wd.get(key, [None, None])
+            wd[key] = [cur_[0] or (int(nba_) if nba_ and nba_.isdigit() else None), cur_[1] or img_]
+    if len(wd) > 1000:
+        photo_cache["wd"] = wd
+    print(f"photo {len(wd)} players linked on Wikidata")
+except Exception as e:
+    print(f"photo Wikidata failed: {e.__class__.__name__} {e}; using {len(photo_cache.get('wd', {}))} cached")
+try:
+    src_ = urllib.request.urlopen("https://raw.githubusercontent.com/swar/nba_api/master/src/nba_api/stats/library/data.py", timeout=60).read().decode()
+    rows = re.findall(r'^\s*\[(\d+), "([^"]*)", "([^"]*)", "([^"]*)", (?:True|False)\]', src_[:src_.index("teams = [")], re.M)
+    by_ = defaultdict(list)
+    for i_, _, _, full_ in rows:
+        by_[norm_name(full_)].append(int(i_))
+    photo_cache["names"] = {k: v[0] for k, v in by_.items() if len(v) == 1}
+    print(f"photo {len(rows)} players in the nba_api list")
+except Exception as e:
+    print(f"photo nba_api list failed: {e.__class__.__name__}; using cached")
+json.dump(photo_cache, open(PHOTO_CACHE, "w"), separators=(",", ":"))
+photos = {}
+everyone = {str(k): v[0] for k, v in past_people.items()}
+everyone.update({k: v[0] for k, v in bbr_people.items()})
+everyone.update({str(int(r.athlete_id)): r.display_name for r in rost.itertuples()})
+for key, name in everyone.items():
+    w_ = photo_cache.get("wd", {}).get(key, [None, None])
+    nba_ = w_[0] or photo_cache.get("names", {}).get(norm_name(name))
+    if nba_ or w_[1]:
+        photos[key] = [nba_ or 0, w_[1] or ""]
+print(f"photo {len(photos)} of {len(everyone)} players have an NBA.com id or a Commons photo")
 
 players, teams = {}, {}
 for r in rost.itertuples():
@@ -1930,9 +2026,10 @@ data = {
         "lz": league_zones, "zones": ZONES, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"), "picksDate": (picks or {}).get("fetched"),
     },
     "divs": DIVS, "teams": teams, "players": players, "leaders": leaders,
+    "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
-    "prospects": prospects, "lzs": league_zone_by,
+    "prospects": prospects, "lzs": league_zone_by, "photos": photos,
 }
 
 def clean(o):
