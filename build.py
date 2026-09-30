@@ -2290,7 +2290,7 @@ try:
                     continue
                 if not pick or rnd > 2:
                     continue
-                name = re.sub(r"[\^~*+#†‡§]+", "", cells[ci["player"]]).strip()
+                name = re.sub(r"\s*\[[^\]]*\]", "", re.sub(r"[\^~*+#†‡§]+", "", cells[ci["player"]])).strip()
                 team = re.sub(r"\[.*?\]", "", cells[ci["team"]]).strip()
                 ab = team_by_name.get(team) or next((a for n, a in team_by_name.items() if n and n in team), None)
                 picks_.append([rnd, pick, name, cells[ci["pos"]] if ci["pos"] is not None else "",
@@ -2311,6 +2311,7 @@ except Exception as e:
     print(f"draft history stopped: {e.__class__.__name__} {e}")
 for yr_, rows_ in drafts.items():
     for r_ in rows_:
+        r_[2] = re.sub(r"\s*\[[^\]]*\]", "", r_[2]).strip()  # footnote marks like "[1]"
         pid_ = name_to_id.get(norm_name(r_[2]))
         if len(r_) < 8:
             r_.append(pid_)
