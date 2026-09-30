@@ -1331,6 +1331,34 @@ def zone_of(x, y):
 # (for the history slider); and the league's zone averages each season.
 career_hex = defaultdict(lambda: defaultdict(lambda: [0, 0]))
 career_zone_by = defaultdict(dict)
+# One file per season in data/shots/ (every player with 40+ shots, every team), loaded
+# by the page only when you slide to that season. Finished seasons are written once.
+os.makedirs("data/shots", exist_ok=True)
+shot_file_seasons = []
+
+
+def hex_vec(x, y):
+    """Vectorized hex_of: nearest pointy top hex for arrays of shots."""
+    yb = y + 5.25
+    best_d = best_c = best_r = None
+    r0 = np.round(yb / (1.5 * HEX_R)).astype(int)
+    for dr in (-1, 0, 1):
+        row = r0 + dr
+        off = (row % 2) * HEX_W / 2
+        col = np.round((x - off) / HEX_W).astype(int)
+        d = (x - (col * HEX_W + off)) ** 2 + (yb - row * 1.5 * HEX_R) ** 2
+        if best_d is None:
+            best_d, best_c, best_r = d, col, row
+        else:
+            m = d < best_d
+            best_d = np.where(m, d, best_d); best_c = np.where(m, col, best_c); best_r = np.where(m, row, best_r)
+    return best_c + best_r * 100
+
+
+def season_pack(df_):
+    z = df_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
+    h = df_[df_.hx >= 0].groupby("hx").m.agg(["size", "sum"])
+    return {"n": int(len(df_)), "z": [[int(a), int(b)] for a, b in z.values], "h": [[int(k), int(a), int(b)] for k, (a, b) in h.iterrows()]}
 team_zone = {}
 league_zone_by = {}
 for yr in range(2002, stats_season + 1):
@@ -1347,6 +1375,18 @@ for yr in range(2002, stats_season + 1):
     label = season_label(yr)
     lz_ = g_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
     league_zone_by[label] = [[int(a), int(b)] for a, b in lz_.values]
+    spath = f"data/shots/{label}.json"
+    if not (os.path.exists(spath) and yr < stats_season):
+        xs, ys = x_.values, y_.values
+        sf = g_.assign(hx=np.where((ys + 5.25) <= 36, hex_vec(xs, ys), -1))
+        counts_ = sf.groupby("pid").size()
+        out_ = {"lz": league_zone_by[label], "p": {}, "t": {}}
+        for pid_, p_ in sf[sf.pid.isin(counts_[counts_ >= 40].index)].groupby("pid"):
+            out_["p"][str(int(pid_))] = season_pack(p_)
+        for tid_, t_ in sf.dropna(subset=["tid"]).groupby("tid"):
+            out_["t"][str(int(tid_))] = season_pack(t_)
+        json.dump(out_, open(spath, "w"), separators=(",", ":"))
+    shot_file_seasons.append(label)
     for tid_, t_ in g_.groupby("tid"):
         zz = t_.groupby("z").m.agg(["size", "sum"]).reindex(range(5), fill_value=0)
         team_zone[(int(tid_), label)] = [[int(a), int(b)] for a, b in zz.values]
@@ -1368,7 +1408,7 @@ for pid_, hx in career_hex.items():
 for (tid_, label), zz in team_zone.items():
     if tid_ in past and label in past[tid_]:
         past[tid_][label]["z"] = zz
-print(f"shots career charts for {len(career_shots)} players")
+print(f"shots career charts for {len(career_shots)} players, season files for {len(shot_file_seasons)} seasons")
 
 # ---------------------------------------------------------------- 2. college
 # ESPN uses one athlete id for college and the NBA, so a current player's college
@@ -2403,7 +2443,7 @@ data = {
     "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
-    "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts,
+    "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts, "shotSeasons": shot_file_seasons,
 }
 
 def clean(o):

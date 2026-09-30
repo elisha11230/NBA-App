@@ -542,6 +542,7 @@ video.hlv{width:100%;border-radius:var(--r);background:#000;display:block;margin
 .lslide b{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--strong);min-width:64px}
 .lslide.past{border-color:var(--brass)}
 .lslide[hidden]{display:none}
+.shotslide{margin:0 0 10px;padding:6px 10px}
 .keepspace{visibility:hidden}
 
 /* ---------- light theme fixes for accent colors ---------- */
@@ -1670,11 +1671,13 @@ function renderHistPlayer(){
   h += `<div class="dhead"><div class="dphoto">${photo(id, nm, 'ini', 'fallback')}</div><div>
     <div class="dname blk">${esc(nm)}</div><div class="dpos">${esc(personPos(id))}</div><div class="histhead" style="margin-top:6px">Not on a current NBA roster</div></div></div>`;
   h += honorsSection(id);
+  const hs = playerShotSection(null, id);
   h += `<section class="sect k-stat"><h3>Career since ${C.length ? C[0].s : '2001-02'}<span>${C.length} team seasons, ${gp} games</span></h3>
     <div class="big3"><div><b>${f1(w('pts'))}</b><span>Points</span></div><div><b>${f1(w('reb'))}</b><span>Rebounds</span></div><div><b>${f1(w('ast'))}</b><span>Assists</span></div></div>
     <div class="scroll" style="margin-top:10px"><table class="tb"><tr><th>Season</th><th>Tm</th><th>GP</th><th>GS</th><th>Min</th><th>Pts</th><th>Reb</th><th>Ast</th><th>FG%</th><th>3P%</th></tr>
     ${[...C].reverse().map(r => `<tr${r.s === pastSeason ? ' class="po"' : ''}><td>${r.s}</td><td>${esc(r.a)}</td><td>${r.gp}</td><td>${r.gs}</td><td>${f1(r.min)}</td><td><b>${f1(r.pts)}</b></td><td>${f1(r.reb)}</td><td>${f1(r.ast)}</td><td>${pct(r.fgp)}</td><td>${pct(r.tpp)}</td></tr>`).join('')}</table></div>
     <p class="note">Seasons from ${esc((M.oldSeasons || [])[0] || allSeasons()[0] || '2001-02')} on are in the data, so a career that began earlier is partial. A traded player shows one row per team.</p></section>`;
+  h += hs;
   $('#detail').innerHTML = h;
   $('#back').onclick = () => setView('team');
 }
@@ -2255,8 +2258,8 @@ function courtLines(){
     <line x1="0" y1="0.8" x2="500" y2="0.8" stroke="${L}" stroke-width="${w}"/>`;
 }
 function zoneRates(sh){ return sh.z.map(([a, m]) => a ? m / a : null); }
-function hexChart(sh, span = 10){
-  const R = M.hexR || 1.3, W = Math.sqrt(3) * R, lz = LZ(), zr = zoneRates(sh);
+function hexChart(sh, span = 10, lzs){
+  const R = M.hexR || 1.3, W = Math.sqrt(3) * R, lz = lzs ? lzs.map(([a, m]) => a ? m / a : 0) : LZ(), zr = zoneRates(sh);
   const atts = sh.h.map(h => h[1]).sort((a, b) => a - b);
   const ref = Math.max(atts[Math.floor(atts.length * .9)] || 1, 1);
   let g = '';
@@ -2285,13 +2288,13 @@ function dotChart(str){
     <g fill="#6FD69B" fill-opacity=".6">${make.join('')}</g>
     <g stroke="#E08A8A" stroke-width="1.4" opacity=".75">${miss.join('')}</g></svg>`;
 }
-function zoneTable(sh, perGame, def, span = 10){
-  const lz = LZ(), tot = sh.z.reduce((a, z) => a + z[0], 0) || 1;
-  const lgTot = (M.lz || []).reduce((a, z) => a + z[0], 0) || 1;
+function zoneTable(sh, perGame, def, span = 10, lzs){
+  const lz = lzs ? lzs.map(([a, m]) => a ? m / a : 0) : LZ(), tot = sh.z.reduce((a, z) => a + z[0], 0) || 1;
+  const lgTot = (lzs || M.lz || []).reduce((a, z) => a + z[0], 0) || 1;
   return `<div class="scroll" style="margin-top:12px"><table class="tb zt"><tr><th>Zone</th><th>${perGame ? 'Per gm' : 'Shots'}</th><th>Share</th><th>FG%</th><th>vs NBA</th></tr>` +
     sh.z.map(([a, m], i) => {
       if (!a) return `<tr><td>${M.zones[i]}</td><td>0</td><td>0%</td><td>—</td><td></td></tr>`;
-      const fg = m / a * 100, d = fg - lz[i] * 100, share = a / tot * 100, lgShare = M.lz[i][0] / lgTot * 100;
+      const fg = m / a * 100, d = fg - lz[i] * 100, share = a / tot * 100, lgShare = (lzs || M.lz)[i][0] / lgTot * 100;
       return `<tr><td><span class="sw" style="background:${heatColor(d, span)}"></span>${M.zones[i]}</td>
         <td>${perGame ? (a / perGame).toFixed(1) : a}</td><td title="NBA share ${lgShare.toFixed(0)}%">${share.toFixed(0)}%</td>
         <td><b>${fg.toFixed(1)}</b></td><td class="${(def ? -d : d) >= 1.5 ? 'w' : (def ? -d : d) <= -1.5 ? 'lz' : ''}">${d > 0 ? '+' : ''}${d.toFixed(1)}</td></tr>`;
@@ -2300,18 +2303,69 @@ function zoneTable(sh, perGame, def, span = 10){
 const heatLegend = `${heatKey(10)}
   <p class="note">Bigger hexes mean more shots from that spot. Color compares his FG% in that zone with the NBA average there: blue is below, orange and red above.</p>`;
 let playerShotMode = 'hex', teamShotSide = 'off';
-function playerShotSection(p){
-  const sh = p.sh; if (!sh || sh.n < 15) return '';
-  const useC = shotSpan === 'career' && p.shc && p.shc.n;
-  const shv = useC ? p.shc : sh;
-  const body = playerShotMode === 'hex' ? `<div class="shotwrap">${hexChart(shv)}</div>` + heatLegend
-    : `<div class="shotwrap">${dotChart(sh.d || '')}</div>` + `<div class="legend"><span><i style="background:#6FD69B"></i>Made</span><span><i style="background:#C98080"></i>Missed</span></div>`;
-  const cN = p.shc && p.shc.n ? Object.keys(p.shc.by || {}).length : 0;
-  return `<section class="sect k-stat" id="pshots"><h3>Shot chart<span>${useC ? `${shv.n} shots over ${cN} seasons` : `${sh.n} shots, ${M.stats}`}</span></h3>
-    ${cN > 1 ? `<div class="seg"><button data-ss="season" aria-pressed="${!useC}">${esc(M.stats)}</button><button data-ss="career" aria-pressed="${!!useC}">Career since ${esc(Object.keys(p.shc.by).sort()[0])}</button></div>` : ''}
-    <div class="seg"><button data-sm="hex" aria-pressed="${playerShotMode === 'hex' || useC}">Hot zones</button>${useC ? '' : `<button data-sm="dots" aria-pressed="${playerShotMode === 'dots'}">Makes and misses</button>`}</div>
-    ${useC ? `<div class="shotwrap">${hexChart(shv)}</div>` + heatLegend : body}${zoneTable(shv, useC ? 0 : (p.s ? p.s.gp : 0))}${useC ? careerShotBits(p) : ''}</section>`;
+// ---------- shot chart by season: one file per season in data/shots, loaded on demand ----------
+const shotFiles = {};
+function loadShotSeason(s){
+  if (!shotFiles[s]) shotFiles[s] = fetch(`data/shots/${s}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  return shotFiles[s];
 }
+const shotPick = {};  // player id -> season shown, or 'career'
+function playerShotSeasons(id, p){
+  const have = new Set(D.shotSeasons || []), out = new Set();
+  if (p && p.shc && p.shc.by) for (const s of Object.keys(p.shc.by)) if (have.has(s)) out.add(s);
+  if (!p) for (const r of careerOf(id)) if (have.has(r.s)) out.add(r.s);
+  if (p && p.sh && p.sh.n >= 15) out.add(M.stats);
+  return [...out].sort();
+}
+function playerShotSection(p, idArg){
+  const id = String(idArg ?? curP);
+  const seasons = playerShotSeasons(id, p);
+  const hasCareer = p && p.shc && p.shc.n && seasons.length > 1;
+  if (!seasons.length && !(p && p.sh && p.sh.n >= 15)) return '';
+  const stops = [...seasons, ...(hasCareer ? ['career'] : [])];
+  let pick = shotPick[id];
+  if (!pick || !stops.includes(pick)) pick = shotPick[id] = (pastSeason && stops.includes(pastSeason)) ? pastSeason : stops.includes(M.stats) ? M.stats : stops[stops.length - 1];
+  let sh = null, lzs = null, loading = false, perGame = 0;
+  if (pick === 'career'){ sh = p.shc; }
+  else if (p && pick === M.stats && p.sh){ sh = p.sh; perGame = p.s ? p.s.gp : 0; }
+  else {
+    const f = shotFiles[pick];
+    if (f && f.done){ sh = f.data && f.data.p[id]; lzs = f.data && f.data.lz; }
+    else { loading = true; loadShotSeason(pick).then(data => { shotFiles[pick].done = true; shotFiles[pick].data = data; const el = $('#pshots'); if (el && String(curP) === id) el.outerHTML = playerShotSection(P[id], id); }); }
+  }
+  const dotsOK = p && pick === M.stats && p.sh && p.sh.d;
+  const mode = dotsOK ? playerShotMode : 'hex';
+  const slider = stops.length > 1 ? `<div class="lslide shotslide${pick !== M.stats ? ' past' : ''}"><b>${pick === 'career' ? 'Career' : esc(pick)}</b>
+    <input type="range" min="0" max="${stops.length - 1}" value="${stops.indexOf(pick)}" data-shot-slider="${esc(id)}" aria-label="Season">
+    <span class="hint" style="white-space:nowrap">${stops.length - (hasCareer ? 1 : 0)} seasons</span></div>` : '';
+  let body;
+  if (loading) body = `<div class="shotwrap"><svg viewBox="0 0 500 360">${courtLines()}</svg></div><p class="note">Loading ${esc(pick)}…</p>`;
+  else if (!sh) body = `<p class="note">No shot locations for this season.</p>`;
+  else {
+    body = (mode === 'hex' ? `<div class="shotwrap">${hexChart(sh, 10, lzs)}</div>${heatLegend}`
+      : `<div class="shotwrap">${dotChart(sh.d || '')}</div><div class="legend"><span><i style="background:#6FD69B"></i>Made</span><span><i style="background:#C98080"></i>Missed</span></div>`)
+      + zoneTable(sh, perGame, false, 10, lzs) + (pick === 'career' ? careerShotBits(p) : '');
+  }
+  const head = sh ? `${sh.n.toLocaleString()} shots, ${pick === 'career' ? `career since ${esc(seasons[0])}` : esc(pick)}` : esc(pick === 'career' ? 'Career' : pick);
+  return `<section class="sect k-stat" id="pshots"><h3>Shot chart<span>${head}</span></h3>${slider}
+    ${dotsOK ? `<div class="seg"><button data-sm="hex" aria-pressed="${mode === 'hex'}">Hot zones</button><button data-sm="dots" aria-pressed="${mode === 'dots'}">Makes and misses</button></div>` : ''}
+    ${body}${pick !== M.stats && pick !== 'career' && sh ? `<p class="note">Compared with the league average that season.</p>` : ''}</section>`;
+}
+let shotRaf = 0;
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-shot-slider]'); if (!r) return;
+  const id = r.dataset.shotSlider, p = P[id], seasons = playerShotSeasons(id, p);
+  const stops = [...seasons, ...(p && p.shc && p.shc.n && seasons.length > 1 ? ['career'] : [])];
+  shotPick[id] = stops[+r.value];
+  const lab = r.parentElement.querySelector('b'); if (lab) lab.textContent = shotPick[id] === 'career' ? 'Career' : shotPick[id];
+  cancelAnimationFrame(shotRaf);
+  shotRaf = requestAnimationFrame(() => {
+    const el = $('#pshots'); if (!el) return;
+    const keep = r.value;
+    el.outerHTML = playerShotSection(p, id);
+    const nr = document.querySelector(`[data-shot-slider="${CSS.escape(id)}"]`); if (nr){ nr.value = keep; nr.focus({preventScroll: true}); }
+  });
+});
 function teamShotSection(t){
   const sh = teamShotSide === 'off' ? t.sh : t.shd; if (!sh) return '';
   const gp = t.st && t.st.ppg ? (t.games || []).filter(g => g[5] === 2).length : 0;
@@ -2324,7 +2378,6 @@ function teamShotSection(t){
     <p class="note">${note}</p>${zoneTable(sh, gp, teamShotSide === 'def', 6)}</section>`;
 }
 document.addEventListener('click', e => {
-  const ss = e.target.closest('[data-ss]'); if (ss){ shotSpan = ss.dataset.ss; const el = $('#pshots'); if (el) el.outerHTML = playerShotSection(P[curP]); return; }
   const a = e.target.closest('[data-sm]');
   if (a){ playerShotMode = a.dataset.sm; const el = $('#pshots'); if (el) el.outerHTML = playerShotSection(P[curP]); return; }
   const b = e.target.closest('[data-ts]');
