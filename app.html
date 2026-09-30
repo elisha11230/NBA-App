@@ -644,6 +644,10 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .styv b{display:block;font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--strong)}
 .styv small{display:block;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--dim)}
 @media (max-width:640px){.styhead,.styrow{grid-template-columns:minmax(86px,1.1fr) minmax(50px,.8fr) 50px 54px;gap:7px}}
+
+/* shot chart season slider: the chart dims slightly while a season loads, never blanks */
+#pshots.loading .shotbody{opacity:.55;transition:opacity .15s}
+.shotslide input{touch-action:pan-y}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -2374,7 +2378,7 @@ const heatLegend = `${heatKey(10)}
 let playerShotMode = 'hex', teamShotSide = 'off';
 // ---------- shot chart by season: one file per season in data/shots, loaded on demand ----------
 const shotFiles = {};
-function loadShotSeason(s){
+function loadShotSeason_unused(s){
   if (!shotFiles[s]) shotFiles[s] = fetch(`data/shots/${s}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
   return shotFiles[s];
 }
@@ -2386,54 +2390,77 @@ function playerShotSeasons(id, p){
   if (p && p.sh && p.sh.n >= 15) out.add(M.stats);
   return [...out].sort();
 }
-function playerShotSection(p, idArg){
-  const id = String(idArg ?? curP);
+function shotStops(id, p){
   const seasons = playerShotSeasons(id, p);
-  const hasCareer = p && p.shc && p.shc.n && seasons.length > 1;
-  if (!seasons.length && !(p && p.sh && p.sh.n >= 15)) return '';
-  const stops = [...seasons, ...(hasCareer ? ['career'] : [])];
-  let pick = shotPick[id];
-  if (!pick || !stops.includes(pick)) pick = shotPick[id] = (pastSeason && stops.includes(pastSeason)) ? pastSeason : stops.includes(M.stats) ? M.stats : stops[stops.length - 1];
-  let sh = null, lzs = null, loading = false, perGame = 0;
-  if (pick === 'career'){ sh = p.shc; }
+  return {seasons, stops: [...seasons, ...(p && p.shc && p.shc.n && seasons.length > 1 ? ['career'] : [])]};
+}
+// Everything below the slider for one season; returns null when that season is not loaded yet
+function shotBody(p, id, pick){
+  let sh = null, lzs = null, perGame = 0;
+  if (pick === 'career') sh = p.shc;
   else if (p && pick === M.stats && p.sh){ sh = p.sh; perGame = p.s ? p.s.gp : 0; }
   else {
     const f = shotFiles[pick];
-    if (f && f.done){ sh = f.data && f.data.p[id]; lzs = f.data && f.data.lz; }
-    else { loading = true; loadShotSeason(pick).then(data => { shotFiles[pick].done = true; shotFiles[pick].data = data; const el = $('#pshots'); if (el && String(curP) === id) el.outerHTML = playerShotSection(P[id], id); }); }
+    if (!f || !f.done) return null;
+    sh = f.data && f.data.p[id]; lzs = f.data && f.data.lz;
   }
+  const seasons = playerShotSeasons(id, p);
   const dotsOK = p && pick === M.stats && p.sh && p.sh.d;
   const mode = dotsOK ? playerShotMode : 'hex';
-  const slider = stops.length > 1 ? `<div class="lslide shotslide${pick !== M.stats ? ' past' : ''}"><b>${pick === 'career' ? 'Career' : esc(pick)}</b>
-    <input type="range" min="0" max="${stops.length - 1}" value="${stops.indexOf(pick)}" data-shot-slider="${esc(id)}" aria-label="Season">
-    <span class="hint" style="white-space:nowrap">${stops.length - (hasCareer ? 1 : 0)} seasons</span></div>` : '';
-  let body;
-  if (loading) body = `<div class="shotwrap"><svg viewBox="0 0 500 360">${courtLines()}</svg></div><p class="note">Loading ${esc(pick)}…</p>`;
-  else if (!sh) body = `<p class="note">No shot locations for this season.</p>`;
-  else {
-    body = (mode === 'hex' ? `<div class="shotwrap">${hexChart(sh, 10, lzs)}</div>${heatLegend}`
-      : `<div class="shotwrap">${dotChart(sh.d || '')}</div><div class="legend"><span><i style="background:#6FD69B"></i>Made</span><span><i style="background:#C98080"></i>Missed</span></div>`)
-      + zoneTable(sh, perGame, false, 10, lzs) + (pick === 'career' ? careerShotBits(p) : '');
-  }
   const head = sh ? `${sh.n.toLocaleString()} shots, ${pick === 'career' ? `career since ${esc(seasons[0])}` : esc(pick)}` : esc(pick === 'career' ? 'Career' : pick);
-  return `<section class="sect k-stat" id="pshots"><h3>Shot chart<span>${head}</span></h3>${slider}
-    ${dotsOK ? `<div class="seg"><button data-sm="hex" aria-pressed="${mode === 'hex'}">Hot zones</button><button data-sm="dots" aria-pressed="${mode === 'dots'}">Makes and misses</button></div>` : ''}
-    ${body}${pick !== M.stats && pick !== 'career' && sh ? `<p class="note">Compared with the league average that season.</p>` : ''}</section>`;
+  if (!sh) return {head, html: `<div class="shotwrap"><svg viewBox="0 0 500 360">${courtLines()}</svg></div><p class="note">No shot locations for this season.</p>`};
+  const chart = mode === 'hex' ? `<div class="shotwrap">${hexChart(sh, 10, lzs)}</div>${heatLegend}`
+    : `<div class="shotwrap">${dotChart(sh.d || '')}</div><div class="legend"><span><i style="background:#6FD69B"></i>Made</span><span><i style="background:#C98080"></i>Missed</span></div>`;
+  return {head, html: `${dotsOK ? `<div class="seg"><button data-sm="hex" aria-pressed="${mode === 'hex'}">Hot zones</button><button data-sm="dots" aria-pressed="${mode === 'dots'}">Makes and misses</button></div>` : ''}
+    ${chart}${zoneTable(sh, perGame, false, 10, lzs)}${pick === 'career' ? careerShotBits(p) : ''}${pick !== M.stats && pick !== 'career' ? `<p class="note">Compared with the league average that season.</p>` : ''}`};
+}
+function loadShotData(s){
+  if (!shotFiles[s]) shotFiles[s] = {done: false, p: fetch(`data/shots/${s}.json`).then(r => r.ok ? r.json() : null).catch(() => null).then(d => { shotFiles[s].done = true; shotFiles[s].data = d; return d; })};
+  return shotFiles[s].p;
+}
+// Load every season of this player's chart in the background, nearest to the shown season first
+async function prefetchShots(id, p){
+  const {seasons} = shotStops(id, p), at = seasons.indexOf(shotPick[id]);
+  const order = seasons.filter(s => s !== M.stats || !p).sort((a, b) => Math.abs(seasons.indexOf(a) - at) - Math.abs(seasons.indexOf(b) - at));
+  for (const s of order){ if (String(curP) !== String(id)) return; await loadShotData(s); }
+}
+function drawShotBody(id){
+  const sec = $('#pshots'); if (!sec) return;
+  const p = P[id] || null, pick = shotPick[id], out = shotBody(p, id, pick);
+  const lab = sec.querySelector('.shotslide b'); if (lab) lab.textContent = pick === 'career' ? 'Career' : pick;
+  sec.querySelector('.shotslide')?.classList.toggle('past', pick !== M.stats);
+  if (!out){
+    sec.classList.add('loading');
+    loadShotData(pick).then(() => { if (shotPick[id] === pick && $('#pshots')) drawShotBody(id); });
+    return;
+  }
+  sec.classList.remove('loading');
+  sec.querySelector('h3 span').innerHTML = out.head;
+  sec.querySelector('.shotbody').innerHTML = out.html;
+}
+function playerShotSection(p, idArg){
+  const id = String(idArg ?? curP);
+  const {seasons, stops} = shotStops(id, p);
+  if (!stops.length) return '';
+  let pick = shotPick[id];
+  if (!pick || !stops.includes(pick)) pick = shotPick[id] = (pastSeason && stops.includes(pastSeason)) ? pastSeason : stops.includes(M.stats) ? M.stats : stops[stops.length - 1];
+  const out = shotBody(p, id, pick);
+  if (!out) loadShotData(pick).then(() => { if (shotPick[id] === pick) drawShotBody(id); });
+  setTimeout(() => prefetchShots(id, p), 400);
+  const slider = stops.length > 1 ? `<div class="lslide shotslide${pick !== M.stats ? ' past' : ''}"><b>${pick === 'career' ? 'Career' : esc(pick)}</b>
+    <input type="range" min="0" max="${stops.length - 1}" step="1" value="${stops.indexOf(pick)}" data-shot-slider="${esc(id)}" aria-label="Season">
+    <span class="hint" style="white-space:nowrap">${seasons.length} seasons</span></div>` : '';
+  return `<section class="sect k-stat" id="pshots"><h3>Shot chart<span>${out ? out.head : esc(pick)}</span></h3>${slider}
+    <div class="shotbody">${out ? out.html : `<div class="shotwrap"><svg viewBox="0 0 500 360">${courtLines()}</svg></div>`}</div></section>`;
 }
 let shotRaf = 0;
 document.addEventListener('input', e => {
   const r = e.target.closest('[data-shot-slider]'); if (!r) return;
-  const id = r.dataset.shotSlider, p = P[id], seasons = playerShotSeasons(id, p);
-  const stops = [...seasons, ...(p && p.shc && p.shc.n && seasons.length > 1 ? ['career'] : [])];
+  const id = r.dataset.shotSlider, {stops} = shotStops(id, P[id] || null);
   shotPick[id] = stops[+r.value];
   const lab = r.parentElement.querySelector('b'); if (lab) lab.textContent = shotPick[id] === 'career' ? 'Career' : shotPick[id];
   cancelAnimationFrame(shotRaf);
-  shotRaf = requestAnimationFrame(() => {
-    const el = $('#pshots'); if (!el) return;
-    const keep = r.value;
-    el.outerHTML = playerShotSection(p, id);
-    const nr = document.querySelector(`[data-shot-slider="${CSS.escape(id)}"]`); if (nr){ nr.value = keep; nr.focus({preventScroll: true}); }
-  });
+  shotRaf = requestAnimationFrame(() => drawShotBody(id));   // only the chart redraws; the slider stays under your finger
 });
 function teamShotSection(t){
   const sh = teamShotSide === 'off' ? t.sh : t.shd; if (!sh) return '';
@@ -2448,7 +2475,7 @@ function teamShotSection(t){
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-sm]');
-  if (a){ playerShotMode = a.dataset.sm; const el = $('#pshots'); if (el) el.outerHTML = playerShotSection(P[curP]); return; }
+  if (a){ playerShotMode = a.dataset.sm; drawShotBody(String(curP)); return; }
   const b = e.target.closest('[data-ts]');
   if (b){ teamShotSide = b.dataset.ts; const el = $('#tshots'); if (el) el.outerHTML = teamShotSection(T[cur]); }
 });
