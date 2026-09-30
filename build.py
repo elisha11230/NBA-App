@@ -2267,6 +2267,8 @@ try:
         soup = BeautifulSoup(html, "html.parser")
         picks_ = []
         for tbl in soup.select("table.wikitable"):
+            if tbl.find("tr") is None:
+                continue  # empty tables sit between the legend and the pick list on some pages
             for st_tag in tbl.find_all(["style", "link"]):
                 st_tag.decompose()  # hidden style text glued to headings ("...}Rnd.")
             heads = [re.sub(r"\[.*?\]", "", th.get_text(" ", strip=True)).strip() for th in tbl.find("tr").find_all(["th", "td"])]
@@ -2277,6 +2279,8 @@ try:
                 continue
             for tr in tbl.find_all("tr")[1:]:
                 cells = [c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])]
+                if not cells:
+                    continue
                 if len(cells) < len(heads) - 1:
                     continue
                 try:
