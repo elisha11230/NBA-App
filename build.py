@@ -1149,14 +1149,17 @@ for yr in range(2002, stats_season + 1):
         name_ = g_.team_display_name.iloc[0]
         p_ = po_.get(int(tid_))
         rnd = ["Missed playoffs", "First round", "Conference semifinals", "Conference finals", "NBA Finals"]
-        result = "Champions" if p_ and p_["champ"] else (f"Lost in {rnd[min(p_['rounds'], 4)].lower()}" if p_ and p_["rounds"] else "Missed playoffs")
+        result = "Champions" if p_ and p_["champ"] else (f"Lost in {rnd[min(p_['rounds'], 4)].lower().replace('nba', 'NBA')}" if p_ and p_["rounds"] else "Missed playoffs")
         if p_ and p_["rounds"] == 1 and p_["last"] and p_["last"][1] + p_["last"][2] <= 1:
             result = "Play-in"
         history.setdefault(int(tid_), []).append({
             "s": season_label(yr), "name": name_, "w": int(v_.get("wins") or 0), "l": int(v_.get("losses") or 0),
             "seed": int(v_["playoffSeed"]) if pd.notna(v_.get("playoffSeed")) else None,
             "po": result, "vs": p_["last"] if p_ and p_["last"] else None,
-            "top": top_scorer.get(int(tid_), {}).get(yr)})
+            "top": top_scorer.get(int(tid_), {}).get(yr),
+            "conf": "East" if "East" in str(g_.group_name.iloc[0]) else "West",
+            "gb": d_.get("gamesBehind"), "l10": d_.get("Last Ten Games"), "strk": d_.get("streak"),
+            "home": d_.get("Home"), "road": d_.get("Road"), "diff": d_.get("differential"), "cl": d_.get("clincher")})
 print(f"hist {len(history)} teams, {sum(len(v) for v in history.values())} team seasons")
 
 # ---------------------------------------------------------------- draft picks
@@ -1858,6 +1861,7 @@ for label, sd in bbr.items():
                 vs = [names_.get(lost[1], lost[1]), lost[4], lost[3]]
         top = max(people_rows, key=lambda r: r["pts"] if r["gp"] >= 20 else 0)
         entry = {"s": label, "name": tname or code, "w": st_.get("w", 0), "l": st_.get("l", 0), "seed": st_.get("seed"),
+                 "conf": bbr_divisions(int(label[:4]) + 1).get(code, (None,))[0],
                  "po": res, "vs": vs, "top": [bbr_people.get(top["id"], [None])[0] if isinstance(top["id"], str) else past_people.get(top["id"], [None])[0], num(top["pts"])]}
         history.setdefault(tid_, [])
         if not any(h["s"] == label for h in history[tid_]):
@@ -2094,6 +2098,209 @@ try:
 except Exception as e:
     print(f"nbaid failed: {e.__class__.__name__} {e}")
 
+# ---------------------------------------------------------------- on/off impact
+# Who was on the court for every second of the season, rebuilt from play by play:
+# start from the box score starters, apply each substitution, and at the start of a
+# later quarter take the five who show up in plays before being subbed in. Each
+# player's team is then compared with him on the court and off it, per 100 possessions.
+ONOFF_CACHE = "onoff.json"
+
+
+def build_onoff(yr, box_):
+    pbp = get("espn_nba_pbp", f"play_by_play_{yr}.parquet")
+    if pbp is None or pbp.empty:
+        return None
+    pbp = pbp[pbp.season_type == 2].sort_values(["game_id", "game_play_number"])
+    b_ = box_[box_.season_type == 2]
+    team_of = {(str(g), int(a)): int(t) for g, a, t in zip(b_.game_id, b_.athlete_id, b_.team_id) if pd.notna(a)}
+    starters = defaultdict(lambda: defaultdict(list))
+    for g, a, t, st in zip(b_.game_id, b_.athlete_id, b_.team_id, b_.starter):
+        if st and pd.notna(a):
+            starters[str(g)][int(t)].append(int(a))
+    on = defaultdict(lambda: [0.0, 0, 0])      # (player, team) -> seconds, points for, points against
+    team_tot = defaultdict(lambda: [0.0, 0, 0])
+    games_ok = games_bad = 0
+    for gid, g in pbp.groupby("game_id", sort=False):
+        gid = str(gid)
+        st_ = starters.get(gid)
+        if not st_ or len(st_) != 2 or any(len(v) != 5 for v in st_.values()):
+            games_bad += 1
+            continue
+        home_t, away_t = int(g.home_team_id.iloc[0]), int(g.away_team_id.iloc[0])
+        rows = list(zip(g.period_number, g.start_game_seconds_remaining, g.type_text, g.team_id,
+                        g.athlete_id_1, g.athlete_id_2, g.athlete_id_3, g.home_score, g.away_score))
+        lineup = {t: set(v) for t, v in st_.items()}
+        cur_period = 1
+        prev_t = None
+        prev_h = prev_a = 0
+        ok = True
+
+        def infer(period, i0):
+            """Five on the court for each team at the start of a later period."""
+            found = {home_t: [], away_t: []}
+            came_in = {home_t: set(), away_t: set()}
+            for r in rows[i0:]:
+                if r[0] != period:
+                    break
+                if r[2] == "Substitution" and pd.notna(r[3]):
+                    t = int(r[3]); inn = int(r[4]) if pd.notna(r[4]) else None; out = int(r[5]) if pd.notna(r[5]) else None
+                    if t in found and out and out not in came_in[t] and out not in found[t] and len(found[t]) < 5:
+                        found[t].append(out)
+                    if t in came_in and inn:
+                        came_in[t].add(inn)
+                    continue
+                for a in (r[4], r[5], r[6]):
+                    if pd.isna(a):
+                        continue
+                    t = team_of.get((gid, int(a)))
+                    if t in found and int(a) not in came_in[t] and int(a) not in found[t] and len(found[t]) < 5:
+                        found[t].append(int(a))
+                if all(len(v) == 5 for v in found.values()):
+                    break
+            for t in found:  # a player with no events all quarter: keep the last lineup's players
+                for a in lineup[t]:
+                    if len(found[t]) >= 5:
+                        break
+                    if a not in found[t] and a not in came_in[t]:
+                        found[t].append(a)
+            return {t: set(v) for t, v in found.items()}
+
+        for i, r in enumerate(rows):
+            period, secs = r[0], r[1]
+            if period != cur_period:
+                cur_period = period
+                lineup = infer(period, i)
+                prev_t = secs
+            if prev_t is not None and pd.notna(secs):
+                dt_ = max(0.0, float(prev_t) - float(secs))
+                if dt_:
+                    for t, pl in lineup.items():
+                        for a in pl:
+                            on[(a, t)][0] += dt_
+                    team_tot[home_t][0] += dt_; team_tot[away_t][0] += dt_
+            prev_t = secs if pd.notna(secs) else prev_t
+            h, a_ = int(r[7] or 0), int(r[8] or 0)
+            dh, da = h - prev_h, a_ - prev_a
+            if dh > 0 or da > 0:
+                for t, pl in lineup.items():
+                    pf, pa = (dh, da) if t == home_t else (da, dh)
+                    for a in pl:
+                        on[(a, t)][1] += pf; on[(a, t)][2] += pa
+                team_tot[home_t][1] += dh; team_tot[home_t][2] += da
+                team_tot[away_t][1] += da; team_tot[away_t][2] += dh
+            prev_h, prev_a = h, a_
+            if r[2] == "Substitution" and pd.notna(r[3]) and pd.notna(r[4]) and pd.notna(r[5]):
+                t = int(r[3])
+                if t in lineup:
+                    lineup[t].discard(int(r[5])); lineup[t].add(int(r[4]))
+                    if len(lineup[t]) != 5:
+                        ok = False
+        games_ok += ok
+        games_bad += (not ok)
+    out = {}
+    for (a, t), (sec, pf, pa) in on.items():
+        T_ = team_tot[t]
+        off_sec, off_pf, off_pa = T_[0] - sec, T_[1] - pf, T_[2] - pa
+        if sec < 60 * 150 or off_sec < 60 * 60:
+            continue
+        pace = (team_stats.get(t) or {}).get("pace") or 99.0 if yr == stats_season else 99.0
+        per = lambda net, s_: net / s_ * 2880 * 100 / pace
+        on_net, off_net = per(pf - pa, sec), per(off_pf - off_pa, off_sec)
+        prev = out.get(a)
+        if prev and prev[0] >= sec / 60:
+            continue  # traded players: keep the team he played most for
+        out[a] = [round(sec / 60), round(on_net, 1), round(off_net, 1), round(on_net - off_net, 1), t]
+    print(f"onoff {yr}: {games_ok} games rebuilt cleanly, {games_bad} with gaps, {len(out)} players with 150+ minutes")
+    return out
+
+
+try:
+    onoff = json.load(open(ONOFF_CACHE))
+except Exception:
+    onoff = {}
+key_ = season_label(stats_season)
+if key_ not in onoff or stats_season == S:
+    try:
+        res_ = build_onoff(stats_season, box)
+        if res_:
+            onoff = {key_: {str(k): v for k, v in res_.items()}}
+            json.dump(onoff, open(ONOFF_CACHE, "w"), separators=(",", ":"))
+    except Exception as e:
+        print(f"onoff failed: {e.__class__.__name__} {e}")
+onoff_now = onoff.get(key_, {})
+
+# ---------------------------------------------------------------- past drafts
+# Every NBA draft since 1980 from Wikipedia's draft pages (first two rounds). A draft
+# never changes once held, so each year is fetched once and kept in draft_history.json.
+DRAFT_HIST = "draft_history.json"
+FORMER_TEAMS = {"Seattle SuperSonics": "OKC", "New Jersey Nets": "BKN", "Charlotte Bobcats": "CHA", "Vancouver Grizzlies": "MEM",
+                "Washington Bullets": "WSH", "Kansas City Kings": "SAC", "San Diego Clippers": "LAC", "New Orleans Hornets": "NO",
+                "New Orleans/Oklahoma City Hornets": "NO", "Charlotte Hornets": "CHA", "LA Clippers": "LAC", "Los Angeles Clippers": "LAC"}
+try:
+    drafts = json.load(open(DRAFT_HIST))
+except Exception:
+    drafts = {}
+team_by_name = {r.team_display_name: r.team_abbreviation for r in rost.drop_duplicates("team_id").itertuples()}
+team_by_name.update(FORMER_TEAMS)
+name_to_id = {}
+for k_, v_ in past_people.items():
+    name_to_id.setdefault(norm_name(v_[0]), k_)
+for k_, v_ in bbr_people.items():
+    name_to_id.setdefault(norm_name(v_[0]), k_)
+for r in rost.itertuples():
+    name_to_id[norm_name(r.display_name)] = int(r.athlete_id)
+_today = dt.date.today()
+last_draft = _today.year if _today.month >= 7 else _today.year - 1
+fetched_d = 0
+try:
+    from bs4 import BeautifulSoup
+    for yr in range(1980, last_draft + 1):
+        if str(yr) in drafts:
+            continue
+        html = wiki_json({"action": "parse", "page": f"{yr} NBA draft", "prop": "text", "redirects": 1})["parse"]["text"]
+        soup = BeautifulSoup(html, "html.parser")
+        picks_ = []
+        for tbl in soup.select("table.wikitable"):
+            heads = [th.get_text(" ", strip=True) for th in tbl.find("tr").find_all(["th", "td"])]
+            col = lambda pat: next((i for i, h in enumerate(heads) if re.search(pat, h, re.I)), None)
+            ci = {"rnd": col(r"^R(ou)?nd"), "pick": col(r"^Pick"), "player": col(r"^Player"), "pos": col(r"^Pos"),
+                  "team": col(r"^Team"), "school": col(r"School|College|club")}
+            if ci["pick"] is None or ci["player"] is None or ci["team"] is None:
+                continue
+            for tr in tbl.find_all("tr")[1:]:
+                cells = [c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])]
+                if len(cells) < len(heads) - 1:
+                    continue
+                try:
+                    pick = int(re.sub(r"\D", "", cells[ci["pick"]]) or 0)
+                    rnd = int(re.sub(r"\D", "", cells[ci["rnd"]]) or 0) if ci["rnd"] is not None else (1 if pick <= 30 else 2)
+                except (ValueError, IndexError):
+                    continue
+                if not pick or rnd > 2:
+                    continue
+                name = re.sub(r"[\^~*+#†‡§]+", "", cells[ci["player"]]).strip()
+                team = re.sub(r"\[.*?\]", "", cells[ci["team"]]).strip()
+                ab = team_by_name.get(team) or next((a for n, a in team_by_name.items() if n and n in team), None)
+                picks_.append([rnd, pick, name, cells[ci["pos"]] if ci["pos"] is not None else "",
+                               re.sub(r"\s+\)", ")", re.sub(r"\(\s+", "(", re.sub(r"\[.*?\]", "", cells[ci["school"]]))).strip() if ci["school"] is not None else "", ab, team])
+            if picks_:
+                break
+        if len(picks_) >= 20:
+            drafts[str(yr)] = picks_
+            fetched_d += 1
+        time.sleep(0.3)
+    json.dump(drafts, open(DRAFT_HIST, "w"), ensure_ascii=False, separators=(",", ":"))
+except Exception as e:
+    print(f"draft history stopped: {e.__class__.__name__} {e}")
+for yr_, rows_ in drafts.items():
+    for r_ in rows_:
+        pid_ = name_to_id.get(norm_name(r_[2]))
+        if len(r_) < 8:
+            r_.append(pid_)
+        else:
+            r_[7] = pid_
+print(f"draft {len(drafts)} past drafts ({fetched_d} fetched this run)")
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -2109,7 +2316,7 @@ for r in rost.itertuples():
         "exp": None if pd.isna(r.experience_years) else int(r.experience_years),
         "from": ", ".join(x for x in [r.birth_place_city, r.birth_place_state if isinstance(r.birth_place_state, str) else r.birth_place_country] if isinstance(x, str)),
         "t": int(r.team_id), "s": s, "po": po_line.get(pid), "sp": splits.get(pid),
-        "log": logs.get(pid, []), "sh": shot_players.get(pid), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
+        "log": logs.get(pid, []), "sh": shot_players.get(pid), "oo": onoff_now.get(str(pid)), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
         "shc": career_shots.get(pid), "col": college.get(pid), "aw": awards.get(str(pid)), "bio": bios.get(str(pid)), "adv": advanced.get(str(pid)),
         "prev": lt if lt and lt != r.team_abbreviation else None,
         "_h": height_in(r.height),
@@ -2178,7 +2385,7 @@ data = {
     "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
-    "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games,
+    "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts,
 }
 
 def clean(o):
@@ -2197,11 +2404,15 @@ def clean(o):
 blob = json.dumps(clean(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False,
                   default=lambda o: (o.item() if hasattr(o, "item") else None))
 blob = blob.replace("</", "<\\/")
-html = open("index.html", encoding="utf-8").read()
+# The app lives in app.html (code only, small). The site, index.html, is app.html
+# with the data filled in, so code changes never touch the data and vice versa.
+import os as _os
+src_file = "app.html" if _os.path.exists("app.html") else "index.html"
+html = open(src_file, encoding="utf-8").read()
 new = re.sub(r"(<script id=\"nba-data\" type=\"application/json\">).*?(</script>)",
              lambda m: m.group(1) + blob + m.group(2), html, count=1, flags=re.S)
 if new == html and blob not in html:
-    sys.exit("Data markers not found in index.html")
+    sys.exit(f"Data markers not found in {src_file}")
 open("index.html", "w", encoding="utf-8").write(new)
 print(f"built {len(teams)} teams, {len(players)} players, stats {season_label(stats_season)}, "
       f"lineups {lineup_mode}, {len(blob)//1024} KB")

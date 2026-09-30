@@ -1,14 +1,22 @@
 name: update
 
-# Refreshes rosters, lineups, stats, shots, 2K ratings, contracts, coaches, schedule, history and draft picks twice a day.
+# Rebuilds index.html (app.html plus fresh data) twice a day, and right after any
+# change to the app, the builder or this file is pushed.
 on:
   schedule:
     - cron: "15 11 * * *"   # 7:15 AM New York
     - cron: "15 21 * * *"   # 5:15 PM New York
+  push:
+    branches: [main]
+    paths: [app.html, build.py, .github/workflows/update.yml]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -26,5 +34,8 @@ jobs:
           git config user.name "nba-bot"
           git config user.email "actions@users.noreply.github.com"
           git add index.html
-          for f in nba2k.json nba2k_history.json nba2k_players.json salaries.json coaches.json draft_picks.json awards.json bios.json transactions.json bbref_history.json prospects.json photos.json nba_games.json; do if [ -f "$f" ]; then git add "$f"; fi; done
-          git diff --cached --quiet || (git commit -m "Update NBA data" && git push)
+          for f in nba2k.json nba2k_history.json nba2k_players.json salaries.json coaches.json draft_picks.json awards.json bios.json transactions.json bbref_history.json prospects.json photos.json nba_games.json onoff.json draft_history.json; do if [ -f "$f" ]; then git add "$f"; fi; done
+          git diff --cached --quiet && exit 0
+          git commit -m "Update NBA data"
+          for i in 1 2 3; do git pull --rebase -q && git push && exit 0; sleep 5; done
+          exit 1
