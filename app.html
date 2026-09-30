@@ -626,6 +626,24 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 #scbody .qbody{padding:0 10px 6px 12px}
 #scbody .play .pc{padding-left:2px}
 #scbody .pfilt,#scbody .wp,#scbody .gnote{padding:0 2px}
+/* ---------- play style ---------- */
+.styhead,.styrow{display:grid;grid-template-columns:minmax(92px,1.1fr) minmax(60px,1fr) 56px 60px;gap:9px;align-items:center}
+.styhead{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:2px 0 6px;border-bottom:1px solid var(--rule)}
+.styhead span:nth-child(n+3){text-align:right}
+.styrow{padding:7px 0;border-bottom:1px solid var(--rule)}
+.styl b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13.5px;letter-spacing:.04em;color:var(--chalk)}
+.stykey{margin-top:10px;font-size:12.5px;color:var(--mute)}
+.stykey summary{cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--team-accent)}
+.stykey div{padding:4px 0;border-bottom:1px solid var(--rule)}
+.stykey b{color:var(--chalk);font-weight:600}
+.stybar{position:relative;height:9px;background:var(--rule);border-radius:4px}
+.stybar i{position:absolute;left:0;top:0;bottom:0;background:var(--team-accent);border-radius:4px}
+.stybar em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--strong);opacity:.7}
+.lgkey{display:inline-block;width:2px;height:10px;background:var(--strong);opacity:.7;vertical-align:-1px;margin:0 3px}
+.styv{text-align:right}
+.styv b{display:block;font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--strong)}
+.styv small{display:block;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--dim)}
+@media (max-width:640px){.styhead,.styrow{grid-template-columns:minmax(86px,1.1fr) minmax(50px,.8fr) 50px 54px;gap:7px}}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -969,6 +987,7 @@ function renderTeam(){
       ${srow('Defensive rating', st.drtg[0], st.drtg[1], 'Points allowed per 100 possessions')}
       ${srow('Pace', st.pace[0], st.pace[1], 'Possessions per game, 1st is fastest')}
       <p class="note">League average rating is ${f1(lg.ortg)}. Possessions are estimated from box scores.</p></section>`;
+    h += teamStyleSection(t);
     h += teamOnoffSection(t);
     h += teamMoneySection(t);
     h += picksSection(t);
@@ -1093,6 +1112,7 @@ function renderPlayer(){
   h += `<section class="sect k-rating"><h3>Per 36 minutes<span>evens out playing time</span></h3>
     ${prow('Points', s.p36, 'p36', s)}${prow('Rebounds', s.r36, 'r36', s)}${prow('Assists', s.a36, 'a36', s)}</section>`;
   h += advancedSection(p);
+  h += playerStyleSection(p);
   h += onoffSection(p);
   h += yearSection(p);
   h += collegeSection(p);
@@ -2012,6 +2032,55 @@ function teamOnoffSection(t){
     ${ids.map(i => { const o = P[i].oo, tm = T[o[4]]; return `<button class="prow" data-p="${i}"><span class="pn">${esc(P[i].n)}</span><span class="pd">${tm && String(o[4]) !== String(cur) ? 'with ' + esc(tm.abbr) + ', ' : ''}${Math.round(o[0])} min</span><span class="pv ${o[3] > 0 ? 'good' : 'low'}">${sg(o[3])}</span></button>`; }).join('')}
     </div><p class="note">How much better each player's team was, per 100 possessions, with him on the court than off it last season.</p></section>`;
 }
+
+/* ---------- play style (sorted from play by play: transition, cuts, drives, post, pull-ups, spot-ups) ---------- */
+const STYLE_NOTE = {
+  'Transition': 'Shots within 8 seconds of a steal or defensive rebound',
+  'Second chance': 'Tip-ins and putbacks right after an offensive rebound',
+  'Cuts and lobs': 'Cutting layups and dunks, alley oops',
+  'Drives': 'Driving layups, floaters, finger rolls',
+  'Post ups': 'Hooks and turnarounds',
+  'Off the dribble': 'Pull-ups, step backs, fadeaways',
+  'Catch and shoot': 'Standing jumpers, mostly off a pass',
+  'Other': 'Everything else, heaves included'};
+let styleSide = 'off';
+const styleKey = () => `<details class="stykey"><summary>What the styles mean</summary>${(D.style?.styles || []).map(n => `<div><b>${esc(n)}</b> ${esc(STYLE_NOTE[n] || '')}</div>`).join('')}</details>`;
+function styleRows(rows, league, lowerBetter, ranked){
+  const S = D.style?.styles || [];
+  const mx = Math.max(...rows.map(r => r[0]), ...league.map(r => r[0]), 1);
+  return S.map((name, i) => {
+    const r = rows[i], lg = league[i]; if (!r || !r[2]) return '';
+    const pps = r[1], lpps = lg[1], better = pps != null && lpps != null && (lowerBetter ? pps < lpps - .03 : pps > lpps + .03), worse = pps != null && lpps != null && (lowerBetter ? pps > lpps + .03 : pps < lpps - .03);
+    return `<div class="styrow"><div class="styl" title="${esc(STYLE_NOTE[name] || '')}"><b>${esc(name)}</b></div>
+      <div class="stybar"><i style="width:${r[0] / mx * 100}%"></i><em style="left:${lg[0] / mx * 100}%" title="League average ${lg[0]}%"></em></div>
+      <div class="styv"><b>${r[0].toFixed(1)}%</b><small>${ranked && r[4] ? ord(r[4]) + ' most' : `league ${lg[0]}%`}</small></div>
+      <div class="styv"><b class="${better ? 'good' : worse ? 'low' : ''}">${pps == null ? '—' : pps.toFixed(2)}</b><small>${ranked && r[3] ? `${ord(r[3])}` : `league ${lpps == null ? '—' : lpps.toFixed(2)}`}</small></div></div>`;
+  }).join('');
+}
+function teamStyleSection(t){
+  const s = t.style; if (!s || !D.style) return '';
+  const lg = D.style.league, rows = styleSide === 'off' ? s.off : s.def;
+  const nm = id => P[id]?.n || D.people?.[id]?.[0] || 'Unknown';
+  return `<section class="sect k-stat" id="stysect"><h3>Play style<span>${esc(M.stats)}</span></h3>
+    <div class="seg"><button data-sty="off" aria-pressed="${styleSide === 'off'}">Their offense</button><button data-sty="def" aria-pressed="${styleSide === 'def'}">What they allow</button></div>
+    <div class="styhead"><span>Style</span><span>Share <em class="lgkey"></em> league</span><span>Share</span><span>Pts/shot</span></div>
+    ${styleRows(rows, lg, styleSide === 'def', true)}
+    ${styleSide === 'off' ? `<div class="stat" style="margin-top:8px"><span class="l">Assisted baskets<small>Share of made shots that came off a pass; the league is about 64%</small></span><span class="v">${s.ast}%</span><span class="r ${rkClass(s.astrk, 30)}">${ord(s.astrk)}</span></div>
+      ${s.pairs && s.pairs.length ? `<div class="coachsub" style="margin-top:12px">Who sets up whom</div><div class="plist">${s.pairs.slice(0, 8).map(([a, b, n]) => `<div class="prow" style="cursor:default"><span class="pn">${esc(nm(a))} <span class="mid">to</span> ${esc(nm(b))}</span><span class="pv">${n}</span></div>`).join('')}</div>` : ''}` : ''}
+    ${styleKey()}
+    <p class="note">${styleSide === 'off' ? 'Each shot is sorted by how it came about, using the play by play. Points per shot are colored against the league; ranks are 1st for most points per shot.' : 'The same breakdown for the shots opponents took against them. Lower points per shot is better here, so green means they defend that style well.'} Pick and roll is not its own category: those shots land under drives, pull-ups or rolls to the rim.</p></section>`;
+}
+function playerStyleSection(p){
+  const s = p.ps; if (!s || !D.style) return '';
+  const tm = T[s.t];
+  return `<section class="sect k-stat"><h3>Play style<span>${esc(M.stats)}${tm && String(s.t) !== String(p.t) ? ', with ' + esc(tm.abbr) : ''}, ${s.n} shots</span></h3>
+    <div class="styhead"><span>Style</span><span>Share <em class="lgkey"></em> league</span><span>Share</span><span>Pts/shot</span></div>
+    ${styleRows(s.s, D.style.league, false, false)}
+    ${s.self != null ? `<div class="stat" style="margin-top:8px"><span class="l">Creates his own<small>Share of his made shots that were not assisted</small></span><span class="v">${s.self}%</span></div>` : ''}
+    ${styleKey()}
+    <p class="note">Every shot he took, sorted by how it came about, against the league average for each style.</p></section>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sty]'); if (b){ styleSide = b.dataset.sty; const el = $('#stysect'); if (el) el.outerHTML = teamStyleSection(T[cur]); } });
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';

@@ -2359,6 +2359,137 @@ for yr_, rows_ in drafts.items():
             r_[7] = pid_
 print(f"draft {len(drafts)} past drafts ({fetched_d} fetched this run)")
 
+# ---------------------------------------------------------------- play style
+# NBA.com's play type data (Synergy) is out of reach, so each field goal is sorted
+# into a style from the play by play: how soon it came after a steal or defensive
+# rebound (transition), whether it followed an offensive rebound (second chance),
+# and ESPN's shot description (cuts, drives, post moves, pull-ups, spot-ups).
+STYLES = ["Transition", "Second chance", "Cuts and lobs", "Drives", "Post ups", "Off the dribble", "Catch and shoot", "Other"]
+
+
+def style_of(desc):
+    d = desc or ""
+    if re.search(r"Tip|Putback", d): return 1
+    if re.search(r"Cutting|Alley Oop", d): return 2
+    if re.search(r"Hook|Turnaround", d): return 4
+    if re.search(r"Driving|Finger Roll|Running Layup|Running Dunk|Floating|Reverse", d): return 3
+    if re.search(r"Pullup|Step Back|Fade Away|Running Jump|Running Pullup", d): return 5
+    if re.fullmatch(r"Jump Shot", d.strip()): return 6
+    return 7
+
+
+def build_playstyle(yr):
+    pbp = get("espn_nba_pbp", f"play_by_play_{yr}.parquet")
+    if pbp is None or pbp.empty:
+        return None
+    pbp = pbp[pbp.season_type == 2].sort_values(["game_id", "game_play_number"])
+    team_c = defaultdict(lambda: [[0, 0, 0] for _ in STYLES])   # team -> style -> [attempts, makes, points]
+    opp_c = defaultdict(lambda: [[0, 0, 0] for _ in STYLES])
+    lg = [[0, 0, 0] for _ in STYLES]
+    ply = defaultdict(lambda: [[0, 0, 0] for _ in STYLES])       # (player, team) -> style counts
+    made_ast = defaultdict(lambda: [0, 0])                       # team -> [assisted makes, makes]
+    p_ast = defaultdict(lambda: [0, 0])                          # player -> [assisted makes, makes]
+    pairs = defaultdict(int)                                     # (team, passer, scorer) -> assists
+    real = set(int(t) for t in rost.team_id.dropna().unique())  # the 30 teams: no All-Star or exhibition games
+    for gid, g in pbp.groupby("game_id", sort=False):
+        home, away = int(g.home_team_id.iloc[0]), int(g.away_team_id.iloc[0])
+        if home not in real or away not in real:
+            continue
+        other = {home: away, away: home}
+        start_t, start_team, start_kind = None, None, None       # when and how the current possession began
+        oreb_t, oreb_team = None, None
+        for typ, tid, a1, a2, sv, scoring, shooting, secs in zip(
+                g.type_text, g.team_id, g.athlete_id_1, g.athlete_id_2, g.score_value, g.scoring_play, g.shooting_play,
+                g.start_game_seconds_remaining):
+            if pd.isna(tid) or pd.isna(secs):
+                continue
+            tid = int(tid); typ = typ or ""
+            if typ == "Defensive Rebound":
+                start_t, start_team, start_kind = secs, tid, "live"; oreb_t = None; continue
+            if typ == "Offensive Rebound":
+                oreb_t, oreb_team = secs, tid; continue
+            if "Turnover" in typ and tid in other:
+                start_t, start_team = secs, other[tid]
+                start_kind = "live" if pd.notna(a2) else "dead"  # a steal starts a live ball break
+                oreb_t = None; continue
+            if not shooting or "Free Throw" in typ:
+                continue
+            if tid not in other:
+                continue
+            if start_team == tid and start_kind == "live" and start_t is not None and start_t - secs <= 8:
+                st = 0
+            elif oreb_team == tid and oreb_t is not None and oreb_t - secs <= 4:
+                st = 1
+            else:
+                st = style_of(typ)
+            pts = int(sv or 0) if scoring else 0
+            mk = 1 if scoring else 0
+            for bucket in (team_c[tid][st], opp_c[other[tid]][st], lg[st]):
+                bucket[0] += 1; bucket[1] += mk; bucket[2] += pts
+            if pd.notna(a1):
+                b = ply[(int(a1), tid)][st]; b[0] += 1; b[1] += mk; b[2] += pts
+            if scoring:
+                made_ast[tid][1] += 1
+                if pd.notna(a1):
+                    p_ast[int(a1)][1] += 1
+                if pd.notna(a2):
+                    made_ast[tid][0] += 1
+                    if pd.notna(a1):
+                        p_ast[int(a1)][0] += 1
+                        pairs[(tid, int(a2), int(a1))] += 1
+            # a make hands the ball over (dead ball), a miss waits for the rebound
+            if scoring:
+                start_t, start_team, start_kind = secs, other[tid], "dead"
+            oreb_t = None if not scoring else oreb_t
+    def summarize(c):
+        tot = sum(x[0] for x in c) or 1
+        return [[round(100 * x[0] / tot, 1), round(x[2] / x[0], 3) if x[0] else None, x[0]] for x in c]
+    lg_sum = summarize(lg)
+    out = {"styles": STYLES, "league": lg_sum, "teams": {}, "players": {}}
+    for tid in team_c:
+        off, dfn = summarize(team_c[tid]), summarize(opp_c[tid])
+        top = sorted(((k[1], k[2], n) for k, n in pairs.items() if k[0] == tid), key=lambda x: -x[2])[:10]
+        out["teams"][str(tid)] = {"off": off, "def": dfn, "ast": round(100 * made_ast[tid][0] / max(1, made_ast[tid][1]), 1), "pairs": top}
+    # ranks among the 30 teams: frequency (most = 1st) and points per shot (offense: higher is better, defense: lower)
+    for side, better_low in (("off", False), ("def", True)):
+        for i in range(len(STYLES)):
+            vals = [(t, v[side][i][1]) for t, v in out["teams"].items() if v[side][i][1] is not None]
+            order = sorted(vals, key=lambda x: x[1], reverse=not better_low)
+            for rk, (t, _) in enumerate(order, 1):
+                out["teams"][t][side][i].append(rk)
+            fq = sorted(((t, v[side][i][0]) for t, v in out["teams"].items()), key=lambda x: -x[1])
+            for rk, (t, _) in enumerate(fq, 1):
+                out["teams"][t][side][i].append(rk)
+    ast_rank = sorted(out["teams"], key=lambda t: -out["teams"][t]["ast"])
+    for rk, t in enumerate(ast_rank, 1):
+        out["teams"][t]["astrk"] = rk
+    best = {}
+    for (pid, tid), c in ply.items():
+        n = sum(x[0] for x in c)
+        if n >= 150 and (pid not in best or n > best[pid][0]):
+            best[pid] = (n, tid, c)
+    for pid, (n, tid, c) in best.items():
+        a = p_ast.get(pid, [0, 0])
+        out["players"][str(pid)] = {"s": summarize(c), "n": n, "t": tid, "self": round(100 * (1 - a[0] / a[1]), 1) if a[1] else None}
+    print(f"style {yr}: {sum(x[0] for x in lg)} field goals sorted, {len(out['teams'])} teams, {len(out['players'])} players")
+    return out
+
+
+STYLE_CACHE = "playstyle.json"
+try:
+    style_all = json.load(open(STYLE_CACHE))
+except Exception:
+    style_all = {}
+if key_ not in style_all or stats_season == S:
+    try:
+        res_ = build_playstyle(stats_season)
+        if res_:
+            style_all = {key_: res_}
+            json.dump(style_all, open(STYLE_CACHE, "w"), separators=(",", ":"))
+    except Exception as e:
+        print(f"style failed: {e.__class__.__name__} {e}")
+style_now = style_all.get(key_, {})
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -2374,7 +2505,8 @@ for r in rost.itertuples():
         "exp": None if pd.isna(r.experience_years) else int(r.experience_years),
         "from": ", ".join(x for x in [r.birth_place_city, r.birth_place_state if isinstance(r.birth_place_state, str) else r.birth_place_country] if isinstance(x, str)),
         "t": int(r.team_id), "s": s, "po": po_line.get(pid), "sp": splits.get(pid),
-        "log": logs.get(pid, []), "sh": shot_players.get(pid), "oo": onoff_now.get(str(pid)), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
+        "log": logs.get(pid, []), "sh": shot_players.get(pid), "oo": onoff_now.get(str(pid)),
+        "ps": (style_now.get("players") or {}).get(str(pid)), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
         "shc": career_shots.get(pid), "col": college.get(pid), "aw": awards.get(str(pid)), "bio": bios.get(str(pid)), "adv": advanced.get(str(pid)),
         "prev": lt if lt and lt != r.team_abbreviation else None,
         "_h": height_in(r.height),
@@ -2423,7 +2555,8 @@ for tid, g in rost.groupby("team_id"):
         "coach": (coaches or {}).get("teams", {}).get(abbr),
         "sched": schedule.get(tid, []), "hist": history.get(tid, []),
         "picks": (picks or {}).get("teams", {}).get(abbr),
-        "past": past.get(tid, {}), "tx": team_tx.get(abbr, [])[:25],
+        "past": past.get(tid, {}),
+        "style": (style_now.get("teams") or {}).get(str(tid)), "tx": team_tx.get(abbr, [])[:25],
         "st": {k: [num(v, 1), team_ranks[tid][k]] for k, v in st.items()},
     }
 
@@ -2444,6 +2577,7 @@ data = {
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
     "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts, "shotSeasons": shot_file_seasons,
+    "style": {"styles": style_now.get("styles"), "league": style_now.get("league")} if style_now else None,
 }
 
 def clean(o):
