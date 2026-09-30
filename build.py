@@ -2254,17 +2254,25 @@ last_draft = _today.year if _today.month >= 7 else _today.year - 1
 fetched_d = 0
 try:
     from bs4 import BeautifulSoup
+    draft_errors = []
     for yr in range(1980, last_draft + 1):
         if str(yr) in drafts:
             continue
-        html = wiki_json({"action": "parse", "page": f"{yr} NBA draft", "prop": "text", "redirects": 1})["parse"]["text"]
+        try:
+            html = wiki_json({"action": "parse", "page": f"{yr} NBA draft", "prop": "text", "redirects": 1})["parse"]["text"]
+        except Exception as e:
+            draft_errors.append(f"{yr} {e.__class__.__name__}")
+            time.sleep(2)
+            continue
         soup = BeautifulSoup(html, "html.parser")
         picks_ = []
         for tbl in soup.select("table.wikitable"):
-            heads = [th.get_text(" ", strip=True) for th in tbl.find("tr").find_all(["th", "td"])]
+            for st_tag in tbl.find_all(["style", "link"]):
+                st_tag.decompose()  # hidden style text glued to headings ("...}Rnd.")
+            heads = [re.sub(r"\[.*?\]", "", th.get_text(" ", strip=True)).strip() for th in tbl.find("tr").find_all(["th", "td"])]
             col = lambda pat: next((i for i, h in enumerate(heads) if re.search(pat, h, re.I)), None)
             ci = {"rnd": col(r"^R(ou)?nd"), "pick": col(r"^Pick"), "player": col(r"^Player"), "pos": col(r"^Pos"),
-                  "team": col(r"^Team"), "school": col(r"School|College|club")}
+                  "team": col(r"^(NBA\s+)?Team\b"), "school": col(r"School|College|club")}
             if ci["pick"] is None or ci["player"] is None or ci["team"] is None:
                 continue
             for tr in tbl.find_all("tr")[1:]:
@@ -2288,8 +2296,13 @@ try:
         if len(picks_) >= 20:
             drafts[str(yr)] = picks_
             fetched_d += 1
-        time.sleep(0.3)
+            json.dump(drafts, open(DRAFT_HIST, "w"), ensure_ascii=False, separators=(",", ":"))  # keep progress
+        else:
+            draft_errors.append(f"{yr} only {len(picks_)} picks read")
+        time.sleep(0.5)
     json.dump(drafts, open(DRAFT_HIST, "w"), ensure_ascii=False, separators=(",", ":"))
+    if draft_errors:
+        print("draft skipped this run (retried next run): " + ", ".join(draft_errors))
 except Exception as e:
     print(f"draft history stopped: {e.__class__.__name__} {e}")
 for yr_, rows_ in drafts.items():
