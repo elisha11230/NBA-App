@@ -648,6 +648,19 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 /* shot chart season slider: the chart dims slightly while a season loads, never blanks */
 #pshots.loading .shotbody{opacity:.55;transition:opacity .15s}
 .shotslide input{touch-action:pan-y}
+
+/* ---------- embedded player ---------- */
+.pwrap{margin-bottom:12px}
+.pbar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.plab{flex:1 1 auto;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.pbtn{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line);padding:4px 11px;border-radius:var(--r);text-decoration:none;background:none}
+.pbtn:hover{color:var(--strong);border-color:var(--team-accent)}
+/* sixteen by nine, reserved before the frame loads so nothing below it jumps */
+.pframe{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pframe[hidden]{display:none}
+.pframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.gstream{display:inline-block;margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#F2B0B0;text-decoration:none;border:1px solid #D06A6A;border-radius:var(--r);padding:3px 10px}
+:root[data-theme="light"] .gstream{color:#B02E24;border-color:#C94A3F}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1214,7 +1227,8 @@ function gameCard(e){
     ${cs.map(x => `<div class="gteam${fin && +x.score < hi ? ' lost' : ''}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">
       <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc((x.records || [])[0]?.summary || '')}</span>
       <span class="gs">${st.state === 'pre' ? '' : esc(x.score)}</span></div>`).join('')}
-    ${leadTxt ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}</button>`;
+    ${leadTxt ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
+    ${live ? (() => { const sl = fixtureSlug(e.date, cs[0].team.abbreviation, cs[1].team.abbreviation); return sl ? `<a class="gstream" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶ Stream</a>` : ''; })() : ''}</button>`;
 }
 
 async function openGame(id, quiet){
@@ -1243,8 +1257,14 @@ function drawGame(s, quiet){
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   h += gameTab === 'preview' ? previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
+  const slug = st.state === 'in' ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
+  if (slug) h = `<div id="gplayer-slot"></div>` + h;
   const keep = $('#scbody').scrollTop;
+  const oldPlayer = $('#gplayer');
+  if (oldPlayer) oldPlayer.remove();          // lift it out so the refresh below does not reload the stream
   $('#scbody').innerHTML = h;
+  const slot = $('#gplayer-slot');
+  if (slot) slot.replaceWith(oldPlayer && oldPlayer.dataset.slug === slug ? oldPlayer : gamePlayerEl(slug));
   if (quiet) $('#scbody').scrollTop = keep;
   fadeBoxEdges();
 }
@@ -2085,6 +2105,38 @@ function playerStyleSection(p){
     <p class="note">Every shot he took, sorted by how it came about, against the league average for each style.</p></section>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-sty]'); if (b){ styleSide = b.dataset.sty; const el = $('#stysect'); if (el) el.outerHTML = teamStyleSection(T[cur]); } });
+
+
+/* ---------- stream and embedded player (same shape as the NFL app) ---------- */
+// /live/nba/<date>/<away>-<home> opens the stream page; /embed/nba/... is the player on its own.
+// Hosts and team codes come from site_config.py, so app updates never reset them.
+function fixtureSlug(when, awayAb, homeAb){
+  if (!when || !awayAb || !homeAb) return null;
+  const codes = (D.site && D.site.codes) || {}, c = ab => (codes[ab] || ab).toLowerCase();
+  return `${etDay(when)}/${c(awayAb)}-${c(homeAb)}`;
+}
+const streamUrl = sl => sl ? `${(D.site && D.site.streamBase) || ''}/live/nba/${sl}` : null;
+const embedUrl = sl => sl ? `${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}` : null;
+let playerOn = true;
+function gamePlayerEl(sl){
+  const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
+  wrap.innerHTML = `<div class="pbar"><span class="plab">Stream</span><button class="pbtn" type="button">${playerOn ? 'Hide' : 'Show'}</button>
+    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe"${playerOn ? '' : ' hidden'}></div>`;
+  const frame = wrap.querySelector('.pframe'), btn = wrap.querySelector('button');
+  const mount = () => {
+    frame.innerHTML = '';
+    if (!playerOn){ frame.hidden = true; return; }
+    frame.hidden = false;
+    const f = document.createElement('iframe');
+    f.id = 'player'; f.src = embedUrl(sl); f.scrolling = 'no'; f.allowFullscreen = true;
+    f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
+    f.setAttribute('marginheight', '0'); f.setAttribute('marginwidth', '0'); f.width = '100%'; f.height = '100%';
+    frame.appendChild(f);
+  };
+  btn.onclick = () => { playerOn = !playerOn; btn.textContent = playerOn ? 'Hide' : 'Show'; mount(); };
+  mount();
+  return wrap;
+}
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';

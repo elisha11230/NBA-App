@@ -12,6 +12,7 @@ league leaders. One self contained page, `index.html`, hosted on GitHub Pages.
 | `index.html` | The site: app.html with all the data filled in, written by `build.py`. |
 | `build.py` | Downloads fresh data and writes `index.html` from `app.html`. |
 | `.github/workflows/update.yml` | Runs `build.py` twice a day (7:15 AM and 5:15 PM New York time) and right after any push to app.html, build.py or the workflow. |
+| `site_config.py` | Your settings: stream and embed hosts and team codes for the live game player. Yours to edit; app updates never replace it. |
 | `coaches.json` | Last good copy of the coaching staffs, used if Wikipedia can't be reached. |
 
 These appear on their own after the first run and are kept as backups:

@@ -1,14 +1,14 @@
 name: update
 
 # Rebuilds index.html (app.html plus fresh data) twice a day, and right after any
-# change to the app, the builder or this file is pushed.
+# change to the app, the builder, your settings (site_config.py) or this file is pushed.
 on:
   schedule:
     - cron: "15 11 * * *"   # 7:15 AM New York
     - cron: "15 21 * * *"   # 5:15 PM New York
   push:
     branches: [main]
-    paths: [app.html, build.py, .github/workflows/update.yml]
+    paths: [app.html, build.py, site_config.py, .github/workflows/update.yml]
   workflow_dispatch:
 
 permissions:

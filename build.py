@@ -2490,6 +2490,18 @@ if key_ not in style_all or stats_season == S:
         print(f"style failed: {e.__class__.__name__} {e}")
 style_now = style_all.get(key_, {})
 
+# ---------------------------------------------------------------- your settings
+# Stream and embed hosts and team codes live in site_config.py, which updates to the
+# app never touch.
+try:
+    import site_config as _sc
+    site_settings = {"streamBase": str(getattr(_sc, "STREAM_BASE", "") or "").rstrip("/"),
+                     "embedBase": str(getattr(_sc, "EMBED_BASE", "") or "").rstrip("/"),
+                     "codes": dict(getattr(_sc, "TEAM_CODES", {}) or {})}
+except Exception as e:
+    print(f"site  settings not read ({e.__class__.__name__}); links stay relative")
+    site_settings = {"streamBase": "", "embedBase": "", "codes": {}}
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -2578,6 +2590,7 @@ data = {
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
     "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts, "shotSeasons": shot_file_seasons,
     "style": {"styles": style_now.get("styles"), "league": style_now.get("league")} if style_now else None,
+    "site": site_settings,
 }
 
 def clean(o):
