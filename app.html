@@ -1290,13 +1290,20 @@ function drawGame(s, quiet){
   const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
   if (slug) h = `<div id="gplayer-slot"></div>` + h;
   if (s.__demo) h = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + h;
-  const keep = $('#scbody').scrollTop;
-  const oldPlayer = $('#gplayer');
-  if (oldPlayer) oldPlayer.remove();          // lift it out so the refresh below does not reload the stream
-  $('#scbody').innerHTML = h;
-  const slot = $('#gplayer-slot');
-  if (slot) slot.replaceWith(oldPlayer && oldPlayer.dataset.slug === slug ? oldPlayer : gamePlayerEl(slug));
-  if (quiet) $('#scbody').scrollTop = keep;
+  // The player lives in its own box that refreshes never touch: moving or re-adding a
+  // frame makes the browser reload it, so it is only ever created once per game.
+  const body = $('#scbody');
+  let pbox = $('#gplayerbox'), gbox = $('#gamecontent');
+  if (!pbox || !gbox || pbox.parentNode !== body){
+    body.innerHTML = '<div id="gplayerbox"></div><div id="gamecontent"></div>';
+    pbox = $('#gplayerbox'); gbox = $('#gamecontent');
+  }
+  const cur_ = pbox.firstElementChild;
+  if (!slug){ if (cur_) pbox.innerHTML = ''; }
+  else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug)); }
+  const keep = body.scrollTop;
+  gbox.innerHTML = h.replace('<div id="gplayer-slot"></div>', '');
+  if (quiet) body.scrollTop = keep;
   fadeBoxEdges();
 }
 function playsView(s, cs, quiet){
