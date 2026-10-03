@@ -14,7 +14,7 @@ with no trailing slash, e.g. "https://example.com".
 STREAM_BASE = ""
 
 # Where the embedded player on a live game loads from.
-EMBED_BASE = ""
+EMBED_BASE = "https://embedindia.st"
 
 # Team codes used in the links, lowercased. These are the NBA's own three letter
 # codes. Change any one here if your stream site uses a different code for a team.
