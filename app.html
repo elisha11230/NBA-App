@@ -661,6 +661,14 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .pframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .gstream{display:inline-block;margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#F2B0B0;text-decoration:none;border:1px solid #D06A6A;border-radius:var(--r);padding:3px 10px}
 :root[data-theme="light"] .gstream{color:#B02E24;border-color:#C94A3F}
+
+/* ---------- feed delay ---------- */
+.dlbar{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap}
+.dlbar .plab{flex:0 0 auto}
+.dlrange{flex:1 1 140px;accent-color:var(--brass);min-width:120px}
+.dlv{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--strong);min-width:38px;text-align:right}
+.dlsync{margin-top:6px}
+.dlsync b{color:var(--strong)}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1220,14 +1228,15 @@ function gameCard(e){
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
   const fin = st.state === 'post', live = st.state === 'in';
   const hi = Math.max(...cs.map(x => +x.score || 0));
-  const status = live ? `<span class="lv">${esc(st.shortDetail)}</span>` : fin ? esc(st.shortDetail) : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  const hideLive = live && liveDelay > 0;
+  const status = live ? `<span class="lv">${hideLive ? `Live, delayed ${liveDelay}s` : esc(st.shortDetail)}</span>` : fin ? esc(st.shortDetail) : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   const lead = (c.leaders || []).find(l => l.name === 'points' || l.name === 'pointsPerGame');
   const leadTxt = lead ? lead.leaders.slice(0, 1).map(l => `${esc(l.athlete.shortName || l.athlete.displayName)} ${esc(l.displayValue)}`).join('') : '';
   return `<button class="gcard${live ? ' live' : ''}" data-game="${e.id}"><div class="gstat"><span>${status}</span><span>${esc((c.broadcasts || [])[0]?.names?.[0] || '')}</span></div>
     ${cs.map(x => `<div class="gteam${fin && +x.score < hi ? ' lost' : ''}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">
       <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc((x.records || [])[0]?.summary || '')}</span>
-      <span class="gs">${st.state === 'pre' ? '' : esc(x.score)}</span></div>`).join('')}
-    ${leadTxt ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
+      <span class="gs">${st.state === 'pre' ? '' : hideLive ? '•' : esc(x.score)}</span></div>`).join('')}
+    ${leadTxt && !hideLive ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
     ${live ? (() => { const sl = fixtureSlug(e.date, cs[0].team.abbreviation, cs[1].team.abbreviation); return sl ? `<a class="gstream" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶ Stream</a>` : ''; })() : ''}</button>`;
 }
 
@@ -1237,9 +1246,12 @@ async function openGame(id, quiet){
   let s;
   try { s = await espn('/summary?event=' + id); }
   catch (e){ if (!quiet) $('#scbody').innerHTML = `<div class="empty">ESPN's game feed did not answer (${esc(e.message)}).</div>`; return; }
-  lastSummary = s; drawGame(s, quiet);
+  keepSnap(id, s);
   const live = s.header?.competitions?.[0]?.status?.type?.state === 'in';
-  schedule(live ? 15000 : 600000, () => openGame(id, true));
+  const view = live ? delayedView(id) : s;
+  lastSummary = view; lastDrawnKey = ''; drawGame(view, quiet);
+  if (live) startDelayTicker(); else clearInterval(delayTick);
+  schedule(live ? 5000 : 600000, () => openGame(id, true));
 }
 function drawGame(s, quiet){
   const comp = s.header.competitions[0], st = comp.status.type;
@@ -1402,6 +1414,7 @@ function fadeBoxEdges(){
 }
 function boxView(s){
   const teams = s.boxscore?.players || [];
+  if (s.__delayed && s.__boxWait) return `<div class="empty">The box score catches up with your delay in about ${s.__boxWait} seconds.</div>`;
   if (!teams.length) return `<div class="empty">The box score fills in at tip off.</div>`;
   return teams.map(t => {
     const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
@@ -1613,7 +1626,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#cmp')
 let LIVE = null, liveTimer = null;
 async function liveFloor(ev){
   try {
-    const s = await espn('/summary?event=' + ev.id);
+    const fresh = await espn('/summary?event=' + ev.id);
+    keepSnap(ev.id, fresh);
+    const buf = SNAPS[ev.id], cutoff = Date.now() - liveDelay * 1000;
+    const pick = liveDelay ? [...buf].reverse().find(x => x.t <= cutoff) : buf[buf.length - 1];
+    const s = pick ? pick.s : {boxscore: {players: []}, header: fresh.header};
     const map = {};
     for (const t of (s.boxscore?.players || [])){
       const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
@@ -1625,7 +1642,7 @@ async function liveFloor(ev){
     LIVE = {event: ev.id, state, stats: map, team: String(cur)};
     renderFloor(); renderBench();
     clearTimeout(liveTimer);
-    if (state === 'in') liveTimer = setTimeout(() => liveFloor(ev), 30000);
+    if (state === 'in') liveTimer = setTimeout(() => liveFloor(ev), liveDelay ? 10000 : 30000);
   } catch (e){ /* live box score unavailable */ }
 }
 
@@ -2121,7 +2138,7 @@ let playerOn = true;
 function gamePlayerEl(sl){
   const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
   wrap.innerHTML = `<div class="pbar"><span class="plab">Stream</span><button class="pbtn" type="button">${playerOn ? 'Hide' : 'Show'}</button>
-    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe"${playerOn ? '' : ' hidden'}></div>`;
+    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
   const frame = wrap.querySelector('.pframe'), btn = wrap.querySelector('button');
   const mount = () => {
     frame.innerHTML = '';
@@ -2137,6 +2154,93 @@ function gamePlayerEl(sl){
   mount();
   return wrap;
 }
+
+/* ---------- live feed delay: hold the feed back so it matches the stream ---------- */
+// Every summary we fetch is kept with the time it arrived. With a delay set, plays show
+// only once (when they happened + delay) has passed, the score and quarter totals are
+// rebuilt from the last play shown, and the box score comes from the snapshot that was
+// current at that moment. So nothing on screen gets ahead of the stream.
+let liveDelay = (() => { try { return Math.max(0, Math.min(180, +localStorage.getItem('nba_delay') || 0)); } catch (e){ return 0; } })();
+const SNAPS = {}, FIRST_SEEN = {};
+function keepSnap(id, s){
+  const now = Date.now(), buf = SNAPS[id] = SNAPS[id] || [];
+  buf.push({t: now, s});
+  while (buf.length > 2 && now - buf[0].t > 240000) buf.shift();   // four minutes is more than any delay
+  for (const p of (s.plays || [])) if (!FIRST_SEEN[p.id]) FIRST_SEEN[p.id] = now;
+}
+const playTime = p => (p.wallclock && Date.parse(p.wallclock)) || FIRST_SEEN[p.id] || 0;
+function setDelay(v){
+  liveDelay = Math.max(0, Math.min(180, Math.round(v)));
+  try { localStorage.setItem('nba_delay', liveDelay); } catch (e){}
+  for (const el of document.querySelectorAll('.dlv')) el.textContent = `${liveDelay}s`;
+  for (const el of document.querySelectorAll('.dlrange')) if (+el.value !== liveDelay) el.value = liveDelay;
+  if (gameId && SNAPS[gameId]) redrawDelayed(true);
+  if (cur) liveCheck();
+}
+// What the screen should show for this game right now, given the delay
+function delayedView(id){
+  const buf = SNAPS[id]; if (!buf || !buf.length) return null;
+  const latest = buf[buf.length - 1].s;
+  if (!liveDelay || latest.header?.competitions?.[0]?.status?.type?.state !== 'in') return latest;
+  const cutoff = Date.now() - liveDelay * 1000;
+  const plays = (latest.plays || []).filter(p => playTime(p) && playTime(p) <= cutoff);
+  const last = plays[plays.length - 1];
+  const comp0 = latest.header.competitions[0];
+  const comp = {...comp0, competitors: comp0.competitors.map(c => {
+    const sc = last ? (c.homeAway === 'home' ? last.homeScore : last.awayScore) : 0;
+    // quarter totals rebuilt from the plays shown, so a later quarter never leaks
+    const byQ = {}; let prev = 0;
+    for (const p of plays){ const q = p.period?.number || 1, v = c.homeAway === 'home' ? +p.homeScore : +p.awayScore; byQ[q] = v; }
+    const ls = Object.keys(byQ).sort((a, b) => a - b).map(q => { const v = byQ[q] - prev; prev = byQ[q]; return {displayValue: String(v)}; });
+    return {...c, score: String(sc ?? 0), linescores: ls};
+  })};
+  const per = last?.period?.number;
+  comp.status = {...comp0.status, type: {...comp0.status.type, shortDetail: last ? `${per <= 4 ? ['1st', '2nd', '3rd', '4th'][per - 1] : 'OT'} ${last.clock?.displayValue || ''}` : 'Waiting for the stream'}};
+  const snap = [...buf].reverse().find(x => x.t <= cutoff);
+  const ids = new Set(plays.map(p => p.id));
+  return {...latest, header: {...latest.header, competitions: [comp]}, plays,
+    winprobability: (latest.winprobability || []).filter(w => ids.has(w.playId)),
+    boxscore: snap ? snap.s.boxscore : {players: []}, __boxWait: snap ? 0 : Math.ceil((buf[0].t - cutoff) / 1000), __delayed: true};
+}
+let delayTick = 0, lastDrawnKey = '';
+function redrawDelayed(force){
+  if (!gameId || $('#scores').hidden) return;
+  const v = delayedView(gameId); if (!v) return;
+  const key = `${(v.plays || []).length}|${v.header.competitions[0].competitors.map(c => c.score).join('-')}|${v.__boxWait ? 1 : 0}|${liveDelay}`;
+  if (!force && key === lastDrawnKey) return;
+  lastDrawnKey = key; lastSummary = v; drawGame(v, true);
+}
+function startDelayTicker(){ clearInterval(delayTick); delayTick = setInterval(() => { if (liveDelay) redrawDelayed(); }, 1000); }
+// Sync to stream: tap once to pick the newest play, again when the stream shows it
+let syncPlay = null;
+function syncStep(btn){
+  const buf = SNAPS[gameId]; if (!buf || !buf.length) return;
+  const plays = (buf[buf.length - 1].s.plays || []).filter(p => p.text);
+  if (!syncPlay){
+    syncPlay = plays[plays.length - 1]; if (!syncPlay) return;
+    btn.textContent = 'Tap when you see it';
+    const note = btn.closest('.pwrap').querySelector('.dlsync'); note.hidden = false;
+    note.innerHTML = `Watch the stream for: <b>${esc(syncPlay.text)}</b> (${esc(syncPlay.period?.displayValue || '')} ${esc(syncPlay.clock?.displayValue || '')})`;
+  } else {
+    setDelay((Date.now() - playTime(syncPlay)) / 1000);
+    syncPlay = null; btn.textContent = 'Sync to stream';
+    const note = btn.closest('.pwrap').querySelector('.dlsync'); note.hidden = false;
+    note.textContent = `Feed delay set to ${liveDelay} seconds.`;
+    setTimeout(() => { note.hidden = true; }, 4000);
+  }
+}
+function delayControls(){
+  return `<div class="dlbar"><span class="plab">Feed delay</span><button class="pbtn dlm" type="button" aria-label="One second less">−1</button>
+    <input class="dlrange" type="range" min="0" max="180" step="1" value="${liveDelay}" aria-label="Feed delay in seconds">
+    <button class="pbtn dlp" type="button" aria-label="One second more">+1</button><b class="dlv">${liveDelay}s</b>
+    <button class="pbtn dls" type="button">Sync to stream</button></div><div class="dlsync note" hidden></div>`;
+}
+document.addEventListener('input', e => { if (e.target.classList?.contains('dlrange')) setDelay(+e.target.value); });
+document.addEventListener('click', e => {
+  if (e.target.closest('.dlm')) setDelay(liveDelay - 1);
+  else if (e.target.closest('.dlp')) setDelay(liveDelay + 1);
+  else if (e.target.closest('.dls')) syncStep(e.target.closest('.dls'));
+});
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';
@@ -2583,7 +2687,7 @@ async function liveCheck(){
     if (st.state !== 'pre' && (!LIVE || LIVE.event !== ev.id || LIVE.team !== String(cur) || st.state === 'in')) liveFloor(ev);
     let txt;
     if (st.state === 'pre') txt = `Today ${where} ${op.team.abbreviation} ${new Date(ev.date).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
-    else if (st.state === 'in') { txt = `Live ${me.score}-${op.score} ${where} ${op.team.abbreviation}, ${st.shortDetail}`; p.classList.add('live'); }
+    else if (st.state === 'in') { txt = liveDelay ? `Live ${where} ${op.team.abbreviation}, feed delayed ${liveDelay}s` : `Live ${me.score}-${op.score} ${where} ${op.team.abbreviation}, ${st.shortDetail}`; p.classList.add('live'); }
     else txt = `Final ${me.score}-${op.score} ${where} ${op.team.abbreviation}`;
     p.textContent = txt; p.hidden = false; p.style.cursor = 'pointer'; p.onclick = () => openScores(ev.id);
   } catch(e){ /* scoreboard unavailable, the pill just stays hidden */ }
