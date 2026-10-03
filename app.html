@@ -1234,16 +1234,17 @@ async function loadDay(quiet){
   const ev = j.events || [];
   if (!ev.length){ $('#scbody').innerHTML = '<div class="empty">No NBA games on this date. Use the arrows or pick a date.</div>'; schedule(120000, () => loadDay(true)); return; }
   $('#scbody').innerHTML = `<div class="gcards">${ev.map(gameCard).join('')}</div>`;
-  const live = ev.some(e => e.status.type.state === 'in');
+  const live = ev.some(e => liveWindow(e.status.type.state, e.date));
   schedule(live ? 20000 : 120000, () => loadDay(true));
 }
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
-  const fin = st.state === 'post', live = st.state === 'in';
+  const fin = st.state === 'post', live = liveWindow(st.state, e.date), pregame = live && st.state === 'pre';
   const hi = Math.max(...cs.map(x => +x.score || 0));
   const hideLive = live && liveDelay > 0;
-  const status = live ? `<span class="lv">${hideLive ? `Live, delayed ${liveDelay}s` : esc(st.shortDetail)}</span>` : fin ? esc(st.shortDetail) : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  const status = pregame ? `<span class="lv">Starting, tip ${new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}</span>`
+    : live ? `<span class="lv">${hideLive ? `Live, delayed ${liveDelay}s` : esc(st.shortDetail)}</span>` : fin ? esc(st.shortDetail) : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   const lead = (c.leaders || []).find(l => l.name === 'points' || l.name === 'pointsPerGame');
   const leadTxt = lead ? lead.leaders.slice(0, 1).map(l => `${esc(l.athlete.shortName || l.athlete.displayName)} ${esc(l.displayValue)}`).join('') : '';
   return `<button class="gcard${live ? ' live' : ''}" data-game="${e.id}"><div class="gstat"><span>${status}</span><span>${esc((c.broadcasts || [])[0]?.names?.[0] || '')}</span></div>
@@ -1261,20 +1262,23 @@ async function openGame(id, quiet){
   try { s = id === 'demo' ? await demoSnapshot() : await espn('/summary?event=' + id); }
   catch (e){ if (!quiet) $('#scbody').innerHTML = `<div class="empty">ESPN's game feed did not answer (${esc(e.message)}).</div>`; return; }
   keepSnap(id, s);
-  const live = s.header?.competitions?.[0]?.status?.type?.state === 'in';
+  const st0 = s.header?.competitions?.[0];
+  const live = st0?.status?.type?.state === 'in';
+  const window_ = liveWindow(st0?.status?.type?.state, st0?.date);
   const view = live ? delayedView(id) : s;
   lastSummary = view; lastDrawnKey = ''; drawGame(view, quiet);
   if (live) startDelayTicker(); else clearInterval(delayTick);
-  schedule(id === 'demo' ? DEMO_STEP : live ? 5000 : 600000, () => openGame(id, true));
+  schedule(id === 'demo' ? DEMO_STEP : window_ ? 5000 : st0?.status?.type?.state === 'pre' ? 60000 : 600000, () => openGame(id, true));
 }
 function drawGame(s, quiet){
   const comp = s.header.competitions[0], st = comp.status.type;
   const cs = [...comp.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
   const live = st.state === 'in';
+  const pregameLive = st.state === 'pre' && liveWindow(st.state, comp.date);
   const side = (x, r) => `<div class="ght${r ? ' r' : ''}"><img src="${x.team.logos?.[0]?.href || logoOf(x.team.abbreviation)}" alt="">
     <div><div class="tn">${esc(x.team.displayName)}</div><div class="tr">${esc((x.record || [])[0]?.summary || x.team.abbreviation)}</div></div></div>`;
   let h = `<div class="ghead">${side(cs[0])}<div class="gsc"><b>${st.state === 'pre' ? 'vs' : `${esc(cs[0].score)} - ${esc(cs[1].score)}`}</b>
-    <div class="${live ? 'lv' : ''}">${esc(st.shortDetail || st.detail || '')}</div></div>${side(cs[1], 1)}</div>`;
+    <div class="${live || pregameLive ? 'lv' : ''}">${pregameLive ? `Tip ${new Date(comp.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}, starting soon` : esc(st.shortDetail || st.detail || '')}</div></div>${side(cs[1], 1)}</div>`;
   // line score
   const q = Math.max(...cs.map(x => (x.linescores || []).length));
   if (q) h += `<div class="scroll lsc"><table class="tb"><tr><th></th>${Array.from({length: q}, (_, i) => `<th>${i < 4 ? 'Q' + (i + 1) : 'OT' + (i > 4 ? i - 3 : '')}</th>`).join('')}<th>T</th></tr>
@@ -1283,7 +1287,7 @@ function drawGame(s, quiet){
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   h += gameTab === 'preview' ? previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
-  const slug = st.state === 'in' ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
+  const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
   if (slug) h = `<div id="gplayer-slot"></div>` + h;
   if (s.__demo) h = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + h;
   const keep = $('#scbody').scrollTop;
@@ -2142,6 +2146,14 @@ function playerStyleSection(p){
 document.addEventListener('click', e => { const b = e.target.closest('[data-sty]'); if (b){ styleSide = b.dataset.sty; const el = $('#stysect'); if (el) el.outerHTML = teamStyleSection(T[cur]); } });
 
 
+
+/* A game counts as live from 10 minutes before its scheduled time until the final,
+   so the stream and live view are up at game time even before the tip. */
+const LIVE_EARLY = 10 * 60 * 1000;
+function liveWindow(state, when){
+  if (state === 'in') return true;
+  return state === 'pre' && when && Date.now() >= Date.parse(when) - LIVE_EARLY;
+}
 /* ---------- stream and embedded player (same shape as the NFL app) ---------- */
 // /live/nba/<date>/<away>-<home> opens the stream page; /embed/nba/... is the player on its own.
 // Hosts and team codes come from site_config.py, so app updates never reset them.
@@ -2743,7 +2755,8 @@ async function liveCheck(){
     const st = ev.status.type, where = me.homeAway === 'home' ? 'vs' : 'at';
     if (st.state !== 'pre' && (!LIVE || LIVE.event !== ev.id || LIVE.team !== String(cur) || st.state === 'in')) liveFloor(ev);
     let txt;
-    if (st.state === 'pre') txt = `Today ${where} ${op.team.abbreviation} ${new Date(ev.date).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
+    if (st.state === 'pre' && liveWindow('pre', ev.date)){ txt = `Live soon ${where} ${op.team.abbreviation}, tip ${new Date(ev.date).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`; p.classList.add('live'); }
+    else if (st.state === 'pre') txt = `Today ${where} ${op.team.abbreviation} ${new Date(ev.date).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
     else if (st.state === 'in') { txt = liveDelay ? `Live ${where} ${op.team.abbreviation}, feed delayed ${liveDelay}s` : `Live ${me.score}-${op.score} ${where} ${op.team.abbreviation}, ${st.shortDetail}`; p.classList.add('live'); }
     else txt = `Final ${me.score}-${op.score} ${where} ${op.team.abbreviation}`;
     p.textContent = txt; p.hidden = false; p.style.cursor = 'pointer'; p.onclick = () => openScores(ev.id);
