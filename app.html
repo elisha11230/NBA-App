@@ -682,6 +682,30 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .pdemo b{font-size:15px;text-transform:uppercase;color:#d5dedb}
 .pdemo span{font-size:12px;word-break:break-all}
 .demobtn{border-color:var(--brass)!important;color:var(--brass)!important}
+
+/* ---------- stream dock: one player, docked in the game view or floating ---------- */
+#streamdock{position:fixed;z-index:90;background:#000;border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+#streamdock[hidden]{display:none}
+#streamdock .sdbar{display:none}
+#streamdock .sdframe{position:relative;flex:1 1 auto}
+#streamdock .sdframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#streamdock.floating{width:min(360px,58vw);height:auto;box-shadow:0 12px 34px rgba(0,0,0,.45);border:1px solid var(--line)}
+#streamdock.floating .sdframe{aspect-ratio:16/9;flex:0 0 auto}
+#streamdock.floating[data-corner="br"]{right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+#streamdock.floating[data-corner="bl"]{left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+#streamdock.floating[data-corner="tr"]{right:12px;top:calc(12px + env(safe-area-inset-top,0px))}
+#streamdock.floating[data-corner="tl"]{left:12px;top:calc(12px + env(safe-area-inset-top,0px))}
+#streamdock.floating .sdbar{display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;background:#0E1518;cursor:grab;touch-action:none;user-select:none}
+#streamdock.dragging{transition:none;opacity:.92}
+#streamdock.dragging .sdbar{cursor:grabbing}
+.sdt{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Barlow Condensed',sans-serif;font-size:12.5px;letter-spacing:.06em;color:#EAF1ED}
+.sdb{flex:0 0 auto;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#EAF1ED;border:1px solid #566C77;border-radius:var(--r);padding:3px 9px;background:none}
+.sdb:hover{border-color:#D9B84A;color:#fff}
+.sdb[data-sd="close"]{padding:2px 8px;font-size:15px;line-height:1}
+#livechip{position:fixed;z-index:89;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:9px 14px;border-radius:20px;border:1px solid #D06A6A;background:var(--panel);color:var(--strong);
+  font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+#livechip[hidden]{display:none}
+.pframe{background:transparent}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1210,10 +1234,25 @@ const stamp = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') +
 let scDate = new Date(), scTimer = null, gameId = null, gameTab = 'pbp', playFilter = 'all', seenPlays = new Set(), lastSummary = null;
 
 function openScores(eventId){
-  $('#scores').hidden = false; document.body.style.overflow = 'hidden';
+  $('#scores').hidden = false; document.body.style.overflow = 'hidden'; clearInterval(scTimer);
   if (eventId) openGame(eventId); else { gameId = null; loadDay(); }
 }
-function closeScores(){ $('#scores').hidden = true; document.body.style.overflow = ''; clearInterval(scTimer); scTimer = null; gameId = null; }
+function closeScores(){
+  $('#scores').hidden = true; document.body.style.overflow = ''; clearInterval(scTimer); scTimer = null;
+  if (STREAM.slug) floatDock(); else updateReturnChip();
+  // keep the floating player's score current while you browse
+  if (STREAM.slug && STREAM.game && STREAM.game !== 'demo'){ const g = STREAM.game; scTimer = setInterval(() => openGameQuiet(g), 15000); }
+  gameId = null;
+}
+async function openGameQuiet(id){
+  try {
+    const s = await espn('/summary?event=' + id); keepSnap(id, s);
+    const v = delayedView(id) || s, c = v.header.competitions[0], cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
+    STREAM.gameLive = c.status.type.state !== 'post';
+    STREAM.title = liveDelay ? `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}` : `${cs[0].team.abbreviation} ${cs[0].score}, ${cs[1].team.abbreviation} ${cs[1].score} · ${c.status.type.shortDetail}`;
+    const dt_ = $('#streamdock .sdt'); if (dt_) dt_.textContent = STREAM.title;
+  } catch (e){}
+}
 function schedule(ms, fn){ clearInterval(scTimer); scTimer = setInterval(() => { if (!$('#scores').hidden) fn(); }, ms); }
 
 function drawNav(){
@@ -1300,11 +1339,19 @@ function drawGame(s, quiet){
   }
   const cur_ = pbox.firstElementChild;
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
-  else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug)); }
+  else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`)); }
   const keep = body.scrollTop;
   gbox.innerHTML = h.replace('<div id="gplayer-slot"></div>', '');
   if (quiet) body.scrollTop = keep;
   fadeBoxEdges();
+  // mini player: keep its score line current, and dock back if we are on its game
+  if (STREAM.slug && STREAM.game === gameId){
+    STREAM.gameLive = st.state !== 'post';
+    const sc = `${cs[0].team.abbreviation} ${cs[0].score ?? ''}, ${cs[1].team.abbreviation} ${cs[1].score ?? ''} · ${st.shortDetail || ''}`;
+    STREAM.title = liveDelay ? `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}` : sc;
+    const dt_ = $('#streamdock .sdt'); if (dt_) dt_.textContent = STREAM.title;
+  }
+  if (STREAM.slug) redockIfHere();
 }
 function playsView(s, cs, quiet){
   const plays = s.plays || [];
@@ -1465,7 +1512,7 @@ $('#scores').addEventListener('click', e => {
   const t = e.target;
   const dd = t.closest('[data-dd]');
   if (dd){ const n = +dd.dataset.dd; scDate = n ? new Date(scDate.getTime() + n * 864e5) : new Date(); loadDay(); return; }
-  if (t.closest('#gback')){ gameId = null; clearInterval(delayTick); loadDay(); return; }
+  if (t.closest('#gback')){ gameId = null; clearInterval(delayTick); loadDay(); if (STREAM.slug) floatDock(); return; }
   if (t.closest('#demobtn')){ openDemo(); return; }
   if (t.closest('#demorestart')){ demoSrc = null; delete SNAPS.demo; openGame('demo'); return; }
   const g = t.closest('[data-game]'); if (g){ gameTab = 'pbp'; openGame(g.dataset.game); return; }
@@ -2172,27 +2219,124 @@ function fixtureSlug(when, awayAb, homeAb){
 const streamUrl = sl => sl ? `${(D.site && D.site.streamBase) || ''}/live/nba/${sl}` : null;
 const embedUrl = sl => sl ? `${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}` : null;
 let playerOn = true;
-function gamePlayerEl(sl){
-  const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
-  wrap.innerHTML = `<div class="pbar"><span class="plab">Stream</span><button class="pbtn" type="button">${playerOn ? 'Hide' : 'Show'}</button>
-    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
-  const frame = wrap.querySelector('.pframe'), btn = wrap.querySelector('button');
-  const mount = () => {
-    frame.innerHTML = '';
-    if (!playerOn){ frame.hidden = true; return; }
-    frame.hidden = false;
-    if (gameId === 'demo'){ frame.innerHTML = `<div class="pdemo"><b>Your stream plays here</b><span>${esc(embedUrl(sl))}</span></div>`; return; }
-    const f = document.createElement('iframe');
-    f.id = 'player'; f.src = embedUrl(sl); f.scrolling = 'no'; f.allowFullscreen = true;
-    f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
-    f.setAttribute('marginheight', '0'); f.setAttribute('marginwidth', '0'); f.width = '100%'; f.height = '100%';
-    frame.appendChild(f);
+/* ---------- one stream player for the whole app: docked in the game view, or floating ---------- */
+// Browsers reload a frame whenever it is moved in the page, so the stream lives in a single
+// fixed box (#streamdock) that is never moved. In the game view it is laid exactly over its
+// spot and follows it as you scroll; anywhere else it floats as a mini player.
+const STREAM = {slug: null, game: null, title: '', mode: 'off', corner: 'br', loop: 0};
+function dockEl(){
+  let d = $('#streamdock');
+  if (!d){
+    d = document.createElement('div'); d.id = 'streamdock'; d.hidden = true;
+    d.innerHTML = `<div class="sdbar"><span class="sdt"></span><button class="sdb" data-sd="game" type="button">Game</button><button class="sdb" data-sd="close" type="button" aria-label="Close the player">×</button></div><div class="sdframe"></div>`;
+    document.body.appendChild(d);
+    d.addEventListener('click', e => {
+      const b = e.target.closest('[data-sd]'); if (!b) return;
+      if (b.dataset.sd === 'game') backToGame();
+      if (b.dataset.sd === 'close') stopStream();
+    });
+    dragDock(d);
+  }
+  return d;
+}
+function setStream(sl, game, title){
+  const d = dockEl(), fr = d.querySelector('.sdframe');
+  STREAM.game = game; STREAM.title = title || STREAM.title;
+  if (STREAM.slug === sl && fr.firstChild) return;          // already playing: leave it alone
+  STREAM.slug = sl; fr.innerHTML = '';
+  if (game === 'demo'){ fr.innerHTML = `<div class="pdemo"><b>Your stream plays here</b><span>${esc(embedUrl(sl))}</span></div>`; return; }
+  const f = document.createElement('iframe');
+  f.id = 'player'; f.src = embedUrl(sl); f.scrolling = 'no'; f.allowFullscreen = true;
+  f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
+  f.setAttribute('marginheight', '0'); f.setAttribute('marginwidth', '0'); f.width = '100%'; f.height = '100%';
+  fr.appendChild(f);
+}
+function stopStream(){
+  const d = $('#streamdock'); if (d){ d.querySelector('.sdframe').innerHTML = ''; d.hidden = true; }
+  cancelAnimationFrame(STREAM.loop); STREAM.slug = null; STREAM.mode = 'off';
+  updateReturnChip();
+}
+// Lay the dock over its spot in the game view, every frame, clipped to the scrolling area
+function dockOver(spot){
+  const d = dockEl(); STREAM.mode = 'docked'; d.hidden = false; d.classList.remove('floating');
+  cancelAnimationFrame(STREAM.loop);
+  const follow = () => {
+    if (STREAM.mode !== 'docked') return;
+    if (!document.body.contains(spot) || $('#scores').hidden){ floatDock(); return; }
+    const r = spot.getBoundingClientRect(), box = $('#scbody').getBoundingClientRect();
+    Object.assign(d.style, {left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: 'auto', bottom: 'auto'});
+    const top = Math.max(0, box.top - r.top), bot = Math.max(0, r.bottom - box.bottom);
+    d.style.clipPath = (top || bot) ? `inset(${top}px 0 ${bot}px 0)` : '';
+    d.style.visibility = (top + bot >= r.height - 1) ? 'hidden' : 'visible';
+    STREAM.loop = requestAnimationFrame(follow);
   };
-  btn.onclick = () => { playerOn = !playerOn; btn.textContent = playerOn ? 'Hide' : 'Show'; mount(); };
-  mount();
+  follow();
+  updateReturnChip();
+}
+function floatDock(){
+  if (!STREAM.slug) return;
+  const d = dockEl(); STREAM.mode = 'floating'; cancelAnimationFrame(STREAM.loop);
+  d.hidden = false; d.classList.add('floating'); d.style.clipPath = ''; d.style.visibility = 'visible';
+  for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height']) d.style[k] = '';
+  d.dataset.corner = STREAM.corner;
+  d.querySelector('.sdt').textContent = STREAM.title;
+  updateReturnChip();
+}
+function backToGame(){
+  if (!STREAM.game) return;
+  if ($('#scores').hidden){ $('#scores').hidden = false; document.body.style.overflow = 'hidden'; }
+  if (gameId !== STREAM.game){ gameTab = 'pbp'; STREAM.game === 'demo' ? openDemo() : openGame(STREAM.game); }
+  else redockIfHere();
+}
+function redockIfHere(){
+  const spot = $('#gplayerbox .pframe');
+  if (STREAM.slug && spot && spot.dataset.slug === STREAM.slug && !$('#scores').hidden && playerOn) dockOver(spot);
+  else if (STREAM.slug) floatDock();
+}
+// Drag the mini player by its bar; it settles into the nearest corner
+function dragDock(d){
+  let sx, sy, ox, oy, dragging = false;
+  d.querySelector('.sdbar').addEventListener('pointerdown', e => {
+    if (STREAM.mode !== 'floating' || e.target.closest('button')) return;
+    const r = d.getBoundingClientRect(); dragging = true; sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    d.setPointerCapture(e.pointerId); d.classList.add('dragging');
+  });
+  d.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    Object.assign(d.style, {left: ox + e.clientX - sx + 'px', top: oy + e.clientY - sy + 'px', right: 'auto', bottom: 'auto'});
+  });
+  d.addEventListener('pointerup', () => {
+    if (!dragging) return; dragging = false; d.classList.remove('dragging');
+    const r = d.getBoundingClientRect();
+    STREAM.corner = (r.top + r.height / 2 < innerHeight / 2 ? 't' : 'b') + (r.left + r.width / 2 < innerWidth / 2 ? 'l' : 'r');
+    floatDock();
+  });
+}
+// A small way back to the game when the player is closed or hidden but the game is still on
+function updateReturnChip(){
+  let c = $('#livechip');
+  const show = STREAM.game && STREAM.mode !== 'floating' && $('#scores').hidden && (STREAM.game === 'demo' || STREAM.gameLive);
+  if (!c){ c = document.createElement('button'); c.id = 'livechip'; c.type = 'button'; c.onclick = backToGame; document.body.appendChild(c); }
+  c.hidden = !show;
+  if (show) c.innerHTML = `<span class="livedot"></span>Back to ${esc(STREAM.title || 'the live game')}`;
+}
+function gamePlayerEl(sl, title){
+  const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
+  wrap.innerHTML = `<div class="pbar"><span class="plab">Stream</span><button class="pbtn" data-pl="pop" type="button" title="Keep watching while you browse">Pop out</button><button class="pbtn" data-pl="hide" type="button">${playerOn ? 'Hide' : 'Show'}</button>
+    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe" data-slug="${esc(sl)}"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
+  const spot = wrap.querySelector('.pframe');
+  STREAM.game = gameId; STREAM.title = title; STREAM.gameLive = true;
+  wrap.querySelector('[data-pl="hide"]').onclick = e => {
+    playerOn = !playerOn; e.target.textContent = playerOn ? 'Hide' : 'Show'; spot.hidden = !playerOn;
+    if (playerOn){ setStream(sl, gameId, title); dockOver(spot); } else stopStream();
+  };
+  wrap.querySelector('[data-pl="pop"]').onclick = () => {
+    if (!playerOn){ playerOn = true; spot.hidden = false; wrap.querySelector('[data-pl="hide"]').textContent = 'Hide'; setStream(sl, gameId, title); }
+    closeScores();   // the stream floats; the rest of the app is yours
+  };
+  if (playerOn){ requestAnimationFrame(() => { setStream(sl, gameId, title); dockOver(spot); }); }
   return wrap;
 }
-
 /* ---------- live feed delay: hold the feed back so it matches the stream ---------- */
 // Every summary we fetch is kept with the time it arrived. With a delay set, plays show
 // only once (when they happened + delay) has passed, the score and quarter totals are
