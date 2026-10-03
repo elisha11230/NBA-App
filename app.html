@@ -672,6 +672,16 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .dlv{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--strong);min-width:38px;text-align:right}
 .dlsync{margin-top:6px}
 .dlsync b{color:var(--strong)}
+
+/* ---------- demo live game ---------- */
+.demobar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border:1px dashed var(--brass);border-radius:var(--r);font-size:13px;color:var(--chalk);background:color-mix(in srgb,var(--brass) 8%,transparent)}
+.demobar b{font-family:'Barlow Condensed',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.demobar .pbtn{margin-left:auto}
+.pdemo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#9fb0aa;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-align:center;padding:10px;
+  background:repeating-linear-gradient(135deg,#0d1316 0 14px,#111a1e 14px 28px)}
+.pdemo b{font-size:15px;text-transform:uppercase;color:#d5dedb}
+.pdemo span{font-size:12px;word-break:break-all}
+.demobtn{border-color:var(--brass)!important;color:var(--brass)!important}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1208,11 +1218,12 @@ function schedule(ms, fn){ clearInterval(scTimer); scTimer = setInterval(() => {
 
 function drawNav(){
   const iso = scDate.toISOString().slice(0, 10);
+  if (gameId === 'demo'){ $('#scnav').innerHTML = `<button class="qx" id="gback">&larr; All games</button><span class="dl" style="text-align:left">Demo live game</span>`; return; }
   const label = scDate.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'});
   $('#scnav').innerHTML = gameId
     ? `<button class="qx" id="gback">&larr; All games</button><span class="dl" style="text-align:left">${label}</span>`
     : `<button class="qx" data-dd="-1">&larr; Day</button><span class="dl">${label}</span><button class="qx" data-dd="1">Day &rarr;</button>
-       <button class="qx" data-dd="0">Today</button><input type="date" id="scpick" value="${iso}" aria-label="Pick a date">`;
+       <button class="qx" data-dd="0">Today</button><input type="date" id="scpick" value="${iso}" aria-label="Pick a date"><button class="qx demobtn" id="demobtn">▶ Demo live game</button>`;
 }
 async function loadDay(quiet){
   drawNav();
@@ -1247,14 +1258,14 @@ async function openGame(id, quiet){
   gameId = id; drawNav();
   if (!quiet){ $('#scbody').innerHTML = '<div class="empty">Loading game</div>'; seenPlays = new Set(); playFilter = 'all'; }
   let s;
-  try { s = await espn('/summary?event=' + id); }
+  try { s = id === 'demo' ? await demoSnapshot() : await espn('/summary?event=' + id); }
   catch (e){ if (!quiet) $('#scbody').innerHTML = `<div class="empty">ESPN's game feed did not answer (${esc(e.message)}).</div>`; return; }
   keepSnap(id, s);
   const live = s.header?.competitions?.[0]?.status?.type?.state === 'in';
   const view = live ? delayedView(id) : s;
   lastSummary = view; lastDrawnKey = ''; drawGame(view, quiet);
   if (live) startDelayTicker(); else clearInterval(delayTick);
-  schedule(live ? 5000 : 600000, () => openGame(id, true));
+  schedule(id === 'demo' ? DEMO_STEP : live ? 5000 : 600000, () => openGame(id, true));
 }
 function drawGame(s, quiet){
   const comp = s.header.competitions[0], st = comp.status.type;
@@ -1274,6 +1285,7 @@ function drawGame(s, quiet){
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
   const slug = st.state === 'in' ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
   if (slug) h = `<div id="gplayer-slot"></div>` + h;
+  if (s.__demo) h = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + h;
   const keep = $('#scbody').scrollTop;
   const oldPlayer = $('#gplayer');
   if (oldPlayer) oldPlayer.remove();          // lift it out so the refresh below does not reload the stream
@@ -1309,7 +1321,7 @@ function playsView(s, cs, quiet){
   if (!openQ.has(gameId + ':init')){ openQ.add(gameId + ':init'); if (live) openQ.add(gameId + ':' + lastQ); }
   const away = cs.find(x => x.homeAway === 'away'), home = cs.find(x => x.homeAway === 'home');
   const nb = NBA[gameId];
-  if (!nb || (nb.live && Date.now() - nb.at > 60000)) ensureNba(s, cs, gameId);
+  if (!nb || (nb.live && Date.now() - nb.at > 60000)) ensureNba(s.__demo ? demoSrc : s, cs, gameId);
   const replay = nbaGameUrl(nb, s);
   let out = '';
   const qs = [...byQ.keys()].sort((x, y) => live ? y - x : x - y);
@@ -1418,8 +1430,9 @@ function fadeBoxEdges(){
 function boxView(s){
   const teams = s.boxscore?.players || [];
   if (s.__delayed && s.__boxWait) return `<div class="empty">The box score catches up with your delay in about ${s.__boxWait} seconds.</div>`;
+  const demoNote = s.__demo || (gameId === 'demo') ? `<p class="note" style="margin-bottom:8px">Demo: this is the finished game's box score. In a real live game it updates with every play.</p>` : '';
   if (!teams.length) return `<div class="empty">The box score fills in at tip off.</div>`;
-  return teams.map(t => {
+  return demoNote + teams.map(t => {
     const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
     const col = n => names.indexOf(n);
     const want = ['MIN', 'PTS', 'REB', 'AST', 'FG', '3PT', 'FT', 'STL', 'BLK', 'TO', 'PF', '+/-'].filter(n => col(n) >= 0);
@@ -1441,7 +1454,9 @@ $('#scores').addEventListener('click', e => {
   const t = e.target;
   const dd = t.closest('[data-dd]');
   if (dd){ const n = +dd.dataset.dd; scDate = n ? new Date(scDate.getTime() + n * 864e5) : new Date(); loadDay(); return; }
-  if (t.closest('#gback')){ gameId = null; loadDay(); return; }
+  if (t.closest('#gback')){ gameId = null; clearInterval(delayTick); loadDay(); return; }
+  if (t.closest('#demobtn')){ openDemo(); return; }
+  if (t.closest('#demorestart')){ demoSrc = null; delete SNAPS.demo; openGame('demo'); return; }
   const g = t.closest('[data-game]'); if (g){ gameTab = 'pbp'; openGame(g.dataset.game); return; }
   const gt = t.closest('[data-gt]'); if (gt){ gameTab = gt.dataset.gt; drawGame(lastSummary); return; }
   const pf = t.closest('[data-pf]'); if (pf){ playFilter = pf.dataset.pf; drawGame(lastSummary); return; }
@@ -2147,6 +2162,7 @@ function gamePlayerEl(sl){
     frame.innerHTML = '';
     if (!playerOn){ frame.hidden = true; return; }
     frame.hidden = false;
+    if (gameId === 'demo'){ frame.innerHTML = `<div class="pdemo"><b>Your stream plays here</b><span>${esc(embedUrl(sl))}</span></div>`; return; }
     const f = document.createElement('iframe');
     f.id = 'player'; f.src = embedUrl(sl); f.scrolling = 'no'; f.allowFullscreen = true;
     f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
@@ -2244,6 +2260,44 @@ document.addEventListener('click', e => {
   else if (e.target.closest('.dlp')) setDelay(liveDelay + 1);
   else if (e.target.closest('.dls')) syncStep(e.target.closest('.dls'));
 });
+
+/* ---------- demo live game: a real finished game replayed as if live ---------- */
+// The 2026 Finals, Game 4: Spurs at Knicks, 107-106. The real play by play is fed in
+// one play every 1.5 seconds from midway through the 2nd quarter, through the same
+// live game view, delay and player code that a real game uses.
+const DEMO_EVENT = '401859966', DEMO_STEP = 1500;
+let demoSrc = null, demoStart = 0, demoFrom = 0;
+async function demoSnapshot(){
+  if (!demoSrc){
+    demoSrc = await espn('/summary?event=' + DEMO_EVENT);
+    const n = (demoSrc.plays || []).length;
+    demoFrom = Math.floor(n * .35);
+    demoStart = Date.now();
+  }
+  const all = demoSrc.plays || [];
+  const k = Math.min(all.length, demoFrom + Math.floor((Date.now() - demoStart) / DEMO_STEP));
+  // each play gets a clock time as if it just happened, so the feed delay works on it too
+  const plays = all.slice(0, k).map((p, i) => ({...p, wallclock: new Date(demoStart + (i - demoFrom) * DEMO_STEP).toISOString()}));
+  const last = plays[plays.length - 1];
+  const done = k >= all.length;
+  const c0 = demoSrc.header.competitions[0];
+  const per = last?.period?.number;
+  const comp = {...c0, competitors: c0.competitors.map(c => {
+    const byQ = {}; let prev = 0;
+    for (const p of plays) byQ[p.period?.number || 1] = c.homeAway === 'home' ? +p.homeScore : +p.awayScore;
+    const ls = Object.keys(byQ).sort((a, b) => a - b).map(q => { const v = byQ[q] - prev; prev = byQ[q]; return {displayValue: String(v)}; });
+    return {...c, score: String(last ? (c.homeAway === 'home' ? last.homeScore : last.awayScore) : 0), linescores: ls};
+  }), status: {...c0.status, type: {...c0.status.type, state: done ? 'post' : 'in',
+    shortDetail: done ? 'Final' : `${per <= 4 ? ['1st', '2nd', '3rd', '4th'][per - 1] : 'OT'} ${last?.clock?.displayValue || ''}`}}};
+  const ids = new Set(plays.map(p => p.id));
+  return {...demoSrc, __demo: true, header: {...demoSrc.header, competitions: [comp]}, plays,
+    winprobability: (demoSrc.winprobability || []).filter(w => ids.has(w.playId))};
+}
+function openDemo(){
+  demoSrc = null; gameTab = 'pbp';
+  $('#scores').hidden = false; document.body.style.overflow = 'hidden';
+  openGame('demo');
+}
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';
@@ -2707,6 +2761,7 @@ if (!Object.keys(T).length){
   $('#stamp').textContent = `Rosters as of ${fmtDate(M.rosterStamp)}. Built ${fmtDate(M.built)}`;
   let start = null;
   const hash = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+  if (hash === 'DEMO') setTimeout(openDemo, 300);
   try { start = byAbbr[hash] || byAbbr[localStorage.getItem('nba_team')]; } catch(e){ start = byAbbr[hash]; }
   setTeam(start || byAbbr.NY || Object.keys(T)[0]);
   let wasMob = matchMedia('(max-width:640px)').matches;
