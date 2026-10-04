@@ -706,6 +706,14 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.3)}
 #livechip[hidden]{display:none}
 .pframe{background:transparent}
+
+/* ---------- highlights ---------- */
+.hlwrap{margin-bottom:12px}
+.hlframe{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.hlframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.hlwait{display:flex;align-items:center;justify-content:center;color:#9fb0aa;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em}
+.hlpick{margin-top:8px}
+.ghl{display:inline-block;margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--team-accent)}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1291,6 +1299,7 @@ function gameCard(e){
       <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc((x.records || [])[0]?.summary || '')}</span>
       <span class="gs">${st.state === 'pre' ? '' : hideLive ? '•' : esc(x.score)}</span></div>`).join('')}
     ${leadTxt && !hideLive ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
+    ${fin ? `<span class="ghl">▶ Highlights</span>` : ''}
     ${live ? (() => { const sl = fixtureSlug(e.date, cs[0].team.abbreviation, cs[1].team.abbreviation); return sl ? `<a class="gstream" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶ Stream</a>` : ''; })() : ''}</button>`;
 }
 
@@ -1334,9 +1343,10 @@ function drawGame(s, quiet){
   const body = $('#scbody');
   let pbox = $('#gplayerbox'), gbox = $('#gamecontent');
   if (!pbox || !gbox || pbox.parentNode !== body){
-    body.innerHTML = '<div id="gplayerbox"></div><div id="gamecontent"></div>';
+    body.innerHTML = '<div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamecontent"></div>';
     pbox = $('#gplayerbox'); gbox = $('#gamecontent');
   }
+  showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
   const cur_ = pbox.firstElementChild;
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
   else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`)); }
@@ -2461,6 +2471,45 @@ function openDemo(){
   $('#scores').hidden = false; document.body.style.overflow = 'hidden';
   openGame('demo');
 }
+
+
+/* ---------- full game highlights (official NBA YouTube channel, found by the relay) ---------- */
+// Finished games get the NBA's highlights video at the top. It sits in its own box that
+// refreshes never touch, so the video never restarts while you watch.
+const HL = {};
+function showHighlights(g){
+  const box = $('#ghlbox'); if (!box) return;
+  if (!g){ if (box.dataset.hlgame){ box.innerHTML = ''; box.dataset.hlgame = ''; } return; }
+  if (box.dataset.hlgame === String(gameId)) return;
+  box.dataset.hlgame = String(gameId);
+  const day = etDay(g.when), key = `${g.away}|${g.home}|${day}`;
+  box.innerHTML = `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span></div><div class="hlframe hlwait"><span>Finding the NBA's highlights…</span></div></div>`;
+  const draw = res => {
+    if (box.dataset.hlgame !== String(gameId)) return;
+    if (!res || !res.main){
+      const hoursSince = (Date.now() - Date.parse(g.when)) / 36e5;
+      box.innerHTML = hoursSince < 5 ? `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span></div><p class="note" style="margin:0 0 12px">The NBA usually posts full game highlights within an hour or two of the final. Check back soon.</p></div>` : '';
+      return;
+    }
+    const vids = [res.main, res.extended, ...(res.more || [])].filter(Boolean);
+    const label = v => v === res.extended ? `Extended ${v.len}` : v === res.main ? `Full game ${v.len}` : `${v.title.split('|')[0].trim().slice(0, 34)} ${v.len}`;
+    box.innerHTML = `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights · NBA on YouTube</span><a class="pbtn" href="https://www.youtube.com/watch?v=${esc(res.main.id)}" target="_blank" rel="noopener">YouTube</a></div>
+      <div class="hlframe"><iframe src="https://www.youtube-nocookie.com/embed/${esc(res.main.id)}?rel=0&modestbranding=1&playsinline=1" title="${esc(res.main.title)}"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      ${vids.length > 1 ? `<div class="pfilt hlpick">${vids.map((v, i) => `<button data-hl="${esc(v.id)}" aria-pressed="${i === 0}">${esc(label(v))}</button>`).join('')}</div>` : ''}</div>`;
+  };
+  if (HL[key] !== undefined) return draw(HL[key]);
+  const nick_ = ab => { const n = T[byAbbr[ab]]?.name || ab; return n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]; };
+  fetch(`${RELAY}/yt?a=${encodeURIComponent(nick_(g.away))}&h=${encodeURIComponent(nick_(g.home))}&d=${day}`)
+    .then(r => r.json()).catch(() => null).then(res => { if (res && res.main) HL[key] = res; draw(res); });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-hl]'); if (!b) return;
+  const f = $('#ghlbox iframe'); if (!f) return;
+  f.src = `https://www.youtube-nocookie.com/embed/${b.dataset.hl}?rel=0&modestbranding=1&playsinline=1&autoplay=1`;
+  for (const x of document.querySelectorAll('[data-hl]')) x.setAttribute('aria-pressed', x === b);
+  const yt = $('#ghlbox .pbar a'); if (yt) yt.href = `https://www.youtube.com/watch?v=${b.dataset.hl}`;
+});
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';

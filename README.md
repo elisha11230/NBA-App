@@ -90,6 +90,8 @@ Update the new season's cap numbers in `build.py` under `CAP_RULES`.
 `elishaben/nba-replays` on Val Town reads NBA.com game pages, which refuse browsers
 on other sites. The app calls it for NBA.com game ids (`/games?date=`) and each
 game's plays (`/pbp?game=`), then links every play to its own clip on NBA.com.
+It also finds the official NBA YouTube channel's highlights for a finished game
+(`/yt?a=Spurs&h=Knicks&d=2026-06-10`), which the game view embeds.
 Free, nothing to maintain. If it ever stops answering, the app falls back to a
 link to the game's NBA.com page.
 
