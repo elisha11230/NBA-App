@@ -100,3 +100,8 @@ link to the game's NBA.com page.
 Changes are pushed straight to this repo (app.html, build.py, the workflow). Each
 push starts the update workflow, which rebuilds index.html with fresh data, so the
 site updates about ten minutes later without downloading or uploading anything.
+
+`elishaben/nba-youtube` on Val Town finds the NBA's "Top 10 Plays of the Night" on
+YouTube for any date (`/top10?date=YYYY-MM-DD`), checking the NBA channel's uploads,
+then YouTube search, and remembers each find. The Scores page shows it under each
+day's games.

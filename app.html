@@ -714,6 +714,18 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .hlwait{display:flex;align-items:center;justify-content:center;color:#9fb0aa;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em}
 .hlpick{margin-top:8px}
 .ghl{display:inline-block;margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--team-accent)}
+
+/* ---------- Top 10 plays of the night ---------- */
+.t10{margin-top:16px;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.t10h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--strong);margin-bottom:10px}
+.t10h span{font-weight:600;font-size:12px;letter-spacing:.06em;color:var(--dim)}
+.t10v{position:relative;display:block;width:100%;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000;padding:0}
+.t10v img{width:100%;height:100%;object-fit:cover;display:block}
+.t10p{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:rgba(224,64,42,.92);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;padding-left:4px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.t10v:hover .t10p{transform:translate(-50%,-50%) scale(1.06)}
+.t10frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000}
+.t10frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.t10t{font-size:13px;color:var(--chalk);margin-top:6px}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1280,10 +1292,56 @@ async function loadDay(quiet){
   catch (e){ $('#scbody').innerHTML = `<div class="empty">ESPN's scoreboard did not answer (${esc(e.message)}). Try again in a minute.</div>`; return; }
   const ev = j.events || [];
   if (!ev.length){ $('#scbody').innerHTML = '<div class="empty">No NBA games on this date. Use the arrows or pick a date.</div>'; schedule(120000, () => loadDay(true)); return; }
-  $('#scbody').innerHTML = `<div class="gcards">${ev.map(gameCard).join('')}</div>`;
+  // The games and the Top 10 live in separate boxes, so the 20 second refresh of the scores
+  // never touches (or restarts) a Top 10 video you are watching.
+  const day = iso8601(scDate);
+  let gbox = $('#daygames'), tbox = $('#top10box');
+  if (!gbox || !tbox){ $('#scbody').innerHTML = '<div id="daygames"></div><div id="top10box"></div>'; gbox = $('#daygames'); tbox = $('#top10box'); }
+  gbox.innerHTML = `<div class="gcards">${ev.map(gameCard).join('')}</div>`;
+  const allDone = ev.every(e => e.status.type.state === 'post');
+  if (tbox.dataset.day !== day || (tbox.dataset.found !== '1' && allDone && !tbox.dataset.asked2)){
+    if (tbox.dataset.day === day) tbox.dataset.asked2 = '1';
+    loadTop10(day, tbox, allDone);
+  }
   const live = ev.some(e => liveWindow(e.status.type.state, e.date));
   schedule(live ? 20000 : 120000, () => loadDay(true));
 }
+/* ---------- NBA Top 10 Plays of the Night, from YouTube, under each day's scores ---------- */
+// The Val Town relay elishaben/nba-youtube finds the NBA's own Top 10 video for a date
+// (YouTube embeds play inside other sites; NBA.com's do not).
+const YT_RELAY = 'https://elishaben--bde1ae78bf9f11f1b39a1607ee4eb77e.web.val.run';
+const top10Cache = {};
+const iso8601 = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+async function loadTop10(day, box, allDone){
+  box.dataset.day = day; box.dataset.found = '';
+  const pretty = new Date(day + 'T12:00').toLocaleDateString([], {month: 'long', day: 'numeric'});
+  box.innerHTML = `<div class="t10"><div class="t10h">Top 10 plays of the night<span>${esc(pretty)}</span></div><div class="t10b"><p class="note">Looking for the NBA's Top 10…</p></div></div>`;
+  let r = top10Cache[day];
+  if (!r || (!r.id && Date.now() - r.at > 600000)){
+    try { r = await (await fetch(`${YT_RELAY}/top10?date=${day}`)).json(); r.at = Date.now(); top10Cache[day] = r; }
+    catch (e){ r = {id: null, at: Date.now()}; }
+  }
+  if ($('#top10box') !== box || box.dataset.day !== day) return;   // you moved to another day meanwhile
+  const b = box.querySelector('.t10b');
+  if (r.id){
+    box.dataset.found = '1';
+    b.innerHTML = `<button class="t10v" data-yt="${esc(r.id)}" aria-label="Play ${esc(r.title || 'Top 10')}"><img src="https://i.ytimg.com/vi/${esc(r.id)}/hqdefault.jpg" alt="" loading="lazy"><span class="t10p">▶</span></button>
+      <div class="t10t">${esc(r.title || '')}</div>`;
+  } else {
+    const today = iso8601(new Date()) === day;
+    b.innerHTML = `<p class="note">${today || !allDone ? 'The NBA posts its Top 10 after the night\'s games finish. Check back later tonight.' : 'No Top 10 video found for this date.'}</p>`;
+    if (!today && allDone) box.hidden = false;
+  }
+}
+document.addEventListener('click', e => {
+  const v = e.target.closest('.t10v'); if (!v) return;
+  // load YouTube only when you tap, then play right there
+  const wrap = document.createElement('div'); wrap.className = 't10frame';
+  const f = document.createElement('iframe');
+  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.dataset.yt)}?autoplay=1&rel=0&playsinline=1`;
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.allowFullscreen = true; f.title = 'NBA Top 10 Plays of the Night';
+  wrap.appendChild(f); v.replaceWith(wrap);
+});
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
