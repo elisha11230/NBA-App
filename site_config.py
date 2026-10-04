@@ -20,8 +20,8 @@ EMBED_BASE = "https://embedindia.st"
 # codes. Change any one here if your stream site uses a different code for a team.
 TEAM_CODES = {
     "ATL": "atl", "BOS": "bos", "BKN": "bkn", "CHA": "cha", "CHI": "chi", "CLE": "cle",
-    "DAL": "dal", "DEN": "den", "DET": "det", "GS": "gsw", "HOU": "hou", "IND": "ind",
+    "DAL": "dal", "DEN": "den", "DET": "det", "GS": "gs", "HOU": "hou", "IND": "ind",
     "LAC": "lac", "LAL": "lal", "MEM": "mem", "MIA": "mia", "MIL": "mil", "MIN": "min",
     "NO": "nop", "NY": "nyk", "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "phx",
-    "POR": "por", "SAC": "sac", "SA": "sas", "TOR": "tor", "UTAH": "uta", "WSH": "was",
+    "POR": "por", "SAC": "sac", "SA": "sas", "TOR": "tor", "UTAH": "utah", "WSH": "was",
 }
