@@ -2658,6 +2658,23 @@ try:
         if len(rows_) >= 50:
             rapm = {"updated": upd.group(1) if upd else None, "players": rows_}
             json.dump(rapm, open(RAPM_CACHE, "w"), separators=(",", ":"))
+    if not html_ or len((rapm or {}).get("players", {})) < 50:
+        # nbarapm refuses GitHub's servers; the Val Town relay (elishaben/nba-youtube /rapm)
+        # reads the same published page and returns its table
+        req = urllib.request.Request("https://elishaben--bde1ae78bf9f11f1b39a1607ee4eb77e.web.val.run/rapm", headers={"User-Agent": TWOK_UA})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            rel_ = json.loads(r.read())
+        rows_ = {}
+        for rk_, nm_, _, tot_, off_, def_ in rel_.get("rows", []):
+            pid_ = people_names.get(norm_name(nm_)) if "people_names" in dir() else None
+            if pid_ is None:
+                pid_ = name_to_id.get(norm_name(nm_))
+            if pid_:
+                rows_[str(pid_)] = [int(rk_), float(tot_), float(off_), float(def_)]
+        if len(rows_) >= 50:
+            rapm = {"updated": rel_.get("updated"), "players": rows_}
+            json.dump(rapm, open(RAPM_CACHE, "w"), separators=(",", ":"))
+            print("rapm read through the Val Town relay")
     print(f"rapm {len((rapm or {}).get('players', {}))} players from nbarapm's published top 100")
 except Exception as e:
     print(f"rapm failed: {e.__class__.__name__} {e}")
