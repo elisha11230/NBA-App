@@ -4,8 +4,12 @@ name: update
 # change to the app, the builder, your settings (site_config.py) or this file is pushed.
 on:
   schedule:
-    - cron: "15 11 * * *"   # 7:15 AM New York
-    - cron: "15 21 * * *"   # 5:15 PM New York
+    # GitHub sometimes skips or delays scheduled runs when it is busy, so there are
+    # two backups; the concurrency group below keeps them from overlapping.
+    - cron: "15 11 * * *"   # 7:15 AM New York: last night's games
+    - cron: "15 13 * * *"   # 9:15 AM New York: backup
+    - cron: "15 21 * * *"   # 5:15 PM New York: daytime moves
+    - cron: "30 3 * * *"    # 11:30 PM New York: after the West Coast games
   push:
     branches: [main]
     paths: [app.html, build.py, site_config.py, .github/workflows/update.yml]
@@ -20,7 +24,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest moves to a new version on Oct 19, 2026
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
