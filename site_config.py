@@ -11,7 +11,7 @@ with no trailing slash, e.g. "https://example.com".
 """
 
 # Where the "Stream" button on a live game points.
-STREAM_BASE = ""
+STREAM_BASE = "https://ppv.to"
 
 # Where the embedded player on a live game loads from.
 EMBED_BASE = "https://embedindia.st"
@@ -22,6 +22,6 @@ TEAM_CODES = {
     "ATL": "atl", "BOS": "bos", "BKN": "bkn", "CHA": "cha", "CHI": "chi", "CLE": "cle",
     "DAL": "dal", "DEN": "den", "DET": "det", "GS": "gs", "HOU": "hou", "IND": "ind",
     "LAC": "lac", "LAL": "lal", "MEM": "mem", "MIA": "mia", "MIL": "mil", "MIN": "min",
-    "NO": "nop", "NY": "nyk", "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "phx",
+    "NO": "no", "NY": "ny", "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "phx",
     "POR": "por", "SAC": "sac", "SA": "sas", "TOR": "tor", "UTAH": "utah", "WSH": "was",
 }
