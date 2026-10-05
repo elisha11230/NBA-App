@@ -726,6 +726,25 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .t10frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000}
 .t10frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .t10t{font-size:13px;color:var(--chalk);margin-top:6px}
+/* ---------- impact, skills, clutch, player of the night ---------- */
+.radar{display:block;width:100%;max-width:300px;margin:0 auto}
+.skrow{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px}
+.skrow span{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.skrow b{display:block;font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--strong);letter-spacing:0}
+.qbars{display:flex;align-items:flex-end;gap:10px;height:90px;margin-top:6px}
+.qbars div{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.qbars i{width:70%;background:var(--team-accent);border-radius:3px 3px 0 0;min-height:3px}
+.qbars b{font-family:'Archivo Black',sans-serif;font-size:11.5px;color:var(--strong);margin-bottom:3px}
+.qbars span{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--dim);margin-top:3px}
+.potn{display:flex;gap:14px;align-items:center;width:100%;text-align:left;margin-top:14px;padding:12px;border:1px solid var(--brass);border-radius:var(--r);background:color-mix(in srgb,var(--brass) 8%,var(--panel))}
+.potnf{flex:0 0 64px;height:64px;border-radius:50%;overflow:hidden;background:var(--face)}
+.potnf img{width:100%;height:100%;object-fit:cover;object-position:top}
+.potni{display:flex;flex-direction:column;gap:2px;min-width:0}
+.potni em{font-style:normal;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+.potni b{font-family:'Archivo Black',sans-serif;font-size:17px;color:var(--strong)}
+.potni span{font-size:13.5px;color:var(--chalk);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.potni span img{width:18px;height:18px;object-fit:contain}
+.potni small{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--dim)}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1069,6 +1088,7 @@ function renderTeam(){
       ${srow('Defensive rating', st.drtg[0], st.drtg[1], 'Points allowed per 100 possessions')}
       ${srow('Pace', st.pace[0], st.pace[1], 'Possessions per game, 1st is fastest')}
       <p class="note">League average rating is ${f1(lg.ortg)}. Possessions are estimated from box scores.</p></section>`;
+    h += teamClutchSection(t);
     h += teamStyleSection(t);
     h += teamOnoffSection(t);
     h += teamMoneySection(t);
@@ -1194,6 +1214,8 @@ function renderPlayer(){
   h += `<section class="sect k-rating"><h3>Per 36 minutes<span>evens out playing time</span></h3>
     ${prow('Points', s.p36, 'p36', s)}${prow('Rebounds', s.r36, 'r36', s)}${prow('Assists', s.a36, 'a36', s)}</section>`;
   h += advancedSection(p);
+  h += impactSection(p);
+  h += skillSection(p);
   h += playerStyleSection(p);
   h += onoffSection(p);
   h += yearSection(p);
@@ -1296,8 +1318,12 @@ async function loadDay(quiet){
   // never touches (or restarts) a Top 10 video you are watching.
   const day = iso8601(scDate);
   let gbox = $('#daygames'), tbox = $('#top10box');
-  if (!gbox || !tbox){ $('#scbody').innerHTML = '<div id="daygames"></div><div id="top10box"></div>'; gbox = $('#daygames'); tbox = $('#top10box'); }
+  if (!gbox || !tbox || !$('#potnbox')){ $('#scbody').innerHTML = '<div id="daygames"></div><div id="potnbox"></div><div id="top10box"></div>'; gbox = $('#daygames'); tbox = $('#top10box'); }
   gbox.innerHTML = `<div class="gcards">${ev.map(gameCard).join('')}</div>`;
+  const pbox = $('#potnbox');
+  if (pbox.dataset.day !== day || pbox.dataset.n !== String(ev.filter(e => e.status.type.state === 'post').length)){
+    pbox.dataset.n = String(ev.filter(e => e.status.type.state === 'post').length); loadPotn(day, ev, pbox);
+  }
   const allDone = ev.every(e => e.status.type.state === 'post');
   if (tbox.dataset.day !== day || (tbox.dataset.found !== '1' && allDone && !tbox.dataset.asked2)){
     if (tbox.dataset.day === day) tbox.dataset.asked2 = '1';
@@ -1739,6 +1765,8 @@ function drawCompare(){
   h += row('Points', 'pts') + row('Rebounds', 'reb') + row('Assists', 'ast') + row('Steals', 'stl') + row('Blocks', 'blk') + row('Turnovers', 'tov', null, f1, true) + row('Minutes', 'min') + row('Games', 'gp', null, v => String(v));
   h += `<div class="cgrp">Shooting</div>` + row('FG%', 'fgp', null, pct) + row('3P%', 'tpp', null, pct) + row('FT%', 'ftp', null, pct) + row('True shooting', 'ts', null, pct) + row('Threes made', 'tpm');
   h += row('Plus minus', 'pm', null, v => (v > 0 ? '+' : '') + f1(v));
+  { const va = skillPct(a), vb = skillPct(b);
+    if (va && vb) h += `<div class="cgrp">Skills</div>${radarSvg([[va, '#8DB8F2'], [vb, '#F5A04A']])}<div class="legend" style="justify-content:center"><span><i style="background:#8DB8F2"></i>${esc(a.n)}</span><span><i style="background:#F5A04A"></i>${esc(b.n)}</span></div>`; }
   if (a.sh && b.sh) h += `<div class="cgrp">Shot charts</div><div class="cshots"><div class="shotwrap">${hexChart(a.sh)}</div><div class="shotwrap">${hexChart(b.sh)}</div></div>${heatKey(10)}`;
   const car = p => { const Y = p.yr || []; const g = Y.reduce((s, r) => s + r[2], 0); return g ? Y.reduce((s, r) => s + (r[5] || 0) * r[2], 0) / g : null; };
   h += `<div class="cgrp">Career</div>` + row('Seasons', p => (p.yr || []).length || null, p => (p.yr || []).length || null, v => String(v)) + row('Career points', car, car);
@@ -2568,6 +2596,114 @@ document.addEventListener('click', e => {
   for (const x of document.querySelectorAll('[data-hl]')) x.setAttribute('aria-pressed', x === b);
   const yt = $('#ghlbox .pbar a'); if (yt) yt.href = `https://www.youtube.com/watch?v=${b.dataset.hl}`;
 });
+
+/* ---------- impact: PIE, nbarapm RAPM, clutch, quarters, skill chart ---------- */
+// Percentiles among qualified players, computed once, for the skill chart
+let SKILL_POOL = null;
+const SKILLS = [
+  ['Scoring', s => s.p36], ['Efficiency', s => s.ts], ['Playmaking', s => s.a36],
+  ['Rebounding', s => s.r36], ['Defense', s => s.min ? (((s.stl || 0) + (s.blk || 0)) / s.min) * 36 : null], ['Impact', (s, p) => p.pie && p.pie[0]]];
+function skillPool(){
+  if (SKILL_POOL) return SKILL_POOL;
+  const min = M.gpMin || 20, q = Object.values(P).filter(p => p.s && p.s.gp >= min && (p.s.min || 0) >= 10);
+  SKILL_POOL = SKILLS.map(([, f]) => q.map(p => f(p.s, p)).filter(v => v != null).sort((a, b) => a - b));
+  return SKILL_POOL;
+}
+function skillPct(p){
+  if (!p || !p.s) return null;
+  const pool = skillPool();
+  return SKILLS.map(([, f], i) => { const v = f(p.s, p); if (v == null) return 0;
+    const arr = pool[i]; let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; arr[m] < v ? lo = m + 1 : hi = m; } return Math.round(lo / Math.max(1, arr.length - 1) * 100); });
+}
+function radarSvg(sets){
+  const R = 92, cx = 130, cy = 118, n = SKILLS.length;
+  const pt = (i, r) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; };
+  let g = '';
+  for (const lv of [25, 50, 75, 100]) g += `<polygon points="${SKILLS.map((_, i) => pt(i, R * lv / 100).join(',')).join(' ')}" fill="none" stroke="var(--rule)" stroke-width="1"/>`;
+  SKILLS.forEach((sk, i) => { const [x, y] = pt(i, R), [lx, ly] = pt(i, R + 16);
+    g += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--rule)"/><text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="10.5" font-family="Barlow Condensed" letter-spacing=".5" fill="var(--mute)">${sk[0].toUpperCase()}</text>`; });
+  sets.forEach(([vals, color]) => {
+    g += `<polygon points="${vals.map((v, i) => pt(i, R * Math.max(4, v) / 100).join(',')).join(' ')}" fill="${color}" fill-opacity=".22" stroke="${color}" stroke-width="2"/>`;
+    vals.forEach((v, i) => { const [x, y] = pt(i, R * Math.max(4, v) / 100); g += `<circle cx="${x}" cy="${y}" r="3" fill="${color}"><title>${SKILLS[i][0]}: ${v}th percentile</title></circle>`; });
+  });
+  return `<svg viewBox="0 0 260 240" class="radar" role="img" aria-label="Skill chart">${g}</svg>`;
+}
+function skillSection(p){
+  const v = skillPct(p); if (!v) return '';
+  return `<section class="sect k-rating"><h3>Skills<span>${esc(M.stats)}, league percentile</span></h3>${radarSvg([[v, 'var(--team-accent)']])}
+    <div class="skrow">${SKILLS.map(([n], i) => `<span><b>${v[i]}</b>${n}</span>`).join('')}</div>
+    <p class="note">Each point is his percentile among regular rotation players: scoring and playmaking per 36 minutes, true shooting for efficiency, steals plus blocks for defense, PIE for impact.</p></section>`;
+}
+function impactSection(p){
+  const pie = p.pie, r = p.rapm, cl = p.cl, pq = p.pq, gp = p.s?.gp;
+  if (!pie && !r && !cl) return '';
+  const sg = v => (v > 0 ? '+' : '') + v.toFixed(1);
+  let h = `<section class="sect k-rating"><h3>Impact<span>${esc(M.stats)}</span></h3>`;
+  if (pie && pie[0] != null) h += `<div class="stat"><span class="l">PIE<small>Player Impact Estimate: his share of everything that happened in his games</small></span><span class="v">${pie[0]}%</span><span class="r ${pie[1] ? rkClass(pie[1], M.qualN) : ''}">${pie[1] ? ord(pie[1]) : ''}</span></div>`;
+  if (r) h += `<div class="stat"><span class="l">RAPM<small>Points per 100 possessions he adds, from lineup data. nbarapm time decay${M.rapmUpdated ? ', ' + esc(M.rapmUpdated) : ''}</small></span><span class="v">${sg(r[1])}</span><span class="r good">${ord(r[0])}</span></div>
+    <div class="stat"><span class="l">Offense / defense</span><span class="v">${sg(r[2])} / ${sg(r[3])}</span><span class="r"></span></div>`;
+  if (cl){
+    const fg = cl.fga ? (cl.fgm / cl.fga * 100).toFixed(1) + '%' : '—';
+    h += `<div class="coachsub" style="margin-top:12px">Clutch<span class="mid" style="text-transform:none;letter-spacing:0"> · last 5 minutes, within 5 points</span></div>
+      <div class="big3"><div><b>${cl.pts}</b><span>Points</span></div><div><b>${fg}</b><span>FG ${cl.fgm}-${cl.fga}</span></div><div><b>${cl.g}</b><span>Games</span></div></div>
+      <p class="note">${cl.tpa ? `${cl.tpm}-${cl.tpa} on threes, ` : ''}${cl.fta ? `${cl.ftm}-${cl.fta} at the line. ` : ''}${(cl.pts / cl.g).toFixed(1)} points per clutch game.</p>`;
+  }
+  if (pq && gp){
+    const per = pq.slice(0, 4).map(v => v / gp), mx = Math.max(...per, 1);
+    h += `<div class="coachsub" style="margin-top:12px">Points by quarter</div><div class="qbars">${per.map((v, i) => `<div><b>${v.toFixed(1)}</b><i style="height:${v / mx * 100}%"></i><span>Q${i + 1}</span></div>`).join('')}</div>`;
+  }
+  return h + (r ? `<p class="note">RAPM from <a href="https://nbarapm.com" target="_blank" rel="noopener" style="color:inherit">nbarapm.com</a>, their published top 100.</p>` : '') + `</section>`;
+}
+function teamClutchSection(t){
+  const c = t.cl, q = t.qtr; if (!c && !q) return '';
+  let h = `<section class="sect k-time"><h3>Clutch and quarters<span>${esc(M.stats)}</span></h3>`;
+  if (c && c.g){
+    const all = Object.values(T).filter(x => x.cl && x.cl.g).sort((a, b) => b.cl.w / b.cl.g - a.cl.w / a.cl.g);
+    const rk = all.indexOf(t) + 1;
+    h += `<div class="stat"><span class="l">Clutch record<small>Games within 5 points in the last 5 minutes</small></span><span class="v">${c.w}-${c.l}</span><span class="r ${rkClass(rk, 30)}">${ord(rk)}</span></div>
+      <div class="stat"><span class="l">Clutch scoring<small>Points for and against in those minutes</small></span><span class="v">${c.pf}-${c.pa}</span><span class="r ${c.pf >= c.pa ? 'good' : 'low'}">${c.pf - c.pa > 0 ? '+' : ''}${c.pf - c.pa}</span></div>`;
+  }
+  if (q && q.g){
+    const f = q.f.slice(0, 4).map(v => v / q.g), a = q.a.slice(0, 4).map(v => v / q.g);
+    h += `<div class="coachsub" style="margin-top:12px">Average by quarter</div><div class="scroll"><table class="tb"><tr><th></th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th></tr>
+      <tr><td>Scored</td>${f.map(v => `<td>${v.toFixed(1)}</td>`).join('')}</tr><tr><td>Allowed</td>${a.map(v => `<td>${v.toFixed(1)}</td>`).join('')}</tr>
+      <tr><td>Margin</td>${f.map((v, i) => { const d = v - a[i]; return `<td class="${d >= 0 ? 'w' : 'lz'}"><b>${d > 0 ? '+' : ''}${d.toFixed(1)}</b></td>`; }).join('')}</tr></table></div>`;
+  }
+  if (t.pie) h += `<p class="note">Team PIE: ${t.pie}% of all game events went their way.</p>`;
+  return h + `</section>`;
+}
+
+/* ---------- player of the night (Scores page): best Game Score on a winning team ---------- */
+const potnCache = {};
+async function loadPotn(day, events, box){
+  box.dataset.day = day;
+  const done = events.filter(e => e.status.type.state === 'post');
+  if (!done.length){ box.innerHTML = ''; return; }
+  if (potnCache[day] && potnCache[day].n === done.length){ box.innerHTML = potnCache[day].html; return; }
+  let best = null;
+  for (const e of done){
+    try {
+      const s = await espn('/summary?event=' + e.id);
+      const comp = s.header.competitions[0], win = comp.competitors.find(c => c.winner || +c.score > +comp.competitors.find(x => x !== c).score);
+      for (const t of (s.boxscore?.players || [])){
+        if (!win || t.team.abbreviation !== win.team.abbreviation) continue;
+        const st = t.statistics?.[0] || {}, names = st.names || st.labels || [], ix = n => names.indexOf(n);
+        for (const a of (st.athletes || [])){
+          if (!a.stats?.length) continue;
+          const v = n => +((a.stats[ix(n)] || '0').split('-')[0]) || 0, att = n => +((a.stats[ix(n)] || '0-0').split('-')[1]) || 0;
+          const gs = v('PTS') + .4 * v('FG') - .7 * att('FG') - .4 * (att('FT') - v('FT')) + .7 * v('OREB') + .3 * v('DREB') + v('STL') + .7 * v('AST') + .7 * v('BLK') - .4 * v('PF') - v('TO');
+          if (!best || gs > best.gs) best = {gs, a, t, e, line: `${v('PTS')} pts, ${v('REB')} reb, ${v('AST')} ast`, opp: comp.competitors.find(c => c.team.abbreviation !== t.team.abbreviation)};
+        }
+      }
+    } catch (err){}
+  }
+  if ($('#potnbox') !== box || box.dataset.day !== day) return;
+  if (!best){ box.innerHTML = ''; return; }
+  const id = best.a.athlete.id, nm = best.a.athlete.displayName, tm = byAbbr[best.t.team.abbreviation] ? T[byAbbr[best.t.team.abbreviation]] : null;
+  const html = `<button class="potn" data-game="${best.e.id}"><span class="potnf">${photo(id, nm)}</span><span class="potni"><em>Player of the night</em><b>${esc(nm)}</b>
+    <span>${esc(best.line)} ${tm ? `<img src="${tm.logo}" alt="">` : ''} vs ${esc(best.opp?.team?.abbreviation || '')}</span><small>Game Score ${best.gs.toFixed(1)}, best on a winning team</small></span></button>`;
+  potnCache[day] = {n: done.length, html}; box.innerHTML = html;
+}
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';

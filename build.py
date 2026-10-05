@@ -33,7 +33,19 @@ EAST = {"Atlantic", "Central", "Southeast"}
 TEAM_ABBRS = {a for v in DIVS.values() for a in v}
 
 
+_GET_MEMO = {}
+
+
 def get(release, name):
+    if name.startswith("play_by_play_") and (release, name) in _GET_MEMO:
+        return _GET_MEMO[(release, name)]
+    df_ = _get_raw(release, name)
+    if name.startswith("play_by_play_") and df_ is not None:
+        _GET_MEMO[(release, name)] = df_
+    return df_
+
+
+def _get_raw(release, name):
     url = f"{BASE}/{release}/{name}"
     import os as _os
     cache_dir = _os.environ.get("PARQUET_CACHE")  # optional, for local test runs only
@@ -2502,6 +2514,154 @@ except Exception as e:
     print(f"site  settings not read ({e.__class__.__name__}); links stay relative")
     site_settings = {"streamBase": "", "embedBase": "", "codes": {}}
 
+# ---------------------------------------------------------------- PIE, clutch, quarters
+# PIE (Player Impact Estimate, the NBA's own formula): a player's share of everything
+# that happened in the games he played. Clutch: the last 5 minutes of the 4th quarter or
+# overtime with the score within 5. Quarters: points for and against by quarter.
+def pie_num(df):
+    g = lambda c: df[c].fillna(0) if c in df else 0
+    return (g("points") + g("field_goals_made") + g("free_throws_made") - g("field_goals_attempted") - g("free_throws_attempted")
+            + g("defensive_rebounds") + 0.5 * g("offensive_rebounds") + g("assists") + g("steals") + 0.5 * g("blocks")
+            - g("fouls") - g("turnovers"))
+
+pie_players, pie_teams = {}, {}
+try:
+    reg_all = box[(box.season_type == 2) & box.team_abbreviation.isin(TEAM_ABBRS)].copy()
+    reg_all["pn"] = pie_num(reg_all)
+    game_den = reg_all.groupby("game_id").pn.sum()
+    pl = reg_all[(reg_all.did_not_play != True) & (reg_all.minutes.fillna(0) > 0)]
+    by_p = pl.groupby("athlete_id").agg(num=("pn", "sum"), games=("game_id", lambda s: list(s)))
+    for pid_, r in by_p.iterrows():
+        den = float(game_den.reindex(r.games).sum())
+        if den > 0:
+            pie_players[int(pid_)] = round(100 * r.num / den, 1)
+    by_t = reg_all.groupby(["team_id", "game_id"]).pn.sum().reset_index()
+    for tid_, g in by_t.groupby("team_id"):
+        pie_teams[int(tid_)] = round(100 * g.pn.sum() / float(game_den.reindex(g.game_id).sum()), 1)
+    qual_pie = sorted((v for k, v in pie_players.items() if k in season_line and season_line[k]["gp"] >= GP_MIN and (season_line[k]["min"] or 0) >= 10), reverse=True)
+    pie_rank = {k: qual_pie.index(v) + 1 for k, v in pie_players.items()
+                if k in season_line and season_line[k]["gp"] >= GP_MIN and (season_line[k]["min"] or 0) >= 10}
+    print(f"pie  {len(pie_players)} players, {len(pie_teams)} teams")
+except Exception as e:
+    pie_rank = {}
+    print(f"pie  failed: {e.__class__.__name__} {e}")
+
+
+def build_clutch_quarters(yr):
+    pbp = get("espn_nba_pbp", f"play_by_play_{yr}.parquet")
+    if pbp is None or pbp.empty:
+        return None
+    pbp = pbp[pbp.season_type == 2].sort_values(["game_id", "game_play_number"])
+    real = set(int(t) for t in rost.team_id.dropna().unique())
+    cp = defaultdict(lambda: {"g": set(), "pts": 0, "fgm": 0, "fga": 0, "tpm": 0, "tpa": 0, "ftm": 0, "fta": 0})
+    ct = defaultdict(lambda: {"g": 0, "w": 0, "l": 0, "pf": 0, "pa": 0})
+    qt = defaultdict(lambda: {"f": [0] * 5, "a": [0] * 5, "g": 0})
+    qp = defaultdict(lambda: [0] * 5)
+    for gid, g in pbp.groupby("game_id", sort=False):
+        home, away = int(g.home_team_id.iloc[0]), int(g.away_team_id.iloc[0])
+        if home not in real or away not in real:
+            continue
+        ph = pa_ = 0
+        clutch_seen = False
+        cpts = {home: 0, away: 0}
+        for per, secs, typ, tid, a1, sv, scoring, shooting, hs, as_ in zip(
+                g.period_number, g.start_game_seconds_remaining, g.type_text, g.team_id, g.athlete_id_1,
+                g.score_value, g.scoring_play, g.shooting_play, g.home_score, g.away_score):
+            hs, as_ = int(hs or 0), int(as_ or 0)
+            dh, da = hs - ph, as_ - pa_
+            qi = min(int(per or 1), 5) - 1
+            if dh > 0:
+                qt[home]["f"][qi] += dh; qt[away]["a"][qi] += dh
+            if da > 0:
+                qt[away]["f"][qi] += da; qt[home]["a"][qi] += da
+            clutch = (int(per or 1) >= 5 or (int(per or 1) == 4 and (secs or 9999) <= 300)) and abs(ph - pa_) <= 5
+            if clutch:
+                clutch_seen = True
+                cpts[home] += max(dh, 0); cpts[away] += max(da, 0)
+                if pd.notna(a1) and pd.notna(tid) and (shooting or "Free Throw" in (typ or "")):
+                    c = cp[int(a1)]; c["g"].add(gid)
+                    pts = int(sv or 0) if scoring else 0
+                    c["pts"] += pts
+                    if "Free Throw" in (typ or ""):
+                        c["fta"] += 1; c["ftm"] += 1 if scoring else 0
+                    else:
+                        three = pts == 3 or "three point" in (typ or "").lower() or "3pt" in (typ or "").lower()
+                        c["fga"] += 1; c["fgm"] += 1 if scoring else 0
+                        if three:
+                            c["tpa"] += 1; c["tpm"] += 1 if scoring else 0
+            if pd.notna(a1) and scoring and pd.notna(tid):
+                qp[int(a1)][qi] += int(sv or 0)
+            ph, pa_ = hs, as_
+        qt[home]["g"] += 1; qt[away]["g"] += 1
+        if clutch_seen:
+            for t, o in ((home, away), (away, home)):
+                ct[t]["g"] += 1
+                won = (ph > pa_) if t == home else (pa_ > ph)
+                ct[t]["w" if won else "l"] += 1
+                ct[t]["pf"] += cpts[t]; ct[t]["pa"] += cpts[o]
+    players_c = {str(k): {kk: (len(vv) if kk == "g" else vv) for kk, vv in v.items()} for k, v in cp.items() if len(v["g"]) >= 5}
+    print(f"clutch {yr}: {len(players_c)} players with 5+ clutch games, {len(ct)} teams")
+    return {"players": players_c, "teams": {str(k): v for k, v in ct.items()},
+            "quarters": {str(k): v for k, v in qt.items()}, "pq": {str(k): v for k, v in qp.items()}}
+
+
+CLUTCH_CACHE = "clutch.json"
+try:
+    clutch_all = json.load(open(CLUTCH_CACHE))
+except Exception:
+    clutch_all = {}
+if key_ not in clutch_all or stats_season == S:
+    try:
+        res_ = build_clutch_quarters(stats_season)
+        if res_:
+            clutch_all = {key_: res_}
+            json.dump(clutch_all, open(CLUTCH_CACHE, "w"), separators=(",", ":"))
+    except Exception as e:
+        print(f"clutch failed: {e.__class__.__name__} {e}")
+clutch_now = clutch_all.get(key_, {})
+
+# ---------------------------------------------------------------- nbarapm time decay RAPM (top 100)
+# Only the table nbarapm publishes on its page: its robots.txt asks tools not to use its
+# data interface (/api/) or play type data, so those are left alone.
+RAPM_CACHE = "rapm.json"
+try:
+    rapm = json.load(open(RAPM_CACHE))
+except Exception:
+    rapm = {}
+try:
+    from bs4 import BeautifulSoup
+    html_ = None
+    for route in ("direct", "reader"):
+        try:
+            html_ = get_page("https://nbarapm.com/datasets/timedecay", route)
+            if "/player/" in html_:
+                break
+        except Exception:
+            html_ = None
+    if html_:
+        soup = BeautifulSoup(html_, "html.parser")
+        upd = re.search(r"Updated\s*([A-Z][a-z]{2} \d{1,2}, \d{4})", soup.get_text(" ", strip=True))
+        rows_ = {}
+        for tr in soup.find_all("tr"):
+            a = tr.find("a", href=re.compile(r"/player/"))
+            tds = [td.get_text(strip=True) for td in tr.find_all("td")]
+            if not a or len(tds) < 6:
+                continue
+            nums = [x for x in tds if re.fullmatch(r"[+-]?\d+(\.\d+)?", x)]
+            if len(nums) < 4:
+                continue
+            pid_ = people_names.get(norm_name(a.get_text(strip=True))) if "people_names" in dir() else None
+            if pid_ is None:
+                pid_ = name_to_id.get(norm_name(a.get_text(strip=True)))
+            if pid_:
+                rows_[str(pid_)] = [int(float(nums[0])), float(nums[1]), float(nums[2]), float(nums[3])]
+        if len(rows_) >= 50:
+            rapm = {"updated": upd.group(1) if upd else None, "players": rows_}
+            json.dump(rapm, open(RAPM_CACHE, "w"), separators=(",", ":"))
+    print(f"rapm {len((rapm or {}).get('players', {}))} players from nbarapm's published top 100")
+except Exception as e:
+    print(f"rapm failed: {e.__class__.__name__} {e}")
+
 players, teams = {}, {}
 for r in rost.itertuples():
     pid = int(r.athlete_id)
@@ -2518,7 +2678,11 @@ for r in rost.itertuples():
         "from": ", ".join(x for x in [r.birth_place_city, r.birth_place_state if isinstance(r.birth_place_state, str) else r.birth_place_country] if isinstance(x, str)),
         "t": int(r.team_id), "s": s, "po": po_line.get(pid), "sp": splits.get(pid),
         "log": logs.get(pid, []), "sh": shot_players.get(pid), "oo": onoff_now.get(str(pid)),
-        "ps": (style_now.get("players") or {}).get(str(pid)), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
+        "ps": (style_now.get("players") or {}).get(str(pid)),
+        "pie": [pie_players.get(pid), pie_rank.get(pid)] if pid in pie_players else None,
+        "cl": (clutch_now.get("players") or {}).get(str(pid)),
+        "pq": (clutch_now.get("pq") or {}).get(str(pid)),
+        "rapm": ((rapm or {}).get("players") or {}).get(str(pid)), "k": player_2k.get(pid), "$": player_sal.get(pid), "yr": yearly.get(pid),
         "shc": career_shots.get(pid), "col": college.get(pid), "aw": awards.get(str(pid)), "bio": bios.get(str(pid)), "adv": advanced.get(str(pid)),
         "prev": lt if lt and lt != r.team_abbreviation else None,
         "_h": height_in(r.height),
@@ -2568,7 +2732,9 @@ for tid, g in rost.groupby("team_id"):
         "sched": schedule.get(tid, []), "hist": history.get(tid, []),
         "picks": (picks or {}).get("teams", {}).get(abbr),
         "past": past.get(tid, {}),
-        "style": (style_now.get("teams") or {}).get(str(tid)), "tx": team_tx.get(abbr, [])[:25],
+        "style": (style_now.get("teams") or {}).get(str(tid)),
+        "pie": pie_teams.get(tid), "cl": (clutch_now.get("teams") or {}).get(str(tid)),
+        "qtr": (clutch_now.get("quarters") or {}).get(str(tid)), "tx": team_tx.get(abbr, [])[:25],
         "st": {k: [num(v, 1), team_ranks[tid][k]] for k, v in st.items()},
     }
 
@@ -2591,6 +2757,7 @@ data = {
     "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts, "shotSeasons": shot_file_seasons,
     "style": {"styles": style_now.get("styles"), "league": style_now.get("league")} if style_now else None,
     "site": site_settings,
+    "rapmUpdated": (rapm or {}).get("updated"),
 }
 
 def clean(o):

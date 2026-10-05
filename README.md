@@ -45,6 +45,8 @@ on the first run and kept for good).
 | Standings | ESPN standings (live in the browser in season), Basketball Reference before 2001-02 |
 | On/off impact | Rebuilt from ESPN play by play via sportsdataverse (saved in onoff.json) |
 | Past drafts since 1980 | Wikipedia (saved in draft_history.json, each year fetched once) |
+| PIE, clutch, quarter splits, player of the night | Computed from ESPN box scores and play by play |
+| RAPM (top 100) | nbarapm.com, the table published on its time decay page only (its robots.txt asks tools not to use its data interface) |
 | Headshots | ESPN, NBA.com (ids from Wikidata and the nba_api list), Wikimedia Commons |
 
 If a source is down or blocks a run, the app keeps the last good copy and the
