@@ -37,7 +37,7 @@ TEAM_CODES = {
 # Host for the second stream. None uses the same host as EMBED_BASE.
 STREAM2_BASE = "https://embed.st"
 
-STREAM2_PATH = "/embed/admin/ppv-{home}-vs-{away}/1"
+STREAM2_PATH = "/embed/admin/ppv-{away}-vs-{home}/1"
 
 # Team names used in the second stream's address. Change any one if the source spells it
 # differently (for example "los-angeles-clippers").
