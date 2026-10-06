@@ -35,7 +35,7 @@ TEAM_CODES = {
 # {date} (like 2026-10-20) is also available if a source needs it.
 
 # Host for the second stream. None uses the same host as EMBED_BASE.
-STREAM2_BASE = None
+STREAM2_BASE = "https://embed.st"
 
 STREAM2_PATH = "/embed/admin/ppv-{home}-vs-{away}/1"
 
