@@ -503,7 +503,11 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
   #striphost{grid-column:1 / -1}
   #gleft{display:block;grid-column:1;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
   #gright{grid-column:2;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
-  #gright .gtabs{position:sticky;top:0;z-index:3;margin-top:0;box-shadow:0 10px 0 var(--ink)}
+  #gright .gtabs{position:sticky;top:0;z-index:3;margin-top:14px;box-shadow:0 10px 0 var(--ink)}
+  /* nothing to watch (no stream, no highlights): one centered column */
+  #scbody:has(> #gleft):not(:has(#gplayerbox > *)):not(:has(#ghlbox > *)){grid-template-columns:minmax(0,1fr);max-width:1100px}
+  #scbody:has(> #gleft):not(:has(#gplayerbox > *)):not(:has(#ghlbox > *)) #gleft{display:none}
+  #scbody:has(> #gleft):not(:has(#gplayerbox > *)):not(:has(#ghlbox > *)) #gright{grid-column:1}
   /* under the stream: score and line score beside the court */
   #gamehead:has(.oncourt){display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);column-gap:14px;align-items:start;grid-auto-flow:dense}
   #gamehead:has(.oncourt) > *{grid-column:1}
@@ -770,7 +774,13 @@ a.ocp:hover .ocf{box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 45%,transparen
 .prow2 img{width:24px;height:24px;object-fit:contain}
 .ginfo .stat .l{text-transform:none;letter-spacing:0;font-family:Barlow,sans-serif;font-size:13.5px;color:var(--chalk)}
 .hl{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
-.hl a{display:block;text-decoration:none;color:var(--chalk);font-size:12.5px;line-height:1.3}
+.hl a,.hlb{display:block;text-decoration:none;color:var(--chalk);font-size:12.5px;line-height:1.3;text-align:left;padding:0;background:none;border:0}
+.hlb{cursor:pointer}
+.hlth{position:relative;display:block}
+.hlth i{position:absolute;left:8px;bottom:12px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-style:normal;font-size:11px;display:flex;align-items:center;justify-content:center;padding-left:2px}
+.hlb[aria-pressed="true"]{color:var(--strong);font-weight:600}
+.hlb[aria-pressed="true"] img{outline:2px solid var(--brass);outline-offset:-2px}
+.hlb[aria-pressed="true"] .hlth i{background:var(--brass);color:#0E1417}
 .hl img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r);background:var(--face);display:block;margin-bottom:4px}
 video.hlv{width:100%;border-radius:var(--r);background:#000;display:block;margin-bottom:8px}
 .probbar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:6px 0}
@@ -1221,7 +1231,7 @@ function morphNode(a, b){
     for (const k of ['class', 'style', 'alt', 'title']){ const v = b.getAttribute(k); if (v == null) a.removeAttribute(k); else if (a.getAttribute(k) !== v) a.setAttribute(k, v); }
     return;   // same player: leave the picture alone
   }
-  if (a.tagName === 'IFRAME') return;
+  if (a.tagName === 'IFRAME' || a.tagName === 'VIDEO') return;
   for (const {name, value} of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
   for (const {name} of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
   if (a.tagName === 'INPUT' && a.value !== b.value && document.activeElement !== a) a.value = b.value;
@@ -1799,7 +1809,7 @@ function drawGame(s, quiet){
   // Either way the player's spot never moves when you scroll, so the stream sits still.
   let pbox = $('#gplayerbox'), gbox = $('#gamecontent'), hbox = $('#gamehead');
   if (!pbox || !gbox || !hbox || !body.contains(pbox)){
-    body.innerHTML = '<div id="striphost"></div><div id="gleft"><div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamehead"></div></div><div id="gright"><div id="gamecontent"></div></div>';
+    body.innerHTML = '<div id="striphost"></div><div id="gleft"><div id="gplayerbox"></div><div id="ghlbox"></div></div><div id="gright"><div id="gamehead"></div><div id="gamecontent"></div></div>';
     pbox = $('#gplayerbox'); gbox = $('#gamecontent'); hbox = $('#gamehead');
   }
   showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
@@ -2480,16 +2490,31 @@ function infoView(s, cs){
     }
     h += `<section class="sect k-money"><h3>Odds and prediction</h3>${odds}<p class="note">For context only.</p></section>`;
   }
-  const V = (s.videos || []).filter(x => x.links);
+  const V = (s.videos || []).filter(x => x.links).slice(0, 12);
   if (V.length){
-    const first = V[0], src = first.links?.source?.HD?.href || first.links?.source?.href || first.links?.mobile?.source?.href;
-    h += `<section class="sect k-time"><h3>Highlights<span>ESPN</span></h3>${src ? `<video class="hlv" controls preload="none" poster="${esc(first.thumbnail || '')}" src="${esc(src)}"></video><div class="nt" style="margin-bottom:10px">${esc(first.headline || '')}</div>` : ''}
-      <div class="hl">${V.slice(src ? 1 : 0, 9).map(x => `<a href="${esc(x.links?.web?.href || x.links?.source?.href || '#')}" target="_blank" rel="noopener"><img src="${esc(x.thumbnail || '')}" alt="" loading="lazy">${esc(x.headline || '')}</a>`).join('')}</div></section>`;
+    // every clip plays right here: tap one in the list and it loads into the player above
+    const sel = Math.min(HLV[gameId] || 0, V.length - 1), cur_ = V[sel], src = vidSrc(cur_);
+    HLVIDS[gameId] = V;
+    h += `<section class="sect k-time"><h3>Highlights<span>ESPN, ${V.length} clips</span></h3>${src ? `<video class="hlv" controls playsinline preload="none" poster="${esc(cur_.thumbnail || '')}" src="${esc(src)}"></video><div class="nt hlvt" style="margin-bottom:10px">${esc(cur_.headline || '')}</div>` : ''}
+      <div class="hl">${V.map((x, i) => vidSrc(x)
+        ? `<button class="hlb" type="button" data-hv="${i}" aria-pressed="${i === sel}"><span class="hlth"><img src="${esc(x.thumbnail || '')}" alt="" loading="lazy"><i>▶</i></span>${esc(x.headline || '')}</button>`
+        : `<a href="${esc(x.links?.web?.href || '#')}" target="_blank" rel="noopener"><img src="${esc(x.thumbnail || '')}" alt="" loading="lazy">${esc(x.headline || '')}</a>`).join('')}</div></section>`;
   }
   if (!v.fullName && !pc && !pr && !V.length) h = `<div class="empty">Game details appear closer to tip off.</div>`;
   return h;
 }
 
+const HLV = {}, HLVIDS = {};
+const vidSrc = x => x?.links?.source?.HD?.href || x?.links?.source?.href || x?.links?.mobile?.source?.href || '';
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-hv]'); if (!b) return;
+  const V = HLVIDS[gameId] || [], i = +b.dataset.hv, x = V[i]; if (!x) return;
+  HLV[gameId] = i;
+  const v = b.closest('.sect').querySelector('video.hlv'), t = b.closest('.sect').querySelector('.hlvt');
+  if (v){ v.poster = x.thumbnail || ''; v.src = vidSrc(x); v.play().catch(() => {}); v.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
+  if (t) t.textContent = x.headline || '';
+  for (const y of b.parentNode.querySelectorAll('[data-hv]')) y.setAttribute('aria-pressed', String(y === b));
+});
 /* ---------- standings (built from ESPN and Basketball Reference records; live from ESPN in season) ---------- */
 let standSeason = null, standLive = null;
 function standSeasons(){ const s = new Set(); for (const id in T) for (const h of (T[id].hist || [])) if (h.conf) s.add(h.s); if (standLive) s.add(standLive.season); return [...s].sort(); }
