@@ -785,6 +785,76 @@ button.dsd:hover{background:var(--bg2)}
 .ghl{border:1px solid color-mix(in srgb,var(--team-accent) 50%,var(--line))}
 .t10{border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
 .potn{border-radius:14px}
+/* ---------- menu icons ---------- */
+#menu #spbtn,#menu #themebtn{display:flex;align-items:center;justify-content:center;gap:7px}
+#menu #spbtn .ico,#menu #themebtn .ico{display:inline-flex;align-items:center;justify-content:center;width:auto;height:auto;background:none;color:inherit;font-size:0}
+#menu #spbtn em,#menu #themebtn em{font-style:normal}
+#menu #spbtn[aria-pressed="true"] .ico{color:var(--brass)}
+.spbtn .ico{display:inline-flex;vertical-align:-3px;margin-right:6px}
+.spbtn em{font-style:normal}
+@media (max-width:640px){
+  #menu #spbtn,#menu #themebtn{gap:0;font-size:0!important}
+  #menu #spbtn em,#menu #themebtn em{display:none}
+  #menu #spbtn .ico svg,#menu #themebtn .ico svg{width:19px;height:19px}
+}
+/* ---------- standings, leaders and draft, refreshed ---------- */
+#stand .lhead h2,#lead .lhead h2{font-size:22px}
+.lslide{border-radius:14px;padding:10px 14px;box-shadow:0 6px 18px rgba(0,0,0,.12)}
+.stconf{padding:14px 14px 8px;margin-bottom:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 8px 22px rgba(0,0,0,.14)}
+.stconf h3{display:flex;align-items:center;gap:10px;font-size:14px;margin-bottom:10px}
+.cfb{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;font-style:normal;font-family:'Archivo Black',sans-serif;font-size:13px;color:#fff}
+.cfb.e{background:linear-gradient(135deg,#1D428A,#3a6bd0)}.cfb.w{background:linear-gradient(135deg,#C8102E,#e8504f)}
+.tb.st tr td{border-bottom-color:color-mix(in srgb,var(--rule) 70%,transparent)}
+.tb.st td.stn{position:relative;padding-left:12px!important;font-weight:600}
+.tb.st td.stn::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--tc)}
+.tb.st td.stn img{width:24px;height:24px;vertical-align:-7px}
+.seed{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;font-style:normal;font-family:'Archivo Black',sans-serif;font-size:11px}
+.seed.po{background:color-mix(in srgb,var(--good) 22%,transparent);color:var(--good)}
+.seed.pi{background:color-mix(in srgb,var(--brass) 22%,transparent);color:var(--brass)}
+.seed.out{color:var(--dim)}
+.tb.st td.pct{position:relative}
+.tb.st td.pct span{position:relative;z-index:1}
+.tb.st td.pct::before{content:"";position:absolute;left:4px;right:4px;bottom:5px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--tc) var(--p),color-mix(in srgb,var(--mute) 14%,transparent) var(--p))}
+.tb.st td.w{color:var(--good)}.tb.st td.lz{color:var(--bad)}
+.chp{display:inline-block;padding:2px 9px;border-radius:10px;background:color-mix(in srgb,var(--brass) 18%,transparent);border:1px solid var(--brass);color:var(--brass);font-weight:700}
+.tb.st tr.mine td{background:color-mix(in srgb,var(--team) 16%,transparent)}
+.lcats{border-right:0;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--panel);align-self:flex-start;max-height:100%}
+.lcat{border-radius:8px;padding:7px 10px}
+.lcat[aria-pressed="true"]{background:var(--team);color:var(--team2)}
+.lseason{border-radius:10px}
+.ltitle{font-size:20px}
+.lpod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 14px}
+.lpc{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px 12px;border-radius:16px;overflow:hidden;border:1px solid color-mix(in srgb,var(--tc) 45%,var(--line));
+  background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--tc) 35%,var(--panel)),var(--panel) 75%);box-shadow:0 8px 22px rgba(0,0,0,.18);transition:transform .15s}
+.lpc:not([disabled]):hover{transform:translateY(-2px)}
+.lpk{position:absolute;left:10px;top:10px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:12px;color:#0E1417;background:#C9CED1}
+.lpc.r1 .lpk{background:linear-gradient(135deg,#F5D76E,#C9A227)}.lpc.r3 .lpk{background:linear-gradient(135deg,#E3A06B,#A8653A)}
+.lpl{position:absolute;right:-14px;top:-10px;width:80px;height:80px;object-fit:contain;opacity:.12}
+.lpf{width:78px;height:78px;border-radius:50%;overflow:hidden;background:var(--face);border:3px solid var(--tc);box-shadow:0 6px 14px rgba(0,0,0,.3)}
+.lpf img{width:100%;height:100%;object-fit:cover;object-position:top center}
+.lpf .fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.lpn{margin-top:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:var(--strong);line-height:1.1}
+.lpm{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.05em;color:var(--dim)}
+.lpm b{color:var(--team-accent);font-weight:600}
+.lpv{margin-top:6px;font-family:'Archivo Black',sans-serif;font-size:26px;line-height:1;color:var(--strong)}
+.lpc.mine{box-shadow:0 0 0 2px var(--team-accent),0 8px 22px rgba(0,0,0,.18)}
+.lrow{border-bottom-color:color-mix(in srgb,var(--rule) 70%,transparent);padding:8px 4px;border-radius:8px}
+.lrow:not([disabled]):hover{background:var(--hover)}
+.lrow .lf{border:2px solid var(--tc)}
+.lrow .ln{display:flex;flex-direction:column;gap:4px}
+.lbar{display:block;height:4px;border-radius:2px;background:color-mix(in srgb,var(--mute) 14%,transparent);max-width:260px}
+.lbar i{display:block;height:100%;width:var(--p);border-radius:2px;background:var(--tc)}
+.lrow .lv{font-size:15px}
+@media (max-width:640px){.lpod{gap:6px}.lpc{padding:12px 6px 10px}.lpf{width:56px;height:56px}.lpn{font-size:13.5px}.lpv{font-size:20px}.lpm{font-size:10.5px}.lpk{width:22px;height:22px;font-size:10px;left:6px;top:6px}
+  .lcats{border:0;background:none;padding:0}}
+.prow2{padding:9px 6px;border-radius:8px;border-bottom-color:color-mix(in srgb,var(--rule) 70%,transparent)}
+.prow2 .rk{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:color-mix(in srgb,var(--mute) 12%,transparent);font-size:12.5px;color:var(--chalk)}
+.prow2.t1 .rk{background:linear-gradient(135deg,#F5D76E,#C9A227);color:#0E1417}
+.prow2.t2 .rk{background:color-mix(in srgb,var(--team-accent) 28%,transparent);color:var(--strong)}
+.prow2.t1{background:linear-gradient(90deg,color-mix(in srgb,var(--brass) 12%,transparent),transparent 70%)}
+.prow2 .pn{font-weight:600;font-size:15px}
+.ppos{font-style:normal;display:inline-block;margin-right:6px;padding:0 6px;border-radius:6px;border:1px solid var(--line);font-size:11px;color:var(--mute);letter-spacing:.06em}
+.prow2 img{width:28px;height:28px}
 /* ---------- who is on the floor in a live game ---------- */
 .oncourt{margin-top:12px;container:oc / inline-size}
 .ochead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
@@ -1246,10 +1316,15 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 "use strict";
 /* ---------- theme: saved choice, otherwise the device setting ---------- */
 function savedTheme(){ try { return localStorage.getItem('nba_theme'); } catch (e){ return null; } }
+const ICON = (() => { const w = b => `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${b}</svg>`;
+  return {eye: w('<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>'),
+    eyeOff: w('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+    sun: w('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'),
+    moon: w('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>')}; })();
 function applyTheme(th){
   document.documentElement.dataset.theme = th;
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = th === 'light' ? '#F3F0E9' : '#0E1417';
-  const b = document.getElementById('themebtn'); if (b) b.innerHTML = th === 'light' ? '<span aria-hidden="true">☾</span>Dark' : '<span aria-hidden="true">☀</span>Light';
+  const b = document.getElementById('themebtn'); if (b) b.innerHTML = th === 'light' ? `<span class="ico">${ICON.moon}</span><em>Dark</em>` : `<span class="ico">${ICON.sun}</span><em>Light</em>`;
 }
 const isLight = () => document.documentElement.dataset.theme === 'light';
 /* ---------- spoilers: one switch hides every score and live stat in the app ---------- */
@@ -2547,7 +2622,8 @@ function openBoard(sliding){
     <p class="note">From Tankathon${B.fetched ? ', ' + esc(fmtDate(B.fetched)) : ''}. Rankings change all season. Slide back for past drafts.</p>`;
   const L = boardKind === 'board' ? B.board : B.mock;
   $('#lrows').innerHTML = `<div class="ltitle">${boardKind === 'board' ? 'Top prospects' : 'Mock draft, both rounds'}</div><div class="lsub">${L.length} players</div>` +
-    L.map(m => `<div class="prow2"><span class="rk">${m[0]}</span><span class="pn">${esc(m[1])}<small>${esc(m[2])}, ${esc(m[3])}</small></span>${m[4] && byAbbr[m[4]] ? `<img src="${T[byAbbr[m[4]]].logo}" alt="${esc(m[4])}" title="${esc(T[byAbbr[m[4]]].name)}">` : '<span></span>'}</div>`).join('');
+    L.map(m => { const k = +m[0], tier = k <= 3 ? 't1' : k <= 14 ? 't2' : k <= 30 ? 't3' : 't4';
+      return `<div class="prow2 ${tier}"><span class="rk">${m[0]}</span><span class="pn">${esc(m[1])}<small><i class="ppos">${esc(m[2])}</i>${esc(m[3])}</small></span>${m[4] && byAbbr[m[4]] ? `<img src="${T[byAbbr[m[4]]].logo}" alt="${esc(m[4])}" title="${esc(T[byAbbr[m[4]]].name)}">` : '<span></span>'}</div>`; }).join('');
 }
 function drawPastDraft(yr, sliding){
   const R = (D.drafts || {})[yr] || [];
@@ -2669,14 +2745,16 @@ function drawStandings(sliding){
     const lead = R.reduce((a, b) => (b.w - b.l > a.w - a.l ? b : a), R[0]);
     const gb = r => r.gb != null && r.gb !== '' ? r.gb : (((lead.w - r.w) + (r.l - lead.l)) / 2 || '—');
     const hasSplits = R.some(r => r.home);
-    return `<div class="stconf"><h3>${c === 'East' ? 'Eastern' : 'Western'} Conference</h3><div class="scroll"><table class="tb st">
+    return `<div class="stconf"><h3><i class="cfb ${c === 'East' ? 'e' : 'w'}">${c === 'East' ? 'E' : 'W'}</i>${c === 'East' ? 'Eastern' : 'Western'} Conference</h3><div class="scroll"><table class="tb st">
       <tr><th></th><th style="text-align:left">Team</th><th>W</th><th>L</th><th>Pct</th><th>GB</th>${hasSplits ? '<th>Home</th><th>Road</th><th>L10</th><th>Strk</th><th>Diff</th>' : ''}${!live ? '<th style="text-align:left">Season ended</th>' : ''}</tr>
       ${R.map((r, i) => { const seed = r.seed ?? i + 1, t = T[r.id], line = playIn ? (seed === 6 ? 'cut6' : seed === 10 ? 'cut10' : '') : (seed === cut ? 'cut6' : '');
-        return `<tr class="${line}${String(r.id) === String(cur) ? ' mine' : ''}" data-st-team="${r.id}"><td class="sd">${seed}</td>
+        const pct_ = r.w / Math.max(1, r.w + r.l), sc_ = sideColor({abbreviation: t.abbr, color: t.color, alternateColor: t.alt}).c;
+        const tier = playIn ? (seed <= 6 ? 'po' : seed <= 10 ? 'pi' : 'out') : (seed <= cut ? 'po' : 'out');
+        return `<tr class="${line}${String(r.id) === String(cur) ? ' mine' : ''}" data-st-team="${r.id}" style="--tc:${sc_};--p:${(pct_ * 100).toFixed(1)}%"><td class="sd"><i class="seed ${tier}">${seed}</i></td>
           <td class="stn"><img src="${t.logo}" alt="">${esc(r.name || t.name)}${r.cl && /[xyzw]/.test(r.cl) ? ` <span class="cl">${esc(r.cl)}</span>` : ''}</td>
-          <td><b>${r.w}</b></td><td>${r.l}</td><td>${(r.w / Math.max(1, r.w + r.l)).toFixed(3).replace(/^0/, '')}</td><td>${esc(String(gb(r)))}</td>
-          ${hasSplits ? `<td>${esc(r.home || '')}</td><td>${esc(r.road || '')}</td><td>${esc(r.l10 || '')}</td><td>${esc(r.strk || '')}</td><td class="${/^\+/.test(r.diff || '') ? 'w' : /^-/.test(r.diff || '') ? 'lz' : ''}">${esc(r.diff || '')}</td>` : ''}
-          ${!live ? `<td style="text-align:left" class="${r.po === 'Champions' ? 'ch' : ''}">${esc(r.po || '')}</td>` : ''}</tr>`; }).join('')}
+          <td><b>${r.w}</b></td><td>${r.l}</td><td class="pct"><span>${pct_.toFixed(3).replace(/^0/, '')}</span></td><td>${esc(String(gb(r)))}</td>
+          ${hasSplits ? `<td>${esc(r.home || '')}</td><td>${esc(r.road || '')}</td><td>${esc(r.l10 || '')}</td><td class="${/^W/.test(r.strk || '') ? 'w' : /^L/.test(r.strk || '') ? 'lz' : ''}">${esc(r.strk || '')}</td><td class="${/^\+/.test(r.diff || '') ? 'w' : /^-/.test(r.diff || '') ? 'lz' : ''}">${esc(r.diff || '')}</td>` : ''}
+          ${!live ? `<td style="text-align:left" class="${r.po === 'Champions' ? 'ch' : ''}">${r.po === 'Champions' ? '<span class="chp">🏆 Champions</span>' : esc(r.po || '')}</td>` : ''}</tr>`; }).join('')}
       </table></div></div>`;
   };
   $('#stbody').innerHTML = conf('East') + conf('West') +
@@ -3501,7 +3579,7 @@ function setSpoil(v){
 }
 function drawSpoilBtns(){
   for (const b of document.querySelectorAll('#spbtn,.spbtn')){
-    b.innerHTML = `<span aria-hidden="true">${noSpoil ? '◌' : '●'}</span><em>${noSpoil ? 'Scores hidden' : 'Scores shown'}</em>`;
+    b.innerHTML = `<span class="ico">${noSpoil ? ICON.eyeOff : ICON.eye}</span><em>${noSpoil ? 'Scores hidden' : 'Scores shown'}</em>`;
     b.setAttribute('aria-pressed', String(noSpoil)); b.title = noSpoil ? 'Scores are hidden. Tap to show them.' : 'Tap to hide all scores and live stats';
   }
 }
@@ -3792,11 +3870,20 @@ function drawLeaders(sliding){
   const suffix = /%/.test(c.l) ? '%' : '';
   $('#lrows').innerHTML = `<div class="ltitle">${c.l}${c.g === 'Totals' ? ', season total' : c.g === 'Per game' ? ' per game' : ''}</div>
     <div class="lsub">${leadType === 'po' ? 'Playoffs' : 'Regular season'}${c.note ? ', ' + esc(c.note) : ''}${LB.src === 'bbref' ? ', Basketball Reference' : ''}</div>` +
-    c.rows.map((r, i) => { const [pid, name, tm, v, gp, id] = r, p = pid && P[pid], now = p && T[p.t] && T[p.t].abbr, open = pid || (D.people && D.people[id] ? id : null);
-      return `<button class="lrow${i < 3 ? ' top' : ''}${p && String(p.t) === String(cur) ? ' mine' : ''}" ${open ? `data-lp="${open}"` : 'disabled'}>
-        <span class="lr">${i + 1}</span><span class="lf">${photo(id, name, 'ini')}</span>
-        <span class="ln">${esc(name)}</span><span class="lt">${esc(tm)}${now && now !== tm ? ` <b>now ${esc(now)}</b>` : !p && leadSeason === D.leaders?.season ? ' <b>not on a roster</b>' : ''} ${gp} gp</span>
-        <span class="lv">${c.fmt == null ? v : (+v).toFixed(c.fmt)}${suffix}</span></button>`; }).join('');
+    (() => {
+      const vals = c.rows.map(r => +r[3]).filter(v => !isNaN(v)), hi = Math.max(...vals), lo = Math.min(...vals), asc = hi === +c.rows[c.rows.length - 1]?.[3] && hi !== lo;
+      const share = v => { if (isNaN(+v) || hi === lo) return 100; return asc ? Math.round(lo / +v * 100) : Math.round(+v / hi * 100); };
+      const info = r => { const [pid, name, tm, v, gp, id] = r, p = pid && P[pid], now = p && T[p.t] && T[p.t].abbr, open = pid || (D.people && D.people[id] ? id : null), tc = (T[byAbbr[tm]] || {});
+        return {pid, name, tm, v, gp, id, p, now, open, col: sideColor({abbreviation: tm, color: tc.color, alternateColor: tc.alt}).c, logo: tc.logo || logoOf(tm),
+          val: `${c.fmt == null ? v : (+v).toFixed(c.fmt)}${suffix}`, meta: `${esc(tm)}${now && now !== tm ? ` <b>now ${esc(now)}</b>` : !p && leadSeason === D.leaders?.season ? ' <b>not on a roster</b>' : ''} · ${gp} gp`}; };
+      const pod = c.rows.slice(0, 3).map(info).map((x, i) => `<button class="lpc r${i + 1}${x.p && String(x.p.t) === String(cur) ? ' mine' : ''}" ${x.open ? `data-lp="${x.open}"` : 'disabled'} style="--tc:${x.col}">
+        <span class="lpk">${i + 1}</span>${x.logo ? `<img class="lpl" src="${x.logo}" alt="">` : ''}<span class="lpf">${photo(x.id, x.name, 'ini')}</span>
+        <span class="lpn">${esc(x.name)}</span><span class="lpm">${x.meta}</span><span class="lpv">${x.val}</span></button>`).join('');
+      return `<div class="lpod">${pod}</div>` + c.rows.slice(3).map(info).map((x, j) => `<button class="lrow${x.p && String(x.p.t) === String(cur) ? ' mine' : ''}" ${x.open ? `data-lp="${x.open}"` : 'disabled'} style="--tc:${x.col};--p:${share(x.v)}%">
+        <span class="lr">${j + 4}</span><span class="lf">${photo(x.id, x.name, 'ini')}</span>
+        <span class="ln">${esc(x.name)}<span class="lbar"><i></i></span></span><span class="lt">${x.meta}</span>
+        <span class="lv">${x.val}</span></button>`).join('');
+    })();
   if (!sliding) $('#lrows').scrollTop = 0;
 }
 $('#themebtn').onclick = () => {
