@@ -1136,9 +1136,20 @@ if sch is not None and not sch.empty:
 # ---------------------------------------------------------------- team history
 # Ten seasons of record, seed and playoff run from ESPN standings and box scores.
 history = {}
+h2h_games = []
 for yr in range(2002, stats_season + 1):
     st_ = get("espn_nba_standings", f"standings_{yr}.parquet")
     tb_ = get("espn_nba_team_boxscores", f"team_box_{yr}.parquet")
+    if tb_ is not None and not tb_.empty:   # every meeting since 2001-02, for head to head
+        try:
+            hb_ = tb_[(tb_.team_home_away == "home") & tb_.season_type.isin([2, 3])]
+            for r_ in hb_.itertuples():
+                if pd.isna(r_.team_score) or pd.isna(r_.opponent_team_score):
+                    continue
+                h2h_games.append((str(r_.game_date)[:10], str(r_.game_id), int(r_.team_id), int(r_.opponent_team_id),
+                                  int(r_.team_score), int(r_.opponent_team_score), int(r_.season_type), yr))
+        except Exception as e:
+            print("h2h", yr, "skipped:", e)
     if st_ is None:
         continue
     po_ = {}
@@ -1173,6 +1184,45 @@ for yr in range(2002, stats_season + 1):
             "gb": d_.get("gamesBehind"), "l10": d_.get("Last Ten Games"), "strk": d_.get("streak"),
             "home": d_.get("Home"), "road": d_.get("Road"), "diff": d_.get("differential"), "cl": d_.get("clincher")})
 print(f"hist {len(history)} teams, {sum(len(v) for v in history.values())} team seasons")
+
+# ---------------------------------------------------------------- head to head
+# Every pair of teams: record since 2001-02 (regular season and playoffs), the last ten
+# meetings, and the top scorers across those ten games.
+h2h = {}
+try:
+    from collections import defaultdict
+    pairs = defaultdict(list)
+    for g in h2h_games:
+        a, b = sorted((g[2], g[3]))
+        pairs[(a, b)].append(g)
+    need = {}
+    for k, G in pairs.items():
+        G.sort(key=lambda g: g[0])
+        for g in G[-10:]:
+            need[g[1]] = k
+    pts_by = defaultdict(lambda: defaultdict(lambda: [0, 0, "", 0]))   # pair -> athlete -> [games, points, name, team]
+    for yr in sorted({g[7] for g in h2h_games if g[1] in need}):
+        pb_ = get("espn_nba_player_boxscores", f"player_box_{yr}.parquet")
+        if pb_ is None or pb_.empty:
+            continue
+        sub = pb_[pb_.game_id.astype(str).isin(need.keys())]
+        for r_ in sub.itertuples():
+            if pd.isna(r_.points) or pd.isna(r_.athlete_id) or (getattr(r_, "did_not_play", False) is True):
+                continue
+            x = pts_by[need[str(r_.game_id)]][int(r_.athlete_id)]
+            x[0] += 1; x[1] += int(r_.points); x[2] = r_.athlete_display_name; x[3] = int(r_.team_id)
+    for (a, b), G in pairs.items():
+        reg = [0, 0]; po = [0, 0]
+        for g in G:
+            win_a = (g[4] > g[5]) == (g[2] == a)
+            (po if g[6] == 3 else reg)[0 if win_a else 1] += 1
+        tops = sorted(((aid, v) for aid, v in pts_by[(a, b)].items() if v[0] >= 2), key=lambda t: -t[1][1] / t[1][0])[:4]
+        h2h[f"{a}-{b}"] = {"r": reg, "p": po,
+                           "g": [[g[0], g[2], g[4], g[5], g[6]] for g in reversed(G[-10:])],
+                           "top": [[str(aid), v[2], v[3], v[0], round(v[1] / v[0], 1)] for aid, v in tops]}
+    print(f"h2h {len(h2h)} team pairs from {len(h2h_games)} games")
+except Exception as e:
+    print("h2h failed:", e)
 
 # ---------------------------------------------------------------- draft picks
 # RealGM's future draft page lists every team's first and second round picks for
@@ -2781,6 +2831,7 @@ data = {
     "style": {"styles": style_now.get("styles"), "league": style_now.get("league")} if style_now else None,
     "site": site_settings,
     "rapmUpdated": (rapm or {}).get("updated"),
+    "h2h": h2h,
 }
 
 def clean(o):
