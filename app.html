@@ -652,9 +652,6 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .spcover b{font-family:'Barlow Condensed',sans-serif;font-size:16px;letter-spacing:.12em;text-transform:uppercase;color:var(--strong)}
 @media (min-width:1101px){#spbtn{margin-left:auto}#spbtn + #themebtn{margin-left:0}}
 @media (max-width:1100px){#spbtn{flex:0 0 auto}}
-@media (max-width:640px){#menu{overflow-x:auto;scrollbar-width:none}#menu::-webkit-scrollbar{display:none}
-  #menu button{flex:0 0 auto;padding:10px 12px;font-size:12px;letter-spacing:.08em;gap:5px}#menu button span{display:none}
-  #spbtn em{display:none}#spbtn span{display:inline!important;font-size:14px}#themebtn{font-size:0}#themebtn span{display:inline!important;font-size:14px}}
 /* ---------- player and team pages, refreshed look ---------- */
 #head{overflow:hidden;padding:18px 22px 15px;background:linear-gradient(100deg,color-mix(in srgb,var(--team) 38%,var(--bg1)) 0%,color-mix(in srgb,var(--team) 12%,var(--bg1)) 45%,var(--bg1) 80%)}
 #head::before{width:5px}
@@ -701,6 +698,27 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .phstats b{display:block;font-family:'Archivo Black',sans-serif;font-weight:400;font-size:21px;line-height:1.05;color:var(--strong)}
 .phstats span{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:.16em;color:var(--mute)}
 .pill{border-radius:20px;padding:5px 11px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+/* ---------- phone menu: Scores, Standings, More (Multiview, Leaders, Draft), scores switch, theme ---------- */
+#menu #morebtn,#moremenu{display:none}
+@media (max-width:640px){
+  #menu{overflow:hidden}
+  #menu button{flex:1 1 auto;min-width:0;padding:11px 4px;font-size:12.5px;letter-spacing:.08em;gap:4px}
+  #scbtn span,#stbtn span{display:none}
+  #menu #mvbtn,#menu #leadbtn,#menu #boardbtn{display:none}
+  #menu #morebtn{display:flex}
+  #morebtn span{font-size:11px!important}
+  #morebtn[aria-expanded="true"]{background:var(--bg2);color:var(--strong)}
+  #spbtn,#themebtn{flex:0 0 44px!important;padding:11px 0!important;margin:0!important}
+  #spbtn em{display:none}#spbtn span{font-size:15px!important}
+  #themebtn{font-size:0!important}#themebtn span{font-size:15px!important}
+  #moremenu:not([hidden]){display:flex;flex-direction:column;position:fixed;z-index:80;min-width:190px;padding:6px;border:1px solid var(--line);border-radius:12px;
+    background:var(--bg1);box-shadow:0 14px 34px rgba(0,0,0,.4)}
+  #moremenu button{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;text-align:left;
+    font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--chalk)}
+  @media (max-width:380px){#menu button{letter-spacing:.04em;font-size:12px}}
+  #moremenu button span{font-size:11px;color:var(--team-accent);width:14px;text-align:center}
+  #moremenu button:active,#moremenu button:hover{background:var(--bg2);color:var(--strong)}
+}
 /* ---------- who is on the floor in a live game ---------- */
 .oncourt{margin-top:12px;container:oc / inline-size}
 .ochead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
@@ -1073,12 +1091,18 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 <body>
 <div id="app">
   <nav id="rail" aria-label="Teams"></nav>
+  <div id="moremenu" hidden role="menu">
+    <button type="button" role="menuitem" data-go="mvbtn"><span aria-hidden="true">▦</span>Multiview</button>
+    <button type="button" role="menuitem" data-go="leadbtn"><span aria-hidden="true">▲</span>Leaders</button>
+    <button type="button" role="menuitem" data-go="boardbtn"><span aria-hidden="true">◆</span>Draft</button>
+  </div>
   <nav id="menu" aria-label="Menu">
     <button id="scbtn"><span aria-hidden="true">●</span>Scores</button>
     <button id="mvbtn"><span aria-hidden="true">▦</span>Multiview</button>
     <button id="stbtn"><span aria-hidden="true">■</span>Standings</button>
     <button id="leadbtn"><span aria-hidden="true">▲</span>Leaders</button>
     <button id="boardbtn"><span aria-hidden="true">◆</span>Draft</button>
+    <button id="morebtn" type="button" aria-haspopup="true" aria-expanded="false"><span aria-hidden="true">▾</span>More</button>
     <button id="spbtn" aria-label="Hide or show scores"></button>
     <button id="themebtn" aria-label="Switch between light and dark"></button>
   </nav>
@@ -3409,6 +3433,21 @@ document.addEventListener('click', e => {
   if (e.target.closest('#spreveal')){ SPOIL_OK.add(String(gameId)); if (lastSummary) drawGame(lastSummary, true); }
 });
 drawSpoilBtns();
+
+/* phone menu: More opens Multiview, Leaders and Draft */
+function closeMore(){ $('#moremenu').hidden = true; $('#morebtn').setAttribute('aria-expanded', 'false'); }
+$('#morebtn').onclick = e => {
+  e.stopPropagation();
+  const m = $('#moremenu');
+  if (!m.hidden) return closeMore();
+  const r = $('#morebtn').getBoundingClientRect();
+  m.hidden = false; $('#morebtn').setAttribute('aria-expanded', 'true');
+  m.style.top = (r.bottom + 6) + 'px';
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+};
+$('#moremenu').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (!b) return; closeMore(); $('#' + b.dataset.go).click(); });
+document.addEventListener('click', e => { if (!$('#moremenu').hidden && !e.target.closest('#moremenu')) closeMore(); });
+addEventListener('resize', closeMore);
 
 /* ---------- demo live game: a real finished game replayed as if live ---------- */
 // The 2026 Finals, Game 4: Spurs at Knicks, 107-106. The real play by play is fed in
