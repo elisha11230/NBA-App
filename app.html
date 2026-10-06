@@ -1765,6 +1765,7 @@ async function openGame(id, quiet){
   schedule(id === 'demo' ? DEMO_STEP : window_ ? 5000 : st0?.status?.type?.state === 'pre' ? 60000 : 600000, () => openGame(id, true));
 }
 function drawGame(s, quiet){
+  s = withBox(s, gameId);
   const comp = s.header.competitions[0], st = comp.status.type;
   const cs = [...comp.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
   const live = st.state === 'in';
@@ -1982,7 +1983,8 @@ function fadeBoxEdges(){
 function boxView(s){
   const teams = s.boxscore?.players || [];
   if (s.__delayed && s.__boxWait) return `<div class="empty">The box score catches up with your delay in about ${s.__boxWait} seconds.</div>`;
-  const demoNote = s.__demo || (gameId === 'demo') ? `<p class="note" style="margin-bottom:8px">Demo: this is the finished game's box score. In a real live game it updates with every play.</p>` : '';
+  const demoNote = s.boxscore?.__pbp ? `<p class="note" style="margin-bottom:8px">Built from the play by play${s.__delayed ? ', in step with your feed delay' : ' because ESPN\u2019s box score is blank for this game'}. Minutes are close, not exact.</p>`
+    : s.__demo || (gameId === 'demo') ? `<p class="note" style="margin-bottom:8px">Demo: this is the finished game's box score. In a real live game it updates with every play.</p>` : '';
   if (!teams.length) return `<div class="empty">The box score fills in at tip off.</div>`;
   return demoNote + teams.map(t => {
     const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
@@ -2203,7 +2205,7 @@ async function liveFloor(ev){
     keepSnap(ev.id, fresh);
     const buf = SNAPS[ev.id], cutoff = Date.now() - liveDelay * 1000;
     const pick = liveDelay ? [...buf].reverse().find(x => x.t <= cutoff) : buf[buf.length - 1];
-    const s = pick ? pick.s : {boxscore: {players: []}, header: fresh.header};
+    const s = withBox(liveDelay ? (delayedView(ev.id) || fresh) : fresh, ev.id) || {boxscore: {players: []}, header: fresh.header};
     const map = {};
     for (const t of (s.boxscore?.players || [])){
       const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
@@ -3047,9 +3049,25 @@ function onCourt(s, id){
     const out = [...lineup[t]].sort((m, n) => (guess[t].has(n) - guess[t].has(m)) || ((seen[m] ?? -1) - (seen[n] ?? -1)))[0];
     lineup[t].delete(out); guess[t].delete(out);
   };
+  // minutes and plus minus come along for free: time and score changes go to whoever is on
+  const pLen = q => q <= 4 ? 720 : 300, pStart = q => q <= 4 ? (q - 1) * 720 : 2880 + (q - 5) * 300;
+  const comp_ = s.header?.competitions?.[0]?.competitors || [];
+  const homeId = String(comp_.find(c => c.homeAway === 'home')?.team?.id || ''), secs = {}, pm = {};
+  let prevT = 0, prevH = 0, prevA = 0;
   plays.forEach((p, i) => {
     const q = p.period?.number || 1;
-    if (q !== per){ per = q; infer(i, q); }
+    if (q !== per){ per = q; infer(i, q); prevT = Math.max(prevT, pStart(q)); }   // time only ever moves forward
+    const cl = clockToSecs(p.clock?.displayValue);
+    if (cl != null){
+      const tNow = pStart(q) + pLen(q) - cl, dt = tNow - prevT;
+      if (dt > 0){ for (const t in lineup) for (const a of lineup[t]) secs[a] = (secs[a] || 0) + dt; prevT = tNow; }
+    }
+    const hS = +p.homeScore || 0, aS = +p.awayScore || 0;
+    if (hS !== prevH || aS !== prevA){
+      const dh = hS - prevH, da = aS - prevA;
+      for (const t in lineup) for (const a of lineup[t]) pm[a] = (pm[a] || 0) + (t === homeId ? dh - da : da - dh);
+      prevH = hS; prevA = aS;
+    }
     const sb = subOf(p);
     if (!sb){
       // ESPN's feed now and then drops a substitution. When a player who is not on the floor
@@ -3076,7 +3094,69 @@ function onCourt(s, id){
     const cand = Object.keys(R[t].ath).filter(a => !L.has(a) && seen[a] != null).sort((m, n) => seen[n] - seen[m]);
     while (L.size < 5 && cand.length){ const a = cand.shift(); L.add(a); guess[t].add(a); }
   }
-  return {R, lineup, entered};
+  return {R, lineup, entered, secs, pm};
+}
+/* ---------- box score rebuilt from the play by play ---------- */
+// Used when ESPN's own box score is blank (it often is in the preseason: zeros everywhere
+// but minutes) and whenever the feed delay is on, so the box never runs ahead of the stream.
+const BOX_NAMES = ['MIN', 'PTS', 'FG', '3PT', 'FT', 'REB', 'AST', 'TO', 'STL', 'BLK', 'OREB', 'DREB', 'PF', '+/-'];
+function pbpBox(s, id){
+  const oc = onCourt(s, id); if (!oc) return null;
+  const R = oc.R, teamOf = {}, S = {};
+  for (const t in R) for (const a in R[t].ath) teamOf[a] = t;
+  const g = a => S[a] || (S[a] = {pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, or: 0, dr: 0, ast: 0, to: 0, stl: 0, blk: 0, pf: 0});
+  for (const p of (s.plays || [])){
+    const ty = p.type?.text || '', tx = p.text || '', ids = (p.participants || []).map(x => String(x.athlete?.id || '')), a = ids[0];
+    if (!a || !teamOf[a]) continue;
+    if (/free throw/i.test(ty)){ g(a).fta++; if (p.scoringPlay){ g(a).ftm++; g(a).pts += +p.scoreValue || 1; } continue; }
+    const shot = p.shootingPlay ?? /\b(makes|misses)\b/i.test(tx);
+    if (shot){
+      const three = /three point|3-pt/i.test(tx) || +p.scoreValue === 3;
+      g(a).fga++; if (three) g(a).tpa++;
+      if (p.scoringPlay){ g(a).fgm++; if (three) g(a).tpm++; g(a).pts += +p.scoreValue || 2; if (ids[1] && teamOf[ids[1]] === teamOf[a] && /assist/i.test(tx)) g(ids[1]).ast++; }
+      else if (/block/i.test(tx) && ids[1] && teamOf[ids[1]]) g(ids[1]).blk++;
+      continue;
+    }
+    if (/offensive rebound/i.test(ty)){ g(a).or++; continue; }
+    if (/defensive rebound/i.test(ty)){ g(a).dr++; continue; }
+    if (/turnover|^traveling$/i.test(ty)){ g(a).to++; if (/steal/i.test(tx) && ids[1] && teamOf[ids[1]]) g(ids[1]).stl++; continue; }
+    if (/foul|charge/i.test(ty) && !/technical/i.test(ty)){ g(a).pf++; if (/double/i.test(ty) && ids[1] && teamOf[ids[1]]) g(ids[1]).pf++; }
+  }
+  const src = (s.boxscore?.players || []).length ? s.boxscore.players : [...(SNAPS[id] || [])].reverse().map(x => x.s?.boxscore?.players).find(x => x && x.length) || [];
+  const players = Object.keys(R).map(t => {
+    const teamObj = (src.find(x => String(x.team?.id) === t) || {}).team || {id: t};
+    const ids = Object.keys(R[t].ath), st = new Set(R[t].starters);
+    ids.sort((x, y) => (st.has(y) - st.has(x)) || ((oc.secs[y] || 0) - (oc.secs[x] || 0)));
+    const tot = {pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, or: 0, dr: 0, ast: 0, to: 0, stl: 0, blk: 0, pf: 0};
+    const athletes = ids.map(a => {
+      const i = R[t].ath[a], x = S[a], sec = oc.secs[a] || 0;
+      const athlete = {id: a, displayName: i.name, shortName: i.short, jersey: i.jersey, position: {abbreviation: i.pos}, headshot: {href: i.head}};
+      if (!x && sec < 1) return {athlete, starter: st.has(a), didNotPlay: true, reason: 'Has not played', stats: []};
+      const v = x || g(a); for (const k in tot) tot[k] += v[k];
+      const pmv = oc.pm[a] || 0;
+      return {athlete, starter: st.has(a), stats: [String(Math.round(sec / 60)), String(v.pts), `${v.fgm}-${v.fga}`, `${v.tpm}-${v.tpa}`, `${v.ftm}-${v.fta}`,
+        String(v.or + v.dr), String(v.ast), String(v.to), String(v.stl), String(v.blk), String(v.or), String(v.dr), String(v.pf), (pmv > 0 ? '+' : '') + pmv]};
+    });
+    const totals = ['', String(tot.pts), `${tot.fgm}-${tot.fga}`, `${tot.tpm}-${tot.tpa}`, `${tot.ftm}-${tot.fta}`, String(tot.or + tot.dr), String(tot.ast), String(tot.to), String(tot.stl), String(tot.blk), String(tot.or), String(tot.dr), String(tot.pf), ''];
+    return {team: teamObj, statistics: [{names: BOX_NAMES, labels: BOX_NAMES, athletes, totals}]};
+  });
+  return {players, __pbp: true};
+}
+// ESPN's box is blank when nobody has a point, rebound or assist but the plays say otherwise
+function espnBoxBlank(s){
+  let any = false;
+  for (const t of (s.boxscore?.players || [])){
+    const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
+    const ix = ['PTS', 'REB', 'AST'].map(n => names.indexOf(n));
+    for (const a of (st.athletes || [])) for (const i of ix) if (i >= 0 && +(a.stats || [])[i] > 0) any = true;
+  }
+  return !any && (s.plays || []).some(p => p.scoringPlay && p.participants?.length);
+}
+function withBox(s, id){
+  if (!s || s.boxscore?.__pbp) return s;
+  if (!(s.__delayed || espnBoxBlank(s))) return s;
+  const b = pbpBox(s, id);
+  return b ? {...s, boxscore: b, __boxWait: 0} : s;
 }
 let courtHidden = (() => { try { return localStorage.getItem('nba_court') === 'off'; } catch (e){ return false; } })();
 // Half court, basket at the top; spots in feet across 50 ft and out 31 ft: big, power forward, wing, wing, point
