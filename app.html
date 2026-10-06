@@ -745,6 +745,26 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .potni span{font-size:13.5px;color:var(--chalk);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .potni span img{width:18px;height:18px;object-fit:contain}
 .potni small{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--dim)}
+/* ---------- other games strip at the top of the live game view ---------- */
+#striphost:empty{display:none}
+.gsrail{display:flex;gap:7px;overflow-x:auto;padding:0 0 10px;margin-bottom:10px;border-bottom:1px solid var(--rule);scrollbar-width:thin}
+.gsrail::-webkit-scrollbar{height:4px}
+.gsrail::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+.gstile{position:relative;flex:0 0 auto;min-width:112px;padding:7px 9px 6px 12px;text-align:left;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden;transition:border-color .12s,background .12s}
+.gstile:hover{border-color:var(--team-accent)}
+.gstile.live{border-color:color-mix(in srgb,#C25B5B 45%,transparent)}
+.gstile.done{opacity:.72}
+.gstile.on{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 12%,var(--panel));opacity:1}
+.gsside{position:relative;display:flex;align-items:center;gap:6px;padding:1px 0}
+.gsside .gcstripe{position:absolute;left:-12px;top:0;bottom:0;width:4px;border-radius:0 2px 2px 0}
+.gslogo{width:16px;height:16px;object-fit:contain;flex:0 0 auto}
+.gsab{flex:1 1 auto;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;letter-spacing:.07em;color:var(--mute)}
+.gssc{font-family:'Archivo Black',sans-serif;font-size:12.5px;color:var(--dim);min-width:22px;text-align:right}
+.gssc.lead{color:var(--strong)}
+.gsfoot{display:flex;align-items:center;gap:5px;margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.gsfoot.hot{color:#E0453A;font-weight:700}
+:root[data-theme="light"] .gsfoot.hot{color:#C22B20}
+.gsdot{width:6px;height:6px;border-radius:50%;background:#E05B5B;animation:pulse 1.6s ease-in-out infinite;flex:0 0 auto}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1427,7 +1447,7 @@ function drawGame(s, quiet){
   const body = $('#scbody');
   let pbox = $('#gplayerbox'), gbox = $('#gamecontent');
   if (!pbox || !gbox || pbox.parentNode !== body){
-    body.innerHTML = '<div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamecontent"></div>';
+    body.innerHTML = '<div id="striphost"></div><div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamecontent"></div>';
     pbox = $('#gplayerbox'); gbox = $('#gamecontent');
   }
   showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
@@ -1438,6 +1458,8 @@ function drawGame(s, quiet){
   gbox.innerHTML = h.replace('<div id="gplayer-slot"></div>', '');
   if (quiet) body.scrollTop = keep;
   fadeBoxEdges();
+  // other games that day, across the top
+  if (gameId !== 'demo' && comp.date){ renderStrip(); refreshStrip(etDay(comp.date)); } else { const sh_ = $('#striphost'); if (sh_) sh_.innerHTML = ''; }
   // mini player: keep its score line current, and dock back if we are on its game
   if (STREAM.slug && STREAM.game === gameId){
     STREAM.gameLive = st.state !== 'post';
@@ -2704,6 +2726,59 @@ async function loadPotn(day, events, box){
     <span>${esc(best.line)} ${tm ? `<img src="${tm.logo}" alt="">` : ''} vs ${esc(best.opp?.team?.abbreviation || '')}</span><small>Game Score ${best.gs.toFixed(1)}, best on a winning team</small></span></button>`;
   potnCache[day] = {n: done.length, html}; box.innerHTML = html;
 }
+
+/* ---------- other games: a row of score tiles across the top of the live game view ----------
+   Same idea as the NFL app's game strip: every game that day, live first, then finished,
+   then not started; the one you are watching is outlined; tap a tile to switch games.
+   It sits in its own box above the player and is redrawn on each refresh; the player
+   below it is never touched. */
+const STRIP = {day: null, events: [], at: 0, busy: false};
+async function refreshStrip(day){
+  if (STRIP.busy || (STRIP.day === day && Date.now() - STRIP.at < 20000)) return;
+  STRIP.busy = true;
+  try {
+    const j = await espn('/scoreboard?dates=' + day.replace(/-/g, ''));
+    STRIP.day = day; STRIP.events = j.events || []; STRIP.at = Date.now();
+    renderStrip();
+  } catch (e){ /* keep whatever we had */ }
+  finally { STRIP.busy = false; }
+}
+function renderStrip(){
+  const host = $('#striphost'); if (!host) return;
+  if (gameId === 'demo' || STRIP.events.length < 2){ host.innerHTML = ''; return; }
+  const rank = e => { const s = e.status.type.state; return s === 'in' ? 0 : s === 'post' ? 1 : 2; };
+  const evs = [...STRIP.events].sort((a, b) => rank(a) - rank(b) || Date.parse(a.date) - Date.parse(b.date));
+  const keepX = host.querySelector('.gsrail')?.scrollLeft || 0;
+  host.innerHTML = `<div class="gsrail">${evs.map(e => {
+    const c = e.competitions[0], st = e.status.type, on = String(e.id) === String(gameId);
+    const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
+    // the game you are watching shows its (possibly delayed) score; other live games hide theirs while a delay is on
+    const cur = on && lastSummary ? [...lastSummary.header.competitions[0].competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1)) : null;
+    const hide = !on && st.state === 'in' && liveDelay > 0;
+    const sc = i => st.state === 'pre' ? '' : hide ? '••' : String((cur ? cur[i].score : cs[i].score) ?? 0);
+    const lead = i => { if (st.state === 'pre' || hide) return false; const a = +sc(0), b = +sc(1); return i === 0 ? a > b : b > a; };
+    const side = (x, i) => { const tm = T[byAbbr[x.team.abbreviation]] || {};
+      return `<div class="gsside"><i class="gcstripe" style="background:#${esc(tm.color || '566C77')}"></i><img class="gslogo" src="${esc(tm.logo || x.team.logo || '')}" alt="">
+        <span class="gsab">${esc(x.team.abbreviation)}</span><span class="gssc${lead(i) ? ' lead' : ''}">${sc(i)}</span></div>`; };
+    const foot = st.state === 'pre' ? new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+      : st.state === 'post' ? 'Final' : hide ? 'Live' : (on && lastSummary ? lastSummary.header.competitions[0].status.type.shortDetail : st.shortDetail);
+    return `<button class="gstile${on ? ' on' : ''}${st.state === 'in' ? ' live' : st.state === 'post' ? ' done' : ''}" data-strip="${esc(e.id)}" type="button">
+      ${side(cs[0], 0)}${side(cs[1], 1)}<div class="gsfoot${st.state === 'in' ? ' hot' : ''}">${st.state === 'in' ? '<span class="gsdot"></span>' : ''}<span>${esc(foot || '')}</span></div></button>`;
+  }).join('')}</div>`;
+  const rail = host.querySelector('.gsrail');
+  if (!host.dataset.scrolled){
+    const onTile = host.querySelector('.gstile.on');
+    if (onTile) rail.scrollLeft = onTile.offsetLeft - rail.clientWidth / 2 + onTile.offsetWidth / 2;
+    host.dataset.scrolled = '1';
+  } else rail.scrollLeft = keepX;   // refreshes keep your place in the row
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-strip]'); if (!t) return;
+  if (String(t.dataset.strip) === String(gameId)) return;
+  $('#striphost').dataset.scrolled = '';
+  gameTab = 'pbp';
+  openGame(t.dataset.strip);
+});
 
 /* ---------- league leaders ---------- */
 let leadType = 'reg', leadKey = 'pts';
