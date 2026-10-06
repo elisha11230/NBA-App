@@ -719,6 +719,72 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
   #moremenu button span{font-size:11px;color:var(--team-accent);width:14px;text-align:center}
   #moremenu button:active,#moremenu button:hover{background:var(--bg2);color:var(--strong)}
 }
+/* ---------- main menu, refreshed ---------- */
+#menu{gap:4px;padding:6px 10px;align-items:center;background:linear-gradient(180deg,color-mix(in srgb,var(--bg1) 88%,var(--team) 12%),var(--bg1))}
+#menu button,#menu button+button{border:0!important;border-radius:10px;background:transparent;padding:8px 14px}
+#menu button span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;font-size:10px;
+  background:color-mix(in srgb,var(--team-accent) 16%,transparent);color:var(--team-accent)}
+#menu button:hover{background:color-mix(in srgb,var(--team) 16%,var(--bg2));color:var(--strong)}
+#menu button:active{transform:translateY(1px)}
+#menu #spbtn,#menu #themebtn{border:1px solid var(--line)!important;border-radius:20px;padding:6px 14px 6px 8px}
+#menu #spbtn[aria-pressed="true"]{border-color:var(--brass)!important;background:color-mix(in srgb,var(--brass) 12%,transparent)}
+@media (min-width:1101px){#menu button{padding:8px 16px}#menu button:last-child{border-right:0!important}}
+@media (max-width:640px){
+  #menu{padding:5px 6px;gap:3px}
+  #menu button,#menu button+button{padding:9px 4px;border-radius:9px}
+  #menu #spbtn,#menu #themebtn{border-radius:50%!important;flex:0 0 38px!important;height:38px;padding:0!important}
+  #menu #spbtn span,#menu #themebtn span{background:none;width:auto;height:auto}
+  #morebtn span{width:16px!important;height:16px!important}
+  #menu #scbtn span,#menu #stbtn span{display:none}
+}
+/* ---------- scores page, refreshed ---------- */
+.sclive{display:inline-flex;align-items:center;gap:6px;vertical-align:4px;margin-left:8px;padding:3px 10px;border-radius:12px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  color:#F2B0B0;border:1px solid #D06A6A;background:color-mix(in srgb,#E0402A 12%,transparent)}
+.sclive[hidden]{display:none}
+:root[data-theme="light"] .sclive{color:#B02E24}
+.sclive::before{content:"";width:7px;height:7px;border-radius:50%;background:#E0402A;animation:pulse 1.4s infinite}
+#scores .lhead h2{font-size:22px}
+.dstrip{display:flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.dsa{width:30px;height:40px;border-radius:9px;font-size:20px;color:var(--mute)}
+.dsa:hover{background:var(--bg2);color:var(--strong)}
+.dsd{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;height:40px;border-radius:9px;color:var(--mute);line-height:1}
+.dsd small{font-family:'Barlow Condensed',sans-serif;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase}
+.dsd b{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:15px;margin-top:2px;color:var(--chalk)}
+button.dsd:hover{background:var(--bg2)}
+.dsd.today small{color:var(--brass)}
+.dsd.on{background:var(--team);color:var(--team2);box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.dsd.on b,.dsd.on small{color:var(--team2)}
+.dnav .dl{min-width:0;font-size:14px;color:var(--mute)}
+.dtools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dtools .qx,.dtools input{border-radius:10px}
+@media (max-width:640px){.dstrip{width:100%;justify-content:space-between}.dsd{min-width:0;flex:1 1 0}.dnav .dl{display:none}
+  .dtools{width:100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.dtools::-webkit-scrollbar{display:none}
+  .dtools > *{flex:0 0 auto}.dtools .qx{padding:6px 10px;font-size:11px}.dtools input{font-size:12px;padding:4px 6px}}
+.gsec{margin-bottom:18px}
+.gsec h4{display:flex;align-items:center;gap:8px;margin:2px 2px 9px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--chalk)}
+.gsec h4 span{font-weight:600;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--dim);letter-spacing:.06em}
+.gsec.lv h4{color:#E86A5C}
+.gdot{width:8px;height:8px;border-radius:50%;background:#E0402A;animation:pulse 1.4s infinite}
+.gcards{gap:10px}
+.gcard{position:relative;overflow:hidden;border-radius:14px;padding:12px 14px 12px;transition:transform .15s,border-color .15s,box-shadow .15s;
+  background:linear-gradient(100deg,color-mix(in srgb,var(--ac) 14%,var(--panel)),var(--panel) 45%,var(--panel) 55%,color-mix(in srgb,var(--hc) 14%,var(--panel)));box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.gcard::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--ac) 50%,var(--hc) 50%);opacity:.85}
+.gcard:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.22)}
+.gcard.live{border-color:color-mix(in srgb,#D06A6A 70%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,#D06A6A 35%,transparent),0 8px 22px rgba(224,64,42,.12)}
+.gstat{margin-bottom:8px;align-items:center}
+.gtv{padding:1px 7px;border-radius:8px;border:1px solid var(--line);font-size:10.5px;letter-spacing:.08em;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
+.gteam{position:relative;gap:10px;padding:5px 0 5px 10px}
+.gteam::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--tc)}
+.gteam img{width:30px;height:30px}
+.gteam .gn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;letter-spacing:.03em;color:var(--strong)}
+.gteam .gs{font-size:22px;font-variant-numeric:tabular-nums}
+.gteam.won .gs::after{content:"◂";font-size:11px;color:var(--brass);margin-left:4px;vertical-align:4px}
+.nospoil .gteam.won .gs::after{content:none}
+.glead{border-top:1px dashed var(--rule)}
+.gstream,.ghl{border-radius:14px;padding:4px 12px}
+.ghl{border:1px solid color-mix(in srgb,var(--team-accent) 50%,var(--line))}
+.t10{border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.potn{border-radius:14px}
 /* ---------- who is on the floor in a live game ---------- */
 .oncourt{margin-top:12px;container:oc / inline-size}
 .ochead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
@@ -1159,7 +1225,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 </div>
 
 <div id="scores" hidden role="dialog" aria-modal="true" aria-label="Scores and live games">
-  <div class="lhead"><h2>Scores</h2><button class="qx" id="scclose">Close</button></div>
+  <div class="lhead"><h2>Scores <span id="sclive" class="sclive" hidden></span></h2><button class="qx" id="scclose">Close</button></div>
   <div class="dnav" id="scnav"></div>
   <div id="scbody"></div>
 </div>
@@ -1689,8 +1755,11 @@ function drawNav0(){
   const label = scDate.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'});
   $('#scnav').innerHTML = gameId
     ? `<button class="qx" id="gback">&larr; All games</button><span class="dl" style="text-align:left">${label}</span><button class="qx spbtn" type="button" style="margin-left:auto"></button>`
-    : `<button class="qx" data-dd="-1">&larr; Day</button><span class="dl">${label}</span><button class="qx" data-dd="1">Day &rarr;</button>
-       <button class="qx" data-dd="0">Today</button><input type="date" id="scpick" value="${iso}" aria-label="Pick a date"><button class="qx demobtn" id="demobtn">▶ Demo live game</button><button class="qx" id="mvopen">▦ Multiview</button><button class="qx spbtn" type="button"></button>`;
+    : `<div class="dstrip"><button class="dsa" data-dd="-1" aria-label="Previous day">‹</button>${[-3, -2, -1, 0, 1, 2, 3].map(n => {
+        const d = new Date(scDate.getTime() + n * 864e5), today = iso8601(d) === iso8601(new Date());
+        return n ? `<button class="dsd${today ? ' today' : ''}" data-dd="${n}"><small>${d.toLocaleDateString([], {weekday: 'short'})}</small><b>${d.getDate()}</b></button>`
+          : `<span class="dsd on${today ? ' today' : ''}"><small>${d.toLocaleDateString([], {weekday: 'short'})}</small><b>${d.getDate()}</b></span>`; }).join('')}<button class="dsa" data-dd="1" aria-label="Next day">›</button></div>
+       <div class="dtools"><button class="qx" data-dd="0">Today</button><input type="date" id="scpick" value="${iso}" aria-label="Pick a date"><button class="qx" id="mvopen">▦ Multiview</button><button class="qx spbtn" type="button"></button><button class="qx demobtn" id="demobtn">▶ Demo</button></div>`;
 }
 async function loadDay(quiet){
   drawNav();
@@ -1705,7 +1774,12 @@ async function loadDay(quiet){
   const day = iso8601(scDate);
   let gbox = $('#daygames'), tbox = $('#top10box');
   if (!gbox || !tbox || !$('#potnbox')){ $('#scbody').innerHTML = '<div id="daygames"></div><div id="potnbox"></div><div id="top10box"></div>'; gbox = $('#daygames'); tbox = $('#top10box'); }
-  gbox.innerHTML = `<div class="gcards">${ev.map(gameCard).join('')}</div>`;
+  // grouped: live now, coming up, final
+  const grp = [['Live now', ev.filter(e => liveWindow(e.status.type.state, e.date))], ['Coming up', ev.filter(e => e.status.type.state === 'pre' && !liveWindow('pre', e.date))],
+    ['Final', ev.filter(e => e.status.type.state === 'post')]].filter(g => g[1].length);
+  gbox.innerHTML = grp.map(([t, L]) => `<section class="gsec${t === 'Live now' ? ' lv' : ''}"><h4>${t === 'Live now' ? '<i class="gdot"></i>' : ''}${t}<span>${L.length}</span></h4><div class="gcards">${L.map(gameCard).join('')}</div></section>`).join('');
+  const nLive = ev.filter(e => e.status.type.state === 'in').length, sl = $('#sclive');
+  if (sl){ sl.hidden = !nLive; sl.textContent = `${nLive} live`; }
   const pbox = $('#potnbox');
   if (pbox.dataset.day !== day || pbox.dataset.n !== String(ev.filter(e => e.status.type.state === 'post').length)){
     pbox.dataset.n = String(ev.filter(e => e.status.type.state === 'post').length); loadPotn(day, ev, pbox);
@@ -1764,9 +1838,12 @@ function gameCard(e){
     : live ? `<span class="lv">${hideLive ? `Live, delayed ${liveDelay}s` : esc(st.shortDetail)}</span>` : fin ? esc(st.shortDetail) : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   const lead = (c.leaders || []).find(l => l.name === 'points' || l.name === 'pointsPerGame');
   const leadTxt = lead ? lead.leaders.slice(0, 1).map(l => `${esc(l.athlete.shortName || l.athlete.displayName)} ${esc(l.displayValue)}`).join('') : '';
-  return `<button class="gcard${live ? ' live' : ''}" data-game="${e.id}"><div class="gstat"><span>${status}</span><span>${esc((c.broadcasts || [])[0]?.names?.[0] || '')}</span></div>
-    ${cs.map(x => `<div class="gteam${fin && +x.score < hi ? ' lost' : ''}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">
-      <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc((x.records || [])[0]?.summary || '')}</span>
+  const tv = esc((c.broadcasts || [])[0]?.names?.[0] || '');
+  const col = cs.map(x => sideColor(x.team));
+  const rec = x => { const r = (x.records || [])[0]?.summary; return r && r !== '0-0' ? r : ''; };
+  return `<button class="gcard${live ? ' live' : ''}${fin ? ' fin' : ''}${pregame ? ' soon' : ''}" data-game="${e.id}" style="--ac:${col[0].c};--hc:${col[1].c}"><div class="gstat"><span>${status}</span>${tv ? `<span class="gtv">${tv}</span>` : ''}</div>
+    ${cs.map((x, i) => `<div class="gteam${fin && +x.score < hi ? ' lost' : ''}${fin && +x.score === hi ? ' won' : ''}" style="--tc:${col[i].c}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">
+      <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc(rec(x))}</span>
       <span class="gs">${st.state === 'pre' ? '' : hideLive ? '•' : esc(x.score)}</span></div>`).join('')}
     ${leadTxt && !hideLive ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
     ${fin ? `<span class="ghl">▶ Highlights</span>` : ''}
