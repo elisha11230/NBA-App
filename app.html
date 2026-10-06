@@ -478,8 +478,47 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .cgrp{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk);margin:16px 0 4px}
 .cshots{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:640px){.crow{grid-template-columns:1fr 92px 1fr}.chd img{width:40px;height:40px}.chd .cn{font-size:13px}}
+/* ---------- live game layout ---------- */
+#scbody:has(> #gleft){display:flex;flex-direction:column}
+#scbody:has(> #gleft) > *{flex:0 0 auto}
+#gleft{display:contents}
+#gplayerbox{order:-1;position:sticky;top:0;z-index:5;background:var(--ink)}
+#gplayerbox:empty{display:none}
+#gplayerbox .pwrap{margin-bottom:0;padding-bottom:10px}
+#ghlbox:empty{display:none}
+#gplayerbox .dlbar{flex-wrap:nowrap}
+#gplayerbox .dlrange{min-width:50px;flex:1 1 auto}
+#gplayerbox .dls{white-space:nowrap}
+@media (max-width:640px){
+  #gplayerbox .pbar{margin-bottom:5px}
+  #gplayerbox .dlbar{gap:5px;margin-top:6px}
+  #gplayerbox .dlbar .plab{display:none}
+  #gplayerbox .dlbar .pbtn{padding:4px 8px}
+  #gplayerbox .dlv{min-width:30px}
+}
+@media (min-width:1000px){
+  #scores:has(#gleft) .lhead,#scores:has(#gleft) .dnav{max-width:1500px}
+  #scbody:has(> #gleft){max-width:1500px;overflow:hidden;display:grid;column-gap:22px;
+    grid-template-columns:min(60%,max(400px,calc((100vh - 300px) / 1.1))) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #striphost{grid-column:1 / -1}
+  #gleft{display:block;grid-column:1;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
+  #gright{grid-column:2;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
+  #gright .gtabs{position:sticky;top:0;z-index:3;margin-top:0;box-shadow:0 10px 0 var(--ink)}
+  #gamehead .oncourt,#gamehead .lsc{max-width:none}
+  #gleft .lsc{margin-top:10px}
+}
+/* wide screens with a stream: three columns, stream | score and court | plays */
+@media (min-width:1200px){
+  #scores:has(#gplayerbox:not(:empty)) .lhead,#scores:has(#gplayerbox:not(:empty)) .dnav{max-width:1840px}
+  #scbody:has(#gplayerbox:not(:empty)){max-width:1840px;grid-template-columns:minmax(0,1.3fr) minmax(330px,.75fr) minmax(360px,1fr)}
+  #scbody:has(#gplayerbox:not(:empty)) #gleft{display:contents}
+  #scbody:has(#gplayerbox:not(:empty)) #gplayerbox,#scbody:has(#gplayerbox:not(:empty)) #ghlbox{grid-column:1;grid-row:2;align-self:start;position:static}
+  #scbody:has(#gplayerbox:not(:empty)) #gamehead{grid-column:2;grid-row:2;overflow-y:auto;min-height:0;scrollbar-width:thin}
+  #scbody:has(#gplayerbox:not(:empty)) #gright{grid-column:3}
+  #scbody:has(#gplayerbox:not(:empty)) #gamehead .ghead{margin-top:0}
+}
 /* ---------- who is on the floor in a live game ---------- */
-.oncourt{margin-top:10px;max-width:600px}
+.oncourt{margin-top:10px;max-width:600px;container:oc / inline-size}
 .ochead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .ochead .pbtn{padding:3px 9px;font-size:11px}
 .ocfloor{position:relative;aspect-ratio:940/500;background:var(--court);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
@@ -504,7 +543,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
   padding:0 4px;border-radius:2px;background:var(--brass);color:#0E1417}
 a.ocp:hover .ocf{box-shadow:0 0 0 3px color-mix(in srgb,var(--tc) 45%,transparent)}
 .ocnote{margin-top:5px}
-@media (max-width:640px){.ocp{width:60px;margin-left:-30px;margin-top:-16px}.ocd{width:32px;height:32px}.ocn{font-size:10.5px}.ocn b{font-size:9.5px}
+@container oc (max-width:440px){.ocp{width:60px;margin-left:-30px;margin-top:-16px}.ocd{width:32px;height:32px}.ocn{font-size:10.5px}.ocn b{font-size:9.5px}
   .ocj{min-width:15px;height:15px;font-size:8.5px;right:-6px;bottom:-3px}.ocini{font-size:10px}.octm{font-size:9.5px;top:3px}.octm img{width:12px;height:12px}.ocin{top:-8px;font-size:8.5px}}
 /* ---------- live on the floor ---------- */
 .pline.live{color:#F2B0B0}
@@ -1467,35 +1506,39 @@ function drawGame(s, quiet){
   const pregameLive = st.state === 'pre' && liveWindow(st.state, comp.date);
   const side = (x, r) => `<div class="ght${r ? ' r' : ''}"><img src="${x.team.logos?.[0]?.href || logoOf(x.team.abbreviation)}" alt="">
     <div><div class="tn">${esc(x.team.displayName)}</div><div class="tr">${esc((x.record || [])[0]?.summary || x.team.abbreviation)}</div></div></div>`;
-  let h = `<div class="ghead">${side(cs[0])}<div class="gsc"><b>${st.state === 'pre' ? 'vs' : `${esc(cs[0].score)} - ${esc(cs[1].score)}`}</b>
+  let head = `<div class="ghead">${side(cs[0])}<div class="gsc"><b>${st.state === 'pre' ? 'vs' : `${esc(cs[0].score)} - ${esc(cs[1].score)}`}</b>
     <div class="${live || pregameLive ? 'lv' : ''}">${pregameLive ? `Tip ${new Date(comp.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}, starting soon` : esc(st.shortDetail || st.detail || '')}</div></div>${side(cs[1], 1)}</div>`;
+  let h = '';
   // line score
   const q = Math.max(...cs.map(x => (x.linescores || []).length));
-  if (q) h += `<div class="scroll lsc"><table class="tb"><tr><th></th>${Array.from({length: q}, (_, i) => `<th>${i < 4 ? 'Q' + (i + 1) : 'OT' + (i > 4 ? i - 3 : '')}</th>`).join('')}<th>T</th></tr>
+  if (q) head += `<div class="scroll lsc"><table class="tb"><tr><th></th>${Array.from({length: q}, (_, i) => `<th>${i < 4 ? 'Q' + (i + 1) : 'OT' + (i > 4 ? i - 3 : '')}</th>`).join('')}<th>T</th></tr>
     ${cs.map(x => `<tr><td>${esc(x.team.abbreviation)}</td>${Array.from({length: q}, (_, i) => `<td>${esc(x.linescores?.[i]?.displayValue ?? '')}</td>`).join('')}<td><b>${esc(x.score ?? '')}</b></td></tr>`).join('')}</table></div>`;
-  if (live) h += floorView(s, cs);
+  if (live) head += floorView(s, cs);
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   h += gameTab === 'preview' ? previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
   const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
-  if (slug) h = `<div id="gplayer-slot"></div>` + h;
-  if (s.__demo) h = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + h;
+  if (s.__demo) head = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + head;
   // The player lives in its own box that refreshes never touch: moving or re-adding a
   // frame makes the browser reload it, so it is only ever created once per game.
   const body = $('#scbody');
-  let pbox = $('#gplayerbox'), gbox = $('#gamecontent');
-  if (!pbox || !gbox || pbox.parentNode !== body){
-    body.innerHTML = '<div id="striphost"></div><div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamecontent"></div>';
-    pbox = $('#gplayerbox'); gbox = $('#gamecontent');
+  // Phone: the player stays pinned at the top and everything else scrolls under it.
+  // Wide screens: player, score and court on the left; the tabs scroll on the right.
+  // Either way the player's spot never moves when you scroll, so the stream sits still.
+  let pbox = $('#gplayerbox'), gbox = $('#gamecontent'), hbox = $('#gamehead');
+  if (!pbox || !gbox || !hbox || !body.contains(pbox)){
+    body.innerHTML = '<div id="striphost"></div><div id="gleft"><div id="gplayerbox"></div><div id="ghlbox"></div><div id="gamehead"></div></div><div id="gright"><div id="gamecontent"></div></div>';
+    pbox = $('#gplayerbox'); gbox = $('#gamecontent'); hbox = $('#gamehead');
   }
   showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
   const cur_ = pbox.firstElementChild;
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
   else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`, cs[0].team.abbreviation, cs[1].team.abbreviation, comp.date || s.header?.competitions?.[0]?.date)); }
-  const keep = body.scrollTop;
-  gbox.innerHTML = h.replace('<div id="gplayer-slot"></div>', '');
-  if (quiet) body.scrollTop = keep;
+  const scs = [body, $('#gleft'), $('#gright')], keep = scs.map(x => x.scrollTop);
+  if (hbox.innerHTML !== head) hbox.innerHTML = head;
+  gbox.innerHTML = h;
+  if (quiet) scs.forEach((x, i) => { x.scrollTop = keep[i]; });
   fadeBoxEdges();
   // other games that day, across the top
   if (gameId !== 'demo' && comp.date){ renderStrip(); refreshStrip(etDay(comp.date)); } else { const sh_ = $('#striphost'); if (sh_) sh_.innerHTML = ''; }
@@ -2426,16 +2469,26 @@ function stopStream(){
 }
 // Lay the dock over its spot in the game view, every frame, clipped to the scrolling area
 function dockOver(spot){
-  const d = dockEl(); STREAM.mode = 'docked'; d.hidden = false; d.classList.remove('floating');
+  const d = dockEl(); STREAM.mode = 'docked'; STREAM.lastKey = ''; d.hidden = false; d.classList.remove('floating');
   cancelAnimationFrame(STREAM.loop);
   const follow = () => {
     if (STREAM.mode !== 'docked') return;
     if (!document.body.contains(spot) || $('#scores').hidden){ floatDock(); return; }
-    const r = spot.getBoundingClientRect(), box = $('#scbody').getBoundingClientRect();
-    Object.assign(d.style, {left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: 'auto', bottom: 'auto'});
+    const r = spot.getBoundingClientRect();
+    let sc = $('#scbody');
+    for (let el = spot.parentElement; el && el !== sc; el = el.parentElement){
+      const cs_ = getComputedStyle(el);
+      if (cs_.display !== 'contents' && /auto|scroll/.test(cs_.overflowY)){ sc = el; break; }
+    }
+    const box = sc.getBoundingClientRect();
     const top = Math.max(0, box.top - r.top), bot = Math.max(0, r.bottom - box.bottom);
-    d.style.clipPath = (top || bot) ? `inset(${top}px 0 ${bot}px 0)` : '';
-    d.style.visibility = (top + bot >= r.height - 1) ? 'hidden' : 'visible';
+    const key = [r.left, r.top, r.width, r.height, top, bot].map(Math.round).join(',');
+    if (key !== STREAM.lastKey){   // only touch the box when something actually moved
+      STREAM.lastKey = key;
+      Object.assign(d.style, {left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: 'auto', bottom: 'auto'});
+      d.style.clipPath = (top || bot) ? `inset(${top}px 0 ${bot}px 0)` : '';
+      d.style.visibility = (top + bot >= r.height - 1) ? 'hidden' : 'visible';
+    }
     STREAM.loop = requestAnimationFrame(follow);
   };
   follow();
