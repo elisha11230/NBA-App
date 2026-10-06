@@ -478,6 +478,34 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .cgrp{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk);margin:16px 0 4px}
 .cshots{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:640px){.crow{grid-template-columns:1fr 92px 1fr}.chd img{width:40px;height:40px}.chd .cn{font-size:13px}}
+/* ---------- who is on the floor in a live game ---------- */
+.oncourt{margin-top:10px;max-width:600px}
+.ochead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.ochead .pbtn{padding:3px 9px;font-size:11px}
+.ocfloor{position:relative;aspect-ratio:940/500;background:var(--court);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.ocfloor svg{position:absolute;inset:0;width:100%;height:100%}
+.octm{position:absolute;top:5px;display:flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--mute)}
+.octm.l{left:7px}.octm.r{right:7px;flex-direction:row-reverse}
+.octm img{width:16px;height:16px;object-fit:contain}
+.ocp{position:absolute;width:88px;margin-left:-44px;margin-top:-23px;display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit}
+.ocd{position:relative;width:46px;height:46px}
+.ocf{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--face);border:2.5px solid var(--tc);box-sizing:border-box}
+.ocf img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.ocini{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--dim)}
+.ocj{position:absolute;right:-7px;bottom:-3px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;background:var(--tc);color:var(--tc2);
+  font-family:'Archivo Black',sans-serif;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--court);box-sizing:border-box}
+.ocfl{position:absolute;left:-10px;top:-3px;font-style:normal;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;padding:1px 3px;border-radius:2px;background:var(--brass);color:#0E1417}
+.ocfl.hot{background:#C0392B;color:#fff}
+.ocn{margin-top:2px;max-width:100%;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12.5px;line-height:1.1;color:var(--strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:var(--nameshadow)}
+.ocn b{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:11px;color:var(--brass)}
+.ocp.fresh .ocf{box-shadow:0 0 0 3px color-mix(in srgb,var(--brass) 70%,transparent)}
+.ocin{position:absolute;top:-9px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  padding:0 4px;border-radius:2px;background:var(--brass);color:#0E1417}
+a.ocp:hover .ocf{box-shadow:0 0 0 3px color-mix(in srgb,var(--tc) 45%,transparent)}
+.ocnote{margin-top:5px}
+@media (max-width:640px){.ocp{width:60px;margin-left:-30px;margin-top:-16px}.ocd{width:32px;height:32px}.ocn{font-size:10.5px}.ocn b{font-size:9.5px}
+  .ocj{min-width:15px;height:15px;font-size:8.5px;right:-6px;bottom:-3px}.ocini{font-size:10px}.octm{font-size:9.5px;top:3px}.octm img{width:12px;height:12px}.ocin{top:-8px;font-size:8.5px}}
 /* ---------- live on the floor ---------- */
 .pline.live{color:#F2B0B0}
 .pline.live b{color:var(--strong)}
@@ -1445,6 +1473,7 @@ function drawGame(s, quiet){
   const q = Math.max(...cs.map(x => (x.linescores || []).length));
   if (q) h += `<div class="scroll lsc"><table class="tb"><tr><th></th>${Array.from({length: q}, (_, i) => `<th>${i < 4 ? 'Q' + (i + 1) : 'OT' + (i > 4 ? i - 3 : '')}</th>`).join('')}<th>T</th></tr>
     ${cs.map(x => `<tr><td>${esc(x.team.abbreviation)}</td>${Array.from({length: q}, (_, i) => `<td>${esc(x.linescores?.[i]?.displayValue ?? '')}</td>`).join('')}<td><b>${esc(x.score ?? '')}</b></td></tr>`).join('')}</table></div>`;
+  if (live) h += floorView(s, cs);
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   h += gameTab === 'preview' ? previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
@@ -2572,6 +2601,179 @@ document.addEventListener('click', e => {
   if (e.target.closest('.dlm')) setDelay(liveDelay - 1);
   else if (e.target.closest('.dlp')) setDelay(liveDelay + 1);
   else if (e.target.closest('.dls')) syncStep(e.target.closest('.dls'));
+});
+
+/* ---------- on the floor now: the ten players, rebuilt from the play by play ---------- */
+// ESPN's feed never says who is on the court, so it is worked out: the five starters from
+// the box score, then every substitution in the plays shown (so it follows the feed delay).
+// At the start of each later quarter the five are found from who shows up in plays before
+// being subbed in, topped up with the last quarter's five if someone has not shown up yet.
+const normName = n => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
+function gameRoster(id, s){
+  const hasStarters = x => (x?.boxscore?.players || []).some(t => (t.statistics?.[0]?.athletes || []).some(a => a.starter));
+  const src = [s, ...[...(SNAPS[id] || [])].reverse().map(x => x.s)].find(hasStarters);
+  if (!src) return null;
+  const teams = {};
+  for (const t of src.boxscore.players){
+    const tid = String(t.team?.id || ''), ath = {}, starters = [];
+    for (const a of (t.statistics?.[0]?.athletes || [])){
+      const aid = String(a.athlete?.id || ''); if (!aid) continue;
+      ath[aid] = {name: a.athlete.displayName || '', short: a.athlete.shortName || a.athlete.displayName || '', jersey: a.athlete.jersey ?? '',
+        pos: a.athlete.position?.abbreviation || '', head: a.athlete.headshot?.href || ''};
+      if (a.starter) starters.push(aid);
+    }
+    teams[tid] = {ath, starters};
+  }
+  return teams;
+}
+function onCourt(s, id){
+  const R = gameRoster(id, s); if (!R) return null;
+  const teamOf = {}, byName = {}, lineup = {}, guess = {};
+  for (const t in R){
+    if (R[t].starters.length !== 5) return null;
+    lineup[t] = new Set(R[t].starters); guess[t] = new Set();
+    for (const a in R[t].ath){ teamOf[a] = t; byName[t + '|' + normName(R[t].ath[a].name)] = a; }
+  }
+  const plays = s.plays || [];
+  // [team, player in, player out] for a substitution, otherwise null
+  const subOf = p => {
+    const txt = p.text || '';
+    if (!/substitution/i.test(p.type?.text || '') && !/ enters the game for /i.test(txt)) return null;
+    const m = /^(.+?) enters the game for (.+?)\.?$/i.exec(txt.trim());
+    const t0 = String(p.team?.id || '');
+    if (m){
+      for (const t of (R[t0] ? [t0] : Object.keys(R))){
+        const a = byName[t + '|' + normName(m[1])], b = byName[t + '|' + normName(m[2])];
+        if (a && b) return [t, a, b];
+      }
+    }
+    const ids = (p.participants || []).map(x => String(x.athlete?.id || '')).filter(x => teamOf[x]);
+    return ids.length >= 2 ? [teamOf[ids[0]], ids[0], ids[1]] : null;
+  };
+  const infer = (i0, per) => {
+    const found = {}, came = {};
+    for (const t in lineup){ found[t] = []; came[t] = new Set(); }
+    for (let i = i0; i < plays.length && (plays[i].period?.number || 1) === per; i++){
+      const p = plays[i], sb = subOf(p);
+      if (sb){
+        const [t, a, b] = sb;
+        if (found[t]){ if (!came[t].has(b) && !found[t].includes(b) && found[t].length < 5) found[t].push(b); came[t].add(a); }
+        continue;
+      }
+      if (/technical|ejection/i.test(p.type?.text || '')) continue;   // bench players can draw these
+      for (const x of (p.participants || [])){
+        const a = String(x.athlete?.id || ''), t = teamOf[a];
+        if (t && !came[t].has(a) && !found[t].includes(a) && found[t].length < 5) found[t].push(a);
+      }
+      if (Object.values(found).every(v => v.length === 5)) break;
+    }
+    for (const t in found){
+      guess[t] = new Set();
+      for (const a of lineup[t]){
+        if (found[t].length >= 5) break;
+        if (!found[t].includes(a) && !came[t].has(a)){ found[t].push(a); guess[t].add(a); }
+      }
+      lineup[t] = new Set(found[t]);
+    }
+  };
+  let per = 1; const entered = {}, seen = {};
+  // take off the player most likely to be wrong: a guessed one first, then the one quiet longest
+  const bump = t => {
+    const out = [...lineup[t]].sort((m, n) => (guess[t].has(n) - guess[t].has(m)) || ((seen[m] ?? -1) - (seen[n] ?? -1)))[0];
+    lineup[t].delete(out); guess[t].delete(out);
+  };
+  plays.forEach((p, i) => {
+    const q = p.period?.number || 1;
+    if (q !== per){ per = q; infer(i, q); }
+    const sb = subOf(p);
+    if (!sb){
+      // ESPN's feed now and then drops a substitution. When a player who is not on the floor
+      // shows up in a play, he must have come in: swap him for whoever has been quiet longest.
+      if (/technical|ejection/i.test(p.type?.text || '')) return;
+      for (const x of (p.participants || [])){
+        const a = String(x.athlete?.id || ''), t = teamOf[a], L = lineup[t]; if (!L) continue;
+        if (!L.has(a)){
+          if (L.size >= 5) bump(t);
+          L.add(a);
+        }
+        seen[a] = i;
+      }
+      return;
+    }
+    const [t, a, b] = sb, L = lineup[t]; if (!L) return;
+    L.delete(b); guess[t].delete(b);
+    if (!L.has(a)){ if (L.size >= 5) bump(t); L.add(a); }
+    entered[a] = playTime(p); seen[a] = i;
+  });
+  // still short (a gap in the feed): fill with whoever on that team played most recently
+  for (const t in lineup){
+    const L = lineup[t];
+    const cand = Object.keys(R[t].ath).filter(a => !L.has(a) && seen[a] != null).sort((m, n) => seen[n] - seen[m]);
+    while (L.size < 5 && cand.length){ const a = cand.shift(); L.add(a); guess[t].add(a); }
+  }
+  return {R, lineup, entered};
+}
+let courtHidden = (() => { try { return localStorage.getItem('nba_court') === 'off'; } catch (e){ return false; } })();
+const COURT_SPOTS = [[9, 50], [20, 20], [20, 80], [37, 31], [40, 69]];   // left half, basket on the left: big, two forwards, two guards
+const POS_RANK = {C: 0, 'C-F': .3, 'F-C': .5, PF: 1, F: 1.5, SF: 2, 'G-F': 2.5, 'F-G': 2.5, SG: 3, G: 3.5, PG: 4};
+function fullCourtSvg(){
+  const half = `<rect x="0" y="170" width="190" height="160"/><circle cx="190" cy="250" r="60"/><line x1="40" y1="220" x2="40" y2="280"/>
+    <circle cx="52.5" cy="250" r="7.5" style="stroke:var(--rimline)"/><path d="M0 30H140A237.5 237.5 0 0 1 140 470H0"/>`;
+  return `<svg viewBox="0 0 940 500" preserveAspectRatio="none" aria-hidden="true"><g style="fill:none;stroke:var(--courtline);stroke-width:2;vector-effect:non-scaling-stroke">
+    <rect x="1.5" y="1.5" width="937" height="497"/><line x1="470" y1="0" x2="470" y2="500"/><circle cx="470" cy="250" r="60"/>
+    <g>${half}</g><g transform="translate(940 0) scale(-1 1)">${half}</g></g></svg>`;
+}
+function sideColor(team){
+  const ab = team.abbreviation, t = T[byAbbr[ab]] || {};
+  let c = String(team.color || t.color || '888888').replace('#', '').toLowerCase();
+  const alt = String(team.alternateColor || t.alt || '').replace('#', '').toLowerCase();
+  const bad = v => !/^[0-9a-f]{6}$/.test(v) || (isLight() ? hexLum(v) > .6 : hexLum(v) < .035);
+  if (bad(c) && alt && !bad(alt)) c = alt;
+  if (!/^[0-9a-f]{6}$/.test(c)) c = '888888';
+  return {c: '#' + c, ink: hexLum(c) > .35 ? '#0E1417' : '#FFFFFF'};
+}
+function floorView(s, cs){
+  const oc = onCourt(s, gameId);
+  if (!oc) return '';
+  const head = `<div class="ochead"><span class="plab">On the floor</span><button class="pbtn octog" type="button">${courtHidden ? 'Show' : 'Hide'}</button></div>`;
+  if (courtHidden) return `<div class="oncourt">${head}</div>`;
+  // points and fouls counted from the plays shown, so they keep pace with the delay
+  const line = {}, ln_ = a => line[a] || (line[a] = {pts: 0, pf: 0});
+  for (const p of (s.plays || [])){
+    const a = String(p.participants?.[0]?.athlete?.id || ''); if (!a) continue;
+    if (p.scoringPlay && +p.scoreValue > 0) ln_(a).pts += +p.scoreValue;
+    else if (/foul|charge/i.test(p.type?.text || '') && !/technical|turnover/i.test(p.type?.text || '')){
+      ln_(a).pf++;
+      const b = /double/i.test(p.type.text) && p.participants?.[1]?.athlete?.id; if (b) ln_(String(b)).pf++;
+    }
+  }
+  for (const t in oc.R) for (const a in oc.R[t].ath) ln_(a);
+  const now = Date.now() - liveDelay * 1000;
+  let odd = false, chips = '';
+  cs.forEach((x, side) => {
+    const tid = String(x.team.id), L = oc.lineup[tid], info = oc.R[tid]; if (!L || !info) return;
+    if (L.size !== 5) odd = true;
+    const col = sideColor(x.team);
+    const five = [...L].sort((a, b) => (POS_RANK[info.ath[a]?.pos] ?? 2) - (POS_RANK[info.ath[b]?.pos] ?? 2));
+    five.slice(0, 5).forEach((aid, k) => {
+      const a = info.ath[aid] || {}, [x0, y] = COURT_SPOTS[k], xx = side ? 100 - x0 : x0;
+      const last = (a.short || a.name).replace(/^[A-Z][a-z]?\.\s+/, '');
+      const ln = line[aid], fresh = oc.entered[aid] && now - oc.entered[aid] < 30000;
+      const tag = P[aid] ? `a href="#" data-bp="${esc(aid)}"` : 'span';
+      chips += `<${tag} class="ocp${fresh ? ' fresh' : ''}" style="left:${xx}%;top:${y}%;--tc:${col.c};--tc2:${col.ink}" title="${esc(a.name)}${ln ? `, ${esc(ln.pts)} points, ${ln.pf} fouls` : ''}">
+        <span class="ocd"><span class="ocf">${photo(aid, a.name, 'ini', 'ocini')}</span>${a.jersey !== '' ? `<b class="ocj">${esc(a.jersey)}</b>` : ''}${ln && ln.pf >= 4 ? `<i class="ocfl${ln.pf >= 5 ? ' hot' : ''}">${ln.pf}F</i>` : ''}</span>
+        <span class="ocn">${esc(last)}${ln && ln.pts != null ? ` <b>${esc(ln.pts)}</b>` : ''}</span>${fresh ? '<span class="ocin">In</span>' : ''}</${tag.split(' ')[0]}>`;
+    });
+  });
+  const lab = (x, side) => `<span class="octm ${side ? 'r' : 'l'}"><img src="${x.team.logos?.[0]?.href || logoOf(x.team.abbreviation)}" alt="">${esc(x.team.abbreviation)}</span>`;
+  return `<div class="oncourt">${head}<div class="ocfloor">${fullCourtSvg()}${lab(cs[0], 0)}${lab(cs[1], 1)}${chips}</div>
+    <p class="note ocnote">${odd ? 'One lineup could not be fully worked out yet; it settles at the next substitution.' : 'Worked out from substitutions in the play by play, so it matches your feed delay.'} The number by each name is points; 4F and 5F flag foul trouble.</p></div>`;
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.octog')) return;
+  courtHidden = !courtHidden;
+  try { localStorage.setItem('nba_court', courtHidden ? 'off' : 'on'); } catch (e_){}
+  if (lastSummary) drawGame(lastSummary, true);
 });
 
 /* ---------- demo live game: a real finished game replayed as if live ---------- */
