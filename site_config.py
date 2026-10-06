@@ -25,3 +25,51 @@ TEAM_CODES = {
     "NO": "no", "NY": "ny", "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "phx",
     "POR": "por", "SAC": "sac", "SA": "sas", "TOR": "tor", "UTAH": "utah", "WSH": "was",
 }
+
+# ---------------------------------------------------------------- second stream
+# A second player you can switch to on any live game ("Stream 2"). Its address is
+#   <STREAM2_BASE><STREAM2_PATH>
+# where {home} and {away} are the team names below, for example
+#   /embed/admin/ppv-new-york-knicks-vs-philadelphia-76-ers/1
+# If the away team should come first, swap {home} and {away} in STREAM2_PATH.
+# {date} (like 2026-10-20) is also available if a source needs it.
+
+# Host for the second stream. None uses the same host as EMBED_BASE.
+STREAM2_BASE = None
+
+STREAM2_PATH = "/embed/admin/ppv-{home}-vs-{away}/1"
+
+# Team names used in the second stream's address. Change any one if the source spells it
+# differently (for example "los-angeles-clippers").
+TEAM_NAMES = {
+    "ATL": "atlanta-hawks",
+    "BOS": "boston-celtics",
+    "BKN": "brooklyn-nets",
+    "CHA": "charlotte-hornets",
+    "CHI": "chicago-bulls",
+    "CLE": "cleveland-cavaliers",
+    "DAL": "dallas-mavericks",
+    "DEN": "denver-nuggets",
+    "DET": "detroit-pistons",
+    "GS": "golden-state-warriors",
+    "HOU": "houston-rockets",
+    "IND": "indiana-pacers",
+    "LAC": "la-clippers",
+    "LAL": "los-angeles-lakers",
+    "MEM": "memphis-grizzlies",
+    "MIA": "miami-heat",
+    "MIL": "milwaukee-bucks",
+    "MIN": "minnesota-timberwolves",
+    "NO": "new-orleans-pelicans",
+    "NY": "new-york-knicks",
+    "OKC": "oklahoma-city-thunder",
+    "ORL": "orlando-magic",
+    "PHI": "philadelphia-76-ers",
+    "PHX": "phoenix-suns",
+    "POR": "portland-trail-blazers",
+    "SAC": "sacramento-kings",
+    "SA": "san-antonio-spurs",
+    "TOR": "toronto-raptors",
+    "UTAH": "utah-jazz",
+    "WSH": "washington-wizards",
+}

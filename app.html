@@ -765,6 +765,16 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .gsfoot.hot{color:#E0453A;font-weight:700}
 :root[data-theme="light"] .gsfoot.hot{color:#C22B20}
 .gsdot{width:6px;height:6px;border-radius:50%;background:#E05B5B;animation:pulse 1.6s ease-in-out infinite;flex:0 0 auto}
+
+/* stream 1 / stream 2 switch */
+.pseg{display:inline-flex;gap:0}
+.pseg .pbtn{border-radius:0}
+.pseg .pbtn:first-child{border-radius:var(--r) 0 0 var(--r)}
+.pseg .pbtn:last-child{border-radius:0 var(--r) var(--r) 0;border-left:0}
+.pseg .pbtn[aria-pressed="true"]{background:color-mix(in srgb,var(--team) 28%,transparent);color:var(--strong);border-color:var(--team-accent)}
+.pspace{flex:1 1 auto}
+.pbar .pbtn{white-space:nowrap}
+@media (max-width:480px){.pbar{gap:5px}.pbar .pbtn{padding:4px 8px;letter-spacing:.06em}}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -1453,7 +1463,7 @@ function drawGame(s, quiet){
   showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
   const cur_ = pbox.firstElementChild;
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
-  else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`)); }
+  else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`, cs[0].team.abbreviation, cs[1].team.abbreviation, comp.date || s.header?.competitions?.[0]?.date)); }
   const keep = body.scrollTop;
   gbox.innerHTML = h.replace('<div id="gplayer-slot"></div>', '');
   if (quiet) body.scrollTop = keep;
@@ -2335,6 +2345,13 @@ function fixtureSlug(when, awayAb, homeAb){
   return `${etDay(when)}/${c(awayAb)}-${c(homeAb)}`;
 }
 const streamUrl = sl => sl ? `${(D.site && D.site.streamBase) || ''}/live/nba/${sl}` : null;
+// Second stream: <s2Base><s2Path> with {home}, {away} and {date} filled in (site_config.py)
+function stream2Url(awayAb, homeAb, when){
+  const S = D.site || {}, N = S.names || {};
+  if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
+  return (S.s2Base || '') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : '');
+}
+let streamPick = (() => { try { return localStorage.getItem('nba_stream') === '2' ? 2 : 1; } catch (e){ return 1; } })();
 const embedUrl = sl => sl ? `${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}` : null;
 let playerOn = true;
 /* ---------- one stream player for the whole app: docked in the game view, or floating ---------- */
@@ -2357,14 +2374,18 @@ function dockEl(){
   }
   return d;
 }
+function currentEmbed(sl){
+  return streamPick === 2 && STREAM.s2 ? STREAM.s2 : embedUrl(sl);
+}
 function setStream(sl, game, title){
   const d = dockEl(), fr = d.querySelector('.sdframe');
   STREAM.game = game; STREAM.title = title || STREAM.title;
-  if (STREAM.slug === sl && fr.firstChild) return;          // already playing: leave it alone
-  STREAM.slug = sl; fr.innerHTML = '';
+  const src = currentEmbed(sl);
+  if (STREAM.slug === sl && STREAM.src === src && fr.firstChild) return;   // already playing: leave it alone
+  STREAM.slug = sl; STREAM.src = src; fr.innerHTML = '';
   if (game === 'demo'){ fr.innerHTML = `<div class="pdemo"><b>Your stream plays here</b><span>${esc(embedUrl(sl))}</span></div>`; return; }
   const f = document.createElement('iframe');
-  f.id = 'player'; f.src = embedUrl(sl); f.scrolling = 'no'; f.allowFullscreen = true;
+  f.id = 'player'; f.src = src; f.scrolling = 'no'; f.allowFullscreen = true;
   f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
   f.setAttribute('marginheight', '0'); f.setAttribute('marginwidth', '0'); f.width = '100%'; f.height = '100%';
   fr.appendChild(f);
@@ -2438,15 +2459,26 @@ function updateReturnChip(){
   c.hidden = !show;
   if (show) c.innerHTML = `<span class="livedot"></span>Back to ${esc(STREAM.title || 'the live game')}`;
 }
-function gamePlayerEl(sl, title){
+function gamePlayerEl(sl, title, awayAb, homeAb, when){
   const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
-  wrap.innerHTML = `<div class="pbar"><span class="plab">Stream</span><button class="pbtn" data-pl="pop" type="button" title="Keep watching while you browse">Pop out</button><button class="pbtn" data-pl="hide" type="button">${playerOn ? 'Hide' : 'Show'}</button>
-    <a class="pbtn" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe" data-slug="${esc(sl)}"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
+  STREAM.s2 = stream2Url(awayAb, homeAb, when);
+  if (!STREAM.s2) streamPick = 1;
+  const openHref = () => streamPick === 2 && STREAM.s2 ? STREAM.s2 : streamUrl(sl);
+  wrap.innerHTML = `<div class="pbar">${STREAM.s2 ? `<span class="pseg"><button class="pbtn" data-src="1" type="button" aria-pressed="${streamPick === 1}">Stream 1</button><button class="pbtn" data-src="2" type="button" aria-pressed="${streamPick === 2}">Stream 2</button></span>` : `<span class="plab">Stream</span>`}
+    <span class="pspace"></span><button class="pbtn" data-pl="pop" type="button" title="Keep watching while you browse">Pop out</button><button class="pbtn" data-pl="hide" type="button">${playerOn ? 'Hide' : 'Show'}</button>
+    <a class="pbtn" data-pl="open" href="${esc(openHref())}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe" data-slug="${esc(sl)}"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
   const spot = wrap.querySelector('.pframe');
   STREAM.game = gameId; STREAM.title = title; STREAM.gameLive = true;
   wrap.querySelector('[data-pl="hide"]').onclick = e => {
     playerOn = !playerOn; e.target.textContent = playerOn ? 'Hide' : 'Show'; spot.hidden = !playerOn;
     if (playerOn){ setStream(sl, gameId, title); dockOver(spot); } else stopStream();
+  };
+  for (const b of wrap.querySelectorAll('[data-src]')) b.onclick = () => {
+    streamPick = +b.dataset.src;
+    try { localStorage.setItem('nba_stream', String(streamPick)); } catch (e){}
+    for (const x of wrap.querySelectorAll('[data-src]')) x.setAttribute('aria-pressed', String(+x.dataset.src === streamPick));
+    wrap.querySelector('[data-pl="open"]').href = openHref();
+    if (playerOn){ setStream(sl, gameId, title); dockOver(spot); }
   };
   wrap.querySelector('[data-pl="pop"]').onclick = () => {
     if (!playerOn){ playerOn = true; spot.hidden = false; wrap.querySelector('[data-pl="hide"]').textContent = 'Hide'; setStream(sl, gameId, title); }

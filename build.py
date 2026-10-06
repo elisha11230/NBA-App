@@ -2507,9 +2507,15 @@ style_now = style_all.get(key_, {})
 # app never touch.
 try:
     import site_config as _sc
+    _eb = str(getattr(_sc, "EMBED_BASE", "") or "").rstrip("/")
+    _s2 = getattr(_sc, "STREAM2_BASE", None)
     site_settings = {"streamBase": str(getattr(_sc, "STREAM_BASE", "") or "").rstrip("/"),
-                     "embedBase": str(getattr(_sc, "EMBED_BASE", "") or "").rstrip("/"),
-                     "codes": dict(getattr(_sc, "TEAM_CODES", {}) or {})}
+                     "embedBase": _eb,
+                     "codes": dict(getattr(_sc, "TEAM_CODES", {}) or {}),
+                     # second stream: its own address pattern and full team names
+                     "s2Base": (_eb if _s2 is None else str(_s2 or "")).rstrip("/"),
+                     "s2Path": str(getattr(_sc, "STREAM2_PATH", "") or ""),
+                     "names": dict(getattr(_sc, "TEAM_NAMES", {}) or {})}
 except Exception as e:
     print(f"site  settings not read ({e.__class__.__name__}); links stay relative")
     site_settings = {"streamBase": "", "embedBase": "", "codes": {}}
