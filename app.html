@@ -499,7 +499,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 @media (min-width:1000px){
   #scores:has(#gleft) .lhead,#scores:has(#gleft) .dnav{max-width:1500px}
   #scbody:has(> #gleft){max-width:1500px;overflow:hidden;display:grid;column-gap:22px;
-    grid-template-columns:min(62%,max(440px,calc((100vh - 390px) / .875))) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   #striphost{grid-column:1 / -1}
   #gleft{display:block;grid-column:1;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
   #gright{grid-column:2;grid-row:2;overflow-y:auto;min-height:0;padding-right:4px;scrollbar-width:thin}
@@ -541,6 +541,11 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
   .gh2n b{font-size:14.5px}.gh2n span{font-size:10.5px}
   .gh2s{font-size:30px}
   .gpill{font-size:12px;padding:4px 9px}
+}
+#gamehead{container:gh / inline-size}
+@container gh (max-width:700px){
+  .gh2t{grid-template-columns:auto 1fr;grid-template-areas:"logo score" "name name";gap:4px 10px}
+  .gh2t.h{grid-template-columns:1fr auto;grid-template-areas:"score logo" "name name"}
 }
 .lsc2{margin-top:10px;border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:var(--panel)}
 .lsc2 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
@@ -640,7 +645,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .ocfloor{--ds:64px;position:relative;aspect-ratio:500/310;border:1px solid var(--line);border-radius:12px;overflow:hidden;
   background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--tc) 22%,var(--court)),var(--court) 70%)}
 .ocfloor svg{position:absolute;inset:0;width:100%;height:100%}
-.ocp{position:absolute;width:112px;margin-left:-56px;margin-top:calc(var(--ds) / -2);display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit}
+.ocp{transition:left .5s ease,top .5s ease;position:absolute;width:112px;margin-left:-56px;margin-top:calc(var(--ds) / -2);display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit}
 .ocd{position:relative;width:var(--ds);height:var(--ds)}
 .ocf{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--face);border:3px solid var(--tc);box-sizing:border-box;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .ocf img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
@@ -1115,15 +1120,61 @@ function photoList(id){
 }
 const img = id => photoList(id)[0] || '';
 // Build an <img> that moves to the next source on error; mode 'ini' swaps in initials at the end, 'hide' hides it
+// The source that worked (or that none did) is remembered per player, so redrawing a
+// list never walks the fallbacks again or shows a broken image for a moment.
+const PHOTO_OK = {}, PHOTO_DEAD = new Set();
 function photo(id, name, mode = 'ini', cls = 'fallback', extra = ''){
-  const L = photoList(id); if (!L.length) return mode === 'ini' ? `<div class="${cls}">${esc(initials(name || ''))}</div>` : '';
-  return `<img src="${esc(L[0])}" alt="" loading="lazy" ${extra} data-alt="${esc(L.slice(1).join('|'))}" data-ini="${esc(initials(name || ''))}" data-mode="${mode}" data-cls="${cls}" onerror="nextPhoto(this)">`;
+  id = String(id);
+  let L = photoList(id);
+  if (PHOTO_DEAD.has(id)) L = [];
+  else if (PHOTO_OK[id]) L = [PHOTO_OK[id]];
+  if (!L.length) return mode === 'ini' ? `<div class="${cls}">${esc(initials(name || ''))}</div>` : '';
+  return `<img src="${esc(L[0])}" alt="" loading="lazy" ${extra} data-p="${esc(id)}" data-alt="${esc(L.slice(1).join('|'))}" data-ini="${esc(initials(name || ''))}" data-mode="${mode}" data-cls="${cls}" onload="photoOk(this)" onerror="nextPhoto(this)">`;
 }
+function photoOk(el){ if (el.dataset.p) PHOTO_OK[el.dataset.p] = el.currentSrc || el.src; }
 function nextPhoto(el){
   const rest = (el.dataset.alt || '').split('|').filter(Boolean);
   if (rest.length){ el.dataset.alt = rest.slice(1).join('|'); el.src = rest[0]; return; }
+  if (el.dataset.p) PHOTO_DEAD.add(el.dataset.p);
   if (el.dataset.mode === 'ini') el.replaceWith(Object.assign(document.createElement('div'), {className: el.dataset.cls || 'fallback', textContent: el.dataset.ini || ''}));
   else el.style.visibility = 'hidden';
+}
+/* Update a box to new HTML in place: elements that are still there are kept (so pictures
+   never reload or flash), only what changed is touched. Children with data-k are matched by
+   that key, so a new play on top or a substitution just moves the rest. */
+function morph(box, html){
+  const t = document.createElement('template'); t.innerHTML = html;
+  morphKids(box, t.content);
+}
+function morphNode(a, b){
+  if (a.nodeType !== 1){ if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  if (a.tagName === 'IMG' && a.dataset.p && a.dataset.p === b.getAttribute('data-p')){
+    for (const k of ['class', 'style', 'alt', 'title']){ const v = b.getAttribute(k); if (v == null) a.removeAttribute(k); else if (a.getAttribute(k) !== v) a.setAttribute(k, v); }
+    return;   // same player: leave the picture alone
+  }
+  if (a.tagName === 'IFRAME') return;
+  for (const {name, value} of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  for (const {name} of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  if (a.tagName === 'INPUT' && a.value !== b.value && document.activeElement !== a) a.value = b.value;
+  morphKids(a, b);
+}
+function morphKids(a, b){
+  const old = [...a.childNodes], keyed = new Map(), loose = [];
+  for (const n of old) (n.nodeType === 1 && n.dataset && n.dataset.k ? keyed.set(n.dataset.k, n) : loose.push(n));
+  let li = 0, prev = null;
+  const same = (x, y) => x && x.nodeType === y.nodeType && (x.nodeType !== 1 || (x.tagName === y.tagName && !(x.dataset && x.dataset.k)));
+  for (const nb of [...b.childNodes]){
+    let m = null;
+    const k = nb.nodeType === 1 && nb.dataset ? nb.dataset.k : null;
+    if (k){ m = keyed.get(k); if (m && m.tagName !== nb.tagName) m = null; if (m) keyed.delete(k); }
+    else if (same(loose[li], nb)) m = loose[li++];
+    if (m) morphNode(m, nb); else m = nb;
+    const ref = prev ? prev.nextSibling : a.firstChild;
+    if (m !== ref) a.insertBefore(m, ref);
+    prev = m;
+  }
+  let n = prev ? prev.nextSibling : a.firstChild;
+  while (n){ const nx = n.nextSibling; a.removeChild(n); n = nx; }
 }
 const initials = n => n.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('');
 function face(id, cls = 'fallback'){
@@ -1675,8 +1726,8 @@ function drawGame(s, quiet){
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
   else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`, cs[0].team.abbreviation, cs[1].team.abbreviation, comp.date || s.header?.competitions?.[0]?.date)); }
   const scs = [body, $('#gleft'), $('#gright')], keep = scs.map(x => x.scrollTop);
-  if (hbox.innerHTML !== head) hbox.innerHTML = head;
-  gbox.innerHTML = h;
+  if (quiet && hbox.firstChild){ morph(hbox, head); morph(gbox, h); }
+  else { hbox.innerHTML = head; gbox.innerHTML = h; }
   if (quiet) scs.forEach((x, i) => { x.scrollTop = keep[i]; });
   fadeBoxEdges();
   // other games that day, across the top
@@ -1737,7 +1788,7 @@ function playsView(s, cs, quiet){
     const aq = away.linescores?.[q - 1]?.displayValue, hq = home.linescores?.[q - 1]?.displayValue;
     const lastP = byQ.get(q)[byQ.get(q).length - 1];
     const open = openQ.has(gameId + ':' + q);
-    out += `<details class="qtr" data-q="${q}"${open ? ' open' : ''}><summary><span class="qn">${ql}${live && q === lastQ ? ' <em>live</em>' : ''}</span>
+    out += `<details class="qtr" data-k="q${q}" data-q="${q}"${open ? ' open' : ''}><summary><span class="qn">${ql}${live && q === lastQ ? ' <em>live</em>' : ''}</span>
       <span class="qs">${aq != null ? `${esc(away.team.abbreviation)} ${esc(aq)}, ${esc(home.team.abbreviation)} ${esc(hq)}` : ''}</span>
       <span class="qc">${ps.length} plays${lastP ? `, ${lastP.awayScore}-${lastP.homeScore}` : ''}</span></summary><div class="qbody">`;
     for (const p of ps){
@@ -1747,7 +1798,7 @@ function playsView(s, cs, quiet){
       const minor = /substitution|timeout|end of|start of|end period|end game/i.test(p.type?.text || '') || /enters the game for|timeout/i.test(p.text || '');
       const face_ = aid && !minor ? `<span class="pf">${photo(aid, (p.text || '').split(' ').slice(0, 2).join(' '), 'ini', 'ocini')}</span>`
         : tm ? `<span class="pf logo"><img src="${logoOf(tm)}" alt="${esc(tm)}"></span>` : '<span></span>';
-      out += `<div class="play${p.scoringPlay ? ' score' : ''}${p.scoreValue >= 3 ? ' big' : ''}${minor ? ' minor' : ''}${fresh ? ' new' : ''}"${tc ? ` style="--tc:${tc.c};--tc2:${tc.ink}"` : ''}><span class="pc">${esc(p.clock?.displayValue || '')}</span>
+      out += `<div data-k="${esc(p.id)}" class="play${p.scoringPlay ? ' score' : ''}${p.scoreValue >= 3 ? ' big' : ''}${minor ? ' minor' : ''}${fresh ? ' new' : ''}"${tc ? ` style="--tc:${tc.c};--tc2:${tc.ink}"` : ''}><span class="pc">${esc(p.clock?.displayValue || '')}</span>
         ${face_}<span class="pt">${esc(p.text || p.type?.text || '')}</span>
         <span class="ps">${p.scoringPlay ? `${+p.scoreValue > 0 ? `<i class="pv">+${+p.scoreValue}</i>` : ''}${p.awayScore}-${p.homeScore}` : ''}</span>${(() => { const a = nbaMatch(nb, p); return a ? `<a class="rp" href="${clipUrl(nb, a)}" target="_blank" rel="noopener" title="Watch this play on NBA.com">▶</a>` : '<span></span>'; })()}</div>`;
     }
@@ -2971,7 +3022,7 @@ function floorView(s, cs){
       const last = (a.short || a.name).replace(/^[A-Z][a-z]?\.\s+/, '');
       const ln = line[aid], fresh = oc.entered[aid] && now - oc.entered[aid] < 30000;
       const tag = P[aid] ? `a href="#" data-bp="${esc(aid)}"` : 'span';
-      chips += `<${tag} class="ocp${fresh ? ' fresh' : ''}" style="left:${xx}%;top:${y}%;--tc:${col.c};--tc2:${col.ink}" title="${esc(a.name)}${ln ? `, ${esc(ln.pts)} points, ${ln.pf} fouls` : ''}">
+      chips += `<${tag} data-k="${esc(aid)}" class="ocp${fresh ? ' fresh' : ''}" style="left:${xx}%;top:${y}%;--tc:${col.c};--tc2:${col.ink}" title="${esc(a.name)}${ln ? `, ${esc(ln.pts)} points, ${ln.pf} fouls` : ''}">
         <span class="ocd"><span class="ocf">${photo(aid, a.name, 'ini', 'ocini')}</span>${a.jersey !== '' ? `<b class="ocj">${esc(a.jersey)}</b>` : ''}${ln && ln.pf >= 4 ? `<i class="ocfl${ln.pf >= 5 ? ' hot' : ''}">${ln.pf}F</i>` : ''}</span>
         <span class="ocn">${esc(last)}</span><span class="ocs">${ln ? `<b>${esc(ln.pts)}</b> pts${ln.pf ? ` · ${ln.pf} pf` : ''}` : ''}</span>${fresh ? '<span class="ocin">In</span>' : ''}</${tag.split(' ')[0]}>`;
     });
