@@ -983,6 +983,45 @@ button.dsd:hover{background:var(--bg2)}
 .stv small{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--dim)}
 .stv small.up{color:var(--good)}.stv small.dn{color:var(--bad)}
 .pill.hot{border-color:#F08A2A;color:#F5A35C}.pill.cold{border-color:#5BA4E0;color:#8CC2EE}
+/* ---------- player highlights ---------- */
+.hlpl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.hlpv{display:flex;flex-direction:column;gap:3px;text-align:left;padding:0}
+.hlpt{position:relative;display:block;border-radius:10px;overflow:hidden;background:#000}
+.hlpt img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.hlpt i{position:absolute;left:8px;bottom:8px;width:26px;height:26px;border-radius:50%;background:rgba(224,64,42,.92);color:#fff;font-style:normal;font-size:11px;display:flex;align-items:center;justify-content:center;padding-left:2px}
+.hlpt em{position:absolute;right:6px;bottom:6px;font-style:normal;font-size:11px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.75);color:#fff}
+.hlpv b{font-size:13px;color:var(--strong)}
+.hlpv small{font-size:11.5px;color:var(--dim);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hlpv[aria-pressed="true"] .hlpt{outline:2px solid var(--brass);outline-offset:-2px}
+/* ---------- rookie tracker ---------- */
+.rkrow{display:grid;grid-template-columns:54px 46px minmax(0,1fr) auto 54px;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 8px;border-radius:12px;border-bottom:1px solid color-mix(in srgb,var(--rule) 70%,transparent)}
+.rkrow:hover{background:var(--hover)}
+.rkpk{display:flex;flex-direction:column;align-items:center;justify-content:center;height:44px;border-radius:10px;background:color-mix(in srgb,var(--mute) 12%,transparent);font-family:'Archivo Black',sans-serif;font-size:15px;color:var(--chalk);line-height:1}
+.rkpk small{font-family:'Barlow Condensed',sans-serif;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:2px}
+.rkpk.top{background:linear-gradient(135deg,#F5D76E,#C9A227);color:#0E1417}.rkpk.top small{color:#3a2f08}
+.rkpk.lot{background:color-mix(in srgb,var(--team-accent) 26%,transparent)}
+.rkf{width:46px;height:46px;border-radius:50%;overflow:hidden;background:var(--face);border:2px solid var(--tc)}
+.rkf img{width:100%;height:100%;object-fit:cover;object-position:top}
+.rkf .fallback{font-size:12px;display:flex;align-items:center;justify-content:center;height:100%}
+.rkn b{display:block;font-size:14.5px;color:var(--strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rkn small{display:flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rkn small img{width:15px;height:15px;object-fit:contain}
+.rks{font-size:13px;color:var(--mute);text-align:right;white-space:nowrap}
+.rks b{font-family:'Archivo Black',sans-serif;font-weight:400;color:var(--strong)}
+.rks small{display:block;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;color:var(--dim)}
+.rkr{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.rkr b{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:14px;color:var(--chalk)}
+.rkr i{font-style:normal;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px}
+.rkr i.up{color:var(--good)}.rkr i.dn{color:var(--bad)}
+.rsteals{display:grid;gap:6px;margin-top:8px}
+.lcats .lseg{flex-wrap:wrap}
+.lcats .lseg .lseason{flex:1 1 auto}
+.rsteal{display:flex;align-items:center;gap:8px;text-align:left;padding:6px;border-radius:10px;border:1px solid var(--line)}
+.rsteal img,.rsteal .fallback{width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:top;background:var(--face)}
+.rsteal b{display:block;font-size:13px;color:var(--strong)}
+.rsteal small{font-family:'Barlow Condensed',sans-serif;font-size:11.5px;color:var(--good)}
+@media (max-width:640px){.rkrow{grid-template-columns:44px 38px minmax(0,1fr) 44px;gap:8px}.rks{grid-column:3 / 5;grid-row:2;text-align:left}.rkf{width:38px;height:38px}.rkpk{height:38px;font-size:13px}
+  .lcats .rsteals{display:none}}
 /* ---------- who is on the floor in a live game ---------- */
 .oncourt{margin-top:12px;container:oc / inline-size}
 .ochead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
@@ -1263,6 +1302,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 /* ---------- Top 10 plays of the night ---------- */
 .t10{margin-top:16px;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
 .t10h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--strong);margin-bottom:10px}
+.t10h b{font-weight:700}
 .t10h span{font-weight:600;font-size:12px;letter-spacing:.06em;color:var(--dim)}
 .t10v{position:relative;display:block;width:100%;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000;padding:0}
 .t10v img{width:100%;height:100%;object-fit:cover;display:block}
@@ -2014,7 +2054,7 @@ const iso8601 = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, 
 async function loadTop10(day, box, allDone){
   box.dataset.day = day; box.dataset.found = '';
   const pretty = new Date(day + 'T12:00').toLocaleDateString([], {month: 'long', day: 'numeric'});
-  box.innerHTML = `<div class="t10"><div class="t10h">Top 10 plays of the night<span>${esc(pretty)}</span></div><div class="t10b"><p class="note">Looking for the NBA's Top 10…</p></div></div>`;
+  box.innerHTML = `<div class="t10"><div class="t10h"><b class="t10n">Top plays of the night</b><span>${esc(pretty)}</span></div><div class="t10b"><p class="note">Looking for the NBA's top plays…</p></div></div>`;
   let r = top10Cache[day];
   if (!r || (!r.id && Date.now() - r.at > 600000)){
     try { r = await (await fetch(`${YT_RELAY}/top10?date=${day}`)).json(); r.at = Date.now(); top10Cache[day] = r; }
@@ -2024,11 +2064,12 @@ async function loadTop10(day, box, allDone){
   const b = box.querySelector('.t10b');
   if (r.id){
     box.dataset.found = '1';
+    const n_ = /top\s*(\d+)/i.exec(r.title || '')?.[1]; const hd = box.querySelector('.t10n'); if (hd) hd.textContent = `Top ${n_ || 10} plays of the night`;
     b.innerHTML = `<button class="t10v" data-yt="${esc(r.id)}" aria-label="Play ${esc(r.title || 'Top 10')}"><img src="https://i.ytimg.com/vi/${esc(r.id)}/hqdefault.jpg" alt="" loading="lazy"><span class="t10p">▶</span></button>
       <div class="t10t">${esc(r.title || '')}</div>`;
   } else {
     const today = iso8601(new Date()) === day;
-    b.innerHTML = `<p class="note">${today || !allDone ? 'The NBA posts its Top 10 after the night\'s games finish. Check back later tonight.' : 'No Top 10 video found for this date.'}</p>`;
+    b.innerHTML = `<p class="note">${today || !allDone ? 'The NBA posts its top plays after the night\'s games finish. Check back later tonight.' : 'No top plays video found for this date.'}</p>`;
     if (!today && allDone) box.hidden = false;
   }
 }
@@ -2128,7 +2169,7 @@ function drawGame(s, quiet){
     body.innerHTML = '<div id="striphost"></div><div id="gleft"><div id="gplayerbox"></div><div id="ghlbox"></div></div><div id="gright"><div id="gamehead"></div><div id="gamecontent"></div></div>';
     pbox = $('#gplayerbox'); gbox = $('#gamecontent'); hbox = $('#gamehead');
   }
-  showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date} : null);
+  showHighlights(st.state === 'post' && gameId !== 'demo' ? {away: cs[0].team.abbreviation, home: cs[1].team.abbreviation, when: comp.date || s.header?.competitions?.[0]?.date, names: topPerformers(s)} : null);
   const cur_ = pbox.firstElementChild;
   if (!slug){ if (cur_) pbox.innerHTML = ''; }
   else if (!cur_ || cur_.dataset.slug !== slug){ pbox.innerHTML = ''; pbox.appendChild(gamePlayerEl(slug, `${cs[0].team.abbreviation} at ${cs[1].team.abbreviation}`, cs[0].team.abbreviation, cs[1].team.abbreviation, comp.date || s.header?.competitions?.[0]?.date)); }
@@ -2759,8 +2800,10 @@ function openBoard(sliding){
   $('#dslide').classList.toggle('past', draftYear !== 'next');
   if (draftYear !== 'next'){ drawPastDraft(draftYear, sliding); return; }
   $('#leadh').textContent = `${nextLabel} draft prospects`;
-  if (!B){ $('#lcats').innerHTML = ''; $('#lrows').innerHTML = '<div class="empty">No prospect list yet. Slide back to see past drafts.</div>'; return; }
-  $('#lcats').innerHTML = `<div class="lseg"><button class="lseason" data-bk="board" aria-pressed="${boardKind === 'board'}">Big board</button><button class="lseason" data-bk="mock" aria-pressed="${boardKind === 'mock'}">Mock draft</button></div>
+  const segs = `<div class="lseg"><button class="lseason" data-bk="board" aria-pressed="${boardKind === 'board'}">Big board</button><button class="lseason" data-bk="mock" aria-pressed="${boardKind === 'mock'}">Mock draft</button><button class="lseason" data-bk="rookies" aria-pressed="${boardKind === 'rookies'}">Rookies</button></div>`;
+  if (boardKind === 'rookies'){ $('#dslide').hidden = true; const rv = rookieView(); $('#leadh').textContent = rv.title; $('#lcats').innerHTML = segs + rv.side; $('#lrows').innerHTML = rv.html; if (!sliding) $('#lrows').scrollTop = 0; return; }
+  if (!B){ $('#lcats').innerHTML = segs; $('#lrows').innerHTML = '<div class="empty">No prospect list yet. Slide back to see past drafts.</div>'; return; }
+  $('#lcats').innerHTML = `${segs}
     <p class="note">From Tankathon${B.fetched ? ', ' + esc(fmtDate(B.fetched)) : ''}. Rankings change all season. Slide back for past drafts.</p>`;
   const L = boardKind === 'board' ? B.board : B.mock;
   $('#lrows').innerHTML = `<div class="ltitle">${boardKind === 'board' ? 'Top prospects' : 'Mock draft, both rounds'}</div><div class="lsub">${L.length} players</div>` +
@@ -4147,6 +4190,46 @@ function streakSection(p){
     <p class="note">Bars are his last ${si.n} regular season games, oldest on the left; the dashed line is his season average.</p></section>`;
 }
 
+/* ---------- rookie tracker: how the newest draft class is playing, against where each was picked ---------- */
+let rookieSort = 'perf';
+function rookieView(){
+  const short = M.stats.slice(2, 5) + M.stats.slice(-2), year = M.stats.slice(0, 4);   // 2025-26 rookies came from the 2025 draft
+  const draft = (D.drafts || {})[year] || [];
+  // match picks to players by ESPN id, or by name when the draft list has no id
+  const byName = {}; for (const id in P) byName[normName(P[id].n)] = id;
+  const pickOf = {};
+  for (const r of draft){ const id = r[7] && P[r[7]] ? String(r[7]) : byName[normName(r[2])]; if (id) pickOf[id] = r; }
+  const ids = new Set([...Object.keys(pickOf), ...Object.keys(P).filter(id => (P[id].yr || [])[0]?.[0] === short && P[id].s)]);
+  const L = [...ids].map(id => ({id, p: P[id], d: pickOf[id] || null}));
+  const played = L.filter(x => x.p.s && x.p.s.gp >= 3);
+  const z = f => { const v = played.map(x => f(x.p.s)).filter(Number.isFinite); const m = v.reduce((a, b) => a + b, 0) / (v.length || 1), sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length || 1)) || 1; return s_ => ((f(s_) ?? m) - m) / sd; };
+  const zp = z(s_ => s_.pts), zr = z(s_ => s_.reb), za = z(s_ => s_.ast), zt = z(s_ => s_.ts), zm = z(s_ => s_.min), zg = z(s_ => s_.gp);
+  for (const x of played) x.score = zp(x.p.s) * 1.2 + zr(x.p.s) * .5 + za(x.p.s) * .6 + zt(x.p.s) * .3 + zm(x.p.s) * .6 + zg(x.p.s) * .3;
+  played.sort((a, b) => b.score - a.score).forEach((x, i) => x.rank = i + 1);
+  // where each pick "should" rank among rookies who played: his pick order among drafted players who played
+  const draftedPlayed = played.filter(x => x.d).sort((a, b) => a.d[1] + (a.d[0] - 1) * 30 - (b.d[1] + (b.d[0] - 1) * 30));
+  draftedPlayed.forEach((x, i) => x.slot = i + 1);
+  const drRank = played.filter(x => x.d).sort((a, b) => b.score - a.score); drRank.forEach((x, i) => x.drank = i + 1);
+  const rows = rookieSort === 'pick' ? [...L].sort((a, b) => (a.d ? a.d[1] + (a.d[0] - 1) * 30 : 999) - (b.d ? b.d[1] + (b.d[0] - 1) * 30 : 999) || ((b.score ?? -9) - (a.score ?? -9)))
+    : [...L].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+  const steals = draftedPlayed.filter(x => x.slot - x.drank >= 8).sort((a, b) => (b.slot - b.drank) - (a.slot - a.drank)).slice(0, 3);
+  const side = `<div class="lseg rsort"><button class="lseason" data-rsort="perf" aria-pressed="${rookieSort === 'perf'}">Best so far</button><button class="lseason" data-rsort="pick" aria-pressed="${rookieSort === 'pick'}">Draft order</button></div>
+    <p class="note">${played.length} of ${L.length} rookies have played. Ranked by a mix of scoring, rebounding, playmaking, efficiency, minutes and games. The arrow compares that rank with where he was picked among drafted rookies who have played.</p>
+    ${steals.length ? `<div class="rsteals"><div class="lgrp">Steals of the draft</div>${steals.map(x => `<button class="rsteal" data-lp="${x.id}">${photo(x.id, x.p.n)}<span><b>${esc(x.p.n)}</b><small>Pick ${x.d[1] + (x.d[0] - 1) * 30}, playing like #${x.drank}</small></span></button>`).join('')}</div>` : ''}`;
+  const html = `<div class="ltitle">${year} draft class</div><div class="lsub">${esc(M.stats)} rookie season${draft.length ? '' : ', undrafted and international rookies only'}</div>` + rows.map(x => {
+    const p = x.p, s_ = p.s, t = T[p.t] || {}, col = sideColor({abbreviation: t.abbr, color: t.color, alternateColor: t.alt}).c;
+    const pk = x.d ? x.d[1] + (x.d[0] - 1) * 30 : null, mv = x.slot && x.drank ? x.slot - x.drank : null;
+    return `<button class="rkrow" data-lp="${x.id}" style="--tc:${col}">
+      <span class="rkpk${pk && pk <= 3 ? ' top' : pk && pk <= 14 ? ' lot' : ''}" title="${pk ? `Pick ${pk}` : 'Undrafted'}">${pk ? `<small>Pick</small>${pk}` : '<small>Not</small><small>drafted</small>'}</span>
+      <span class="rkf">${photo(x.id, p.n)}</span>
+      <span class="rkn"><b>${esc(p.n)}</b><small>${t.logo ? `<img src="${t.logo}" alt="">` : ''}${esc(t.abbr || '')} · ${esc(p.pos || '')}${x.d ? ` · ${esc((x.d[4] || '').replace(/\s*\(.*\)/, ''))}` : ''}</small></span>
+      <span class="rks">${s_ && s_.gp ? `<b>${f1(s_.pts)}</b> pts <b>${f1(s_.reb)}</b> reb <b>${f1(s_.ast)}</b> ast<small>${s_.gp} games · ${f1(s_.min)} min${s_.ts ? ` · ${f1(s_.ts)}% TS` : ''}</small>` : '<small>Has not played</small>'}</span>
+      <span class="rkr">${x.rank ? `<b>#${x.rank}</b>` : ''}${mv != null && Math.abs(mv) >= 2 ? `<i class="${mv > 0 ? 'up' : 'dn'}">${mv > 0 ? '▲' : '▼'}${Math.abs(mv)}</i>` : ''}</span></button>`;
+  }).join('');
+  return {title: `Rookie tracker ${M.stats}`, side, html};
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-rsort]'); if (b){ rookieSort = b.dataset.rsort; openBoard(); } });
+
 /* ---------- demo live game: a real finished game replayed as if live ---------- */
 // The 2026 Finals, Game 4: Spurs at Knicks, 107-106. The real play by play is fed in
 // one play every 1.5 seconds from midway through the 2nd quarter, through the same
@@ -4190,6 +4273,31 @@ function openDemo(){
 // Finished games get the NBA's highlights video at the top. It sits in its own box that
 // refreshes never touch, so the video never restarts while you watch.
 const HL = {};
+// the three best scorers on each side, for the NBA's individual player highlight videos
+function topPerformers(s){
+  const out = [];
+  for (const t of (s.boxscore?.players || [])){
+    const st = t.statistics?.[0] || {}, names = st.names || st.labels || [], ip = names.indexOf('PTS');
+    const L = (st.athletes || []).filter(a => a.stats?.length).map(a => [a.athlete?.displayName || '', +a.stats[ip] || 0]).filter(x => x[0]).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    out.push(...L);
+  }
+  return out.sort((a, b) => b[1] - a[1]).map(x => x[0]);
+}
+function playerHighlights(g, box){
+  if (!g.names || !g.names.length) return;
+  const day = etDay(g.when), key = 'p|' + g.away + '|' + g.home + '|' + day;
+  const draw = res => {
+    if (box.dataset.hlgame !== String(gameId)) return;
+    const L = (res && res.players) || [];
+    let el = box.querySelector('.hlplayers'); if (!L.length){ if (el) el.remove(); return; }
+    if (!el){ el = document.createElement('div'); el.className = 'hlplayers'; (box.querySelector('.hlwrap') || box).appendChild(el); }
+    el.innerHTML = `<div class="coachsub" style="margin-top:12px">Player highlights</div><div class="hlpl">${L.map(v => `<button class="hlpv" data-hl="${esc(v.id)}" type="button" title="${esc(v.title)}">
+      <span class="hlpt"><img src="https://i.ytimg.com/vi/${esc(v.id)}/mqdefault.jpg" alt="" loading="lazy"><i>▶</i>${v.len ? `<em>${esc(v.len)}</em>` : ''}</span><b>${esc(v.name)}</b><small>${esc(v.title.split('|')[0].trim())}</small></button>`).join('')}</div>`;
+  };
+  if (HL[key] !== undefined) return draw(HL[key]);
+  fetch(`${RELAY}/ytp?d=${day}&n=${encodeURIComponent(g.names.slice(0, 6).join('|'))}`).then(r => r.json()).catch(() => null)
+    .then(res => { if (res && res.players && res.players.length) HL[key] = res; draw(res); });
+}
 function showHighlights(g){
   const box = $('#ghlbox'); if (!box) return;
   if (!g){ if (box.dataset.hlgame){ box.innerHTML = ''; box.dataset.hlgame = ''; } return; }
@@ -4210,6 +4318,7 @@ function showHighlights(g){
       <div class="hlframe"><iframe src="https://www.youtube-nocookie.com/embed/${esc(res.main.id)}?rel=0&modestbranding=1&playsinline=1" title="${esc(res.main.title)}"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
       ${vids.length > 1 ? `<div class="pfilt hlpick">${vids.map((v, i) => `<button data-hl="${esc(v.id)}" aria-pressed="${i === 0}">${esc(label(v))}</button>`).join('')}</div>` : ''}</div>`;
+    playerHighlights(g, box);
   };
   if (HL[key] !== undefined) return draw(HL[key]);
   const nick_ = ab => { const n = T[byAbbr[ab]]?.name || ab; return n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]; };
@@ -4222,6 +4331,7 @@ document.addEventListener('click', e => {
   f.src = `https://www.youtube-nocookie.com/embed/${b.dataset.hl}?rel=0&modestbranding=1&playsinline=1&autoplay=1`;
   for (const x of document.querySelectorAll('[data-hl]')) x.setAttribute('aria-pressed', x === b);
   const yt = $('#ghlbox .pbar a'); if (yt) yt.href = `https://www.youtube.com/watch?v=${b.dataset.hl}`;
+  if (b.classList.contains('hlpv')) f.scrollIntoView({block: 'nearest', behavior: 'smooth'});
 });
 
 /* ---------- impact: PIE, nbarapm RAPM, clutch, quarters, skill chart ---------- */
