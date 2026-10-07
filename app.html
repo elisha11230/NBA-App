@@ -3064,10 +3064,12 @@ const streamUrl = sl => sl ? `${(D.site && D.site.streamBase) || ''}/live/nba/${
 function stream2Url(awayAb, homeAb, when){
   const S = D.site || {}, N = S.names || {};
   if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
-  return (S.s2Base || '') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : '');
+  return withOpts((S.s2Base || '') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : ''), S.s2Opts);
 }
 let streamPick = (() => { try { return localStorage.getItem('nba_stream') === '2' ? 2 : 1; } catch (e){ return 1; } })();
-const embedUrl = sl => sl ? `${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}` : null;
+// extra player options from site_config.py (EMBED_OPTIONS, STREAM2_OPTIONS), added to the address
+const withOpts = (u, q) => !u || !q ? u : u + (u.includes('?') ? '&' : '?') + q;
+const embedUrl = sl => sl ? withOpts(`${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}`, D.site?.embedOpts) : null;
 let playerOn = true;
 /* ---------- one stream player for the whole app: docked in the game view, or floating ---------- */
 // Browsers reload a frame whenever it is moved in the page, so the stream lives in a single
@@ -3101,7 +3103,8 @@ function setStream(sl, game, title){
   if (game === 'demo'){ fr.innerHTML = `<div class="pdemo"><b>Your stream plays here</b><span>${esc(embedUrl(sl))}</span></div>`; return; }
   const f = document.createElement('iframe');
   f.id = 'player'; f.src = src; f.scrolling = 'no'; f.allowFullscreen = true;
-  f.setAttribute('allow', 'encrypted-media; picture-in-picture;'); f.setAttribute('frameborder', '0');
+  f.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen'); f.setAttribute('frameborder', '0');
+  f.style.position = 'absolute';
   f.setAttribute('marginheight', '0'); f.setAttribute('marginwidth', '0'); f.width = '100%'; f.height = '100%';
   fr.appendChild(f);
 }
@@ -3646,7 +3649,8 @@ function mvTile(id){
       t.src = src; f.innerHTML = '';
       const fr = document.createElement('iframe');
       fr.src = src; fr.allowFullscreen = true; fr.scrolling = 'no';
-      fr.setAttribute('allow', 'encrypted-media; picture-in-picture; fullscreen'); fr.setAttribute('frameborder', '0');
+      fr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen'); fr.setAttribute('frameborder', '0');
+      fr.width = '100%'; fr.height = '100%'; fr.setAttribute('marginheight', '0'); fr.setAttribute('marginwidth', '0');
       f.appendChild(fr);
     }
   } else if (t.src !== 'idle:' + st.state){

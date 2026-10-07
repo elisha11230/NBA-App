@@ -73,3 +73,12 @@ TEAM_NAMES = {
     "UTAH": "utah-jazz",
     "WSH": "washington-wizards",
 }
+
+# ---------------------------------------------------------------- player options
+# Extra options added to the end of each player's address, if the stream site
+# supports them. Ask the site which options it reads; common ones look like
+#   EMBED_OPTIONS = "autoplay=1"           start playing as soon as the game opens
+#   EMBED_OPTIONS = "autoplay=1&mute=1"    start playing with the sound off
+# Leave empty ("") for none. STREAM2_OPTIONS is the same thing for Stream 2.
+EMBED_OPTIONS = ""
+STREAM2_OPTIONS = ""

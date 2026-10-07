@@ -2565,7 +2565,9 @@ try:
                      # second stream: its own address pattern and full team names
                      "s2Base": (_eb if _s2 is None else str(_s2 or "")).rstrip("/"),
                      "s2Path": str(getattr(_sc, "STREAM2_PATH", "") or ""),
-                     "names": dict(getattr(_sc, "TEAM_NAMES", {}) or {})}
+                     "names": dict(getattr(_sc, "TEAM_NAMES", {}) or {}),
+                     "embedOpts": str(getattr(_sc, "EMBED_OPTIONS", "") or "").lstrip("?&"),
+                     "s2Opts": str(getattr(_sc, "STREAM2_OPTIONS", "") or "").lstrip("?&")}
 except Exception as e:
     print(f"site  settings not read ({e.__class__.__name__}); links stay relative")
     site_settings = {"streamBase": "", "embedBase": "", "codes": {}}
