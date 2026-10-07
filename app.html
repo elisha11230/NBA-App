@@ -4352,6 +4352,7 @@ function showHighlights(g){
   if (!g){ if (box.dataset.hlgame){ box.innerHTML = ''; box.dataset.hlgame = ''; } return; }
   if (box.dataset.hlgame === String(gameId)) return;
   box.dataset.hlgame = String(gameId);
+  const nick_ = ab => { const n = T[byAbbr[ab]]?.name || ab; return n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]; };
   const day = etDay(g.when), key = `${g.away}|${g.home}|${day}`;
   box.innerHTML = `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span></div><div class="hlframe hlwait"><span>Finding the NBA's highlights…</span></div></div>`;
   const draw = res => {
@@ -4360,7 +4361,9 @@ function showHighlights(g){
       const hoursSince = (Date.now() - Date.parse(g.when)) / 36e5;
       // not posted yet: look again in five minutes while the game stays open
       if (hoursSince < 12) setTimeout(() => { if (box.dataset.hlgame === String(gameId) && !box.querySelector('iframe')){ box.dataset.hlgame = ''; showHighlights(g); } }, 5 * 60e3);
-      box.innerHTML = hoursSince < 5 ? `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span></div><p class="note" style="margin:0 0 12px">The NBA usually posts full game highlights within an hour or two of the final. Check back soon.</p></div>` : '';
+      const q = encodeURIComponent(`NBA ${nick_(g.away)} at ${nick_(g.home)} full game highlights ${new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC'})}`);
+      box.innerHTML = `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span><button class="pbtn" type="button" data-hlretry>Try again</button><a class="pbtn" href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">Search YouTube</a></div><p class="note" style="margin:0 0 12px">${hoursSince < 5 ? 'The NBA usually posts full game highlights within an hour or two of the final. Checking again every few minutes.' : "Couldn't find the NBA's highlights for this game right now."}</p></div>`;
+      const rb = box.querySelector('[data-hlretry]'); if (rb) rb.onclick = () => { box.dataset.hlgame = ''; showHighlights(g); };
       return;
     }
     const vids = [res.main, res.extended, ...(res.more || [])].filter(Boolean);
@@ -4372,7 +4375,6 @@ function showHighlights(g){
     playerHighlights(g, box);
   };
   const saved = hlSaved(key); if (saved) return draw(saved);
-  const nick_ = ab => { const n = T[byAbbr[ab]]?.name || ab; return n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]; };
   hlFetch(`${RELAY}/yt?a=${encodeURIComponent(nick_(g.away))}&h=${encodeURIComponent(nick_(g.home))}&d=${day}&v=2`)
     .then(res => { if (res && res.main) hlSave(key, res); draw(res); });
 }
