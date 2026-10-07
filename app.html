@@ -4304,15 +4304,30 @@ function openDemo(){
 // Finished games get the NBA's highlights video at the top. It sits in its own box that
 // refreshes never touch, so the video never restarts while you watch.
 const HL = {};
-// the three best scorers on each side, for the NBA's individual player highlight videos
+// Found highlights are also saved on this device (nba_hl), so reopening the app shows them
+// at once without asking the relay again. A game's video never changes once posted.
+const HLSAVE = (() => { try { return JSON.parse(localStorage.getItem('nba_hl') || '{}'); } catch { return {}; } })();
+function hlSave(key, res){
+  HL[key] = res; HLSAVE[key] = {t: Date.now(), r: res};
+  const keys = Object.keys(HLSAVE);
+  if (keys.length > 300) keys.sort((a, b) => HLSAVE[a].t - HLSAVE[b].t).slice(0, keys.length - 300).forEach(k => delete HLSAVE[k]);
+  try { localStorage.setItem('nba_hl', JSON.stringify(HLSAVE)); } catch {}
+}
+const hlSaved = key => HL[key] || HLSAVE[key]?.r;
+// ask the relay, trying once more after a short wait if it does not answer
+function hlFetch(url){
+  const go = () => fetch(url).then(r => r.ok ? r.json() : Promise.reject(r.status));
+  return go().catch(() => new Promise(ok => setTimeout(ok, 2500)).then(go)).catch(() => null);
+}
+// everyone who played, best scorers first: the relay checks them all against the NBA's
+// latest uploads, and searches YouTube for the top six
 function topPerformers(s){
   const out = [];
   for (const t of (s.boxscore?.players || [])){
     const st = t.statistics?.[0] || {}, names = st.names || st.labels || [], ip = names.indexOf('PTS');
-    const L = (st.athletes || []).filter(a => a.stats?.length).map(a => [a.athlete?.displayName || '', +a.stats[ip] || 0]).filter(x => x[0]).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    out.push(...L);
+    out.push(...(st.athletes || []).filter(a => a.stats?.length).map(a => [a.athlete?.displayName || '', +a.stats[ip] || 0]).filter(x => x[0]));
   }
-  return out.sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  return out.sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 30);
 }
 function playerHighlights(g, box){
   if (!g.names || !g.names.length) return;
@@ -4325,9 +4340,12 @@ function playerHighlights(g, box){
     el.innerHTML = `<div class="coachsub" style="margin-top:12px">Player highlights</div><div class="hlpl">${L.map(v => `<button class="hlpv" data-hl="${esc(v.id)}" type="button" title="${esc(v.title)}">
       <span class="hlpt"><img src="https://i.ytimg.com/vi/${esc(v.id)}/mqdefault.jpg" alt="" loading="lazy"><i>▶</i>${v.len ? `<em>${esc(v.len)}</em>` : ''}</span><b>${esc(v.name)}</b><small>${esc(v.title.split('|')[0].trim())}</small></button>`).join('')}</div>`;
   };
-  if (HL[key] !== undefined) return draw(HL[key]);
-  fetch(`${RELAY}/ytp?d=${day}&n=${encodeURIComponent(g.names.slice(0, 6).join('|'))}`).then(r => r.json()).catch(() => null)
-    .then(res => { if (res && res.players && res.players.length) HL[key] = res; draw(res); });
+  // a day and a half after the game every player video is up, so a saved list is final
+  const saved = hlSaved(key), settled = Date.now() - Date.parse(g.when) > 36 * 36e5;
+  if (saved) draw(saved);
+  if (saved && settled) return;
+  hlFetch(`${RELAY}/ytp?d=${day}&v=2&n=${encodeURIComponent(g.names.join('|'))}`)
+    .then(res => { if (res && res.players && res.players.length) hlSave(key, res); draw(res?.players?.length ? res : saved || res); });
 }
 function showHighlights(g){
   const box = $('#ghlbox'); if (!box) return;
@@ -4340,6 +4358,8 @@ function showHighlights(g){
     if (box.dataset.hlgame !== String(gameId)) return;
     if (!res || !res.main){
       const hoursSince = (Date.now() - Date.parse(g.when)) / 36e5;
+      // not posted yet: look again in five minutes while the game stays open
+      if (hoursSince < 12) setTimeout(() => { if (box.dataset.hlgame === String(gameId) && !box.querySelector('iframe')){ box.dataset.hlgame = ''; showHighlights(g); } }, 5 * 60e3);
       box.innerHTML = hoursSince < 5 ? `<div class="hlwrap"><div class="pbar"><span class="plab">Highlights</span></div><p class="note" style="margin:0 0 12px">The NBA usually posts full game highlights within an hour or two of the final. Check back soon.</p></div>` : '';
       return;
     }
@@ -4351,10 +4371,10 @@ function showHighlights(g){
       ${vids.length > 1 ? `<div class="pfilt hlpick">${vids.map((v, i) => `<button data-hl="${esc(v.id)}" aria-pressed="${i === 0}">${esc(label(v))}</button>`).join('')}</div>` : ''}</div>`;
     playerHighlights(g, box);
   };
-  if (HL[key] !== undefined) return draw(HL[key]);
+  const saved = hlSaved(key); if (saved) return draw(saved);
   const nick_ = ab => { const n = T[byAbbr[ab]]?.name || ab; return n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]; };
-  fetch(`${RELAY}/yt?a=${encodeURIComponent(nick_(g.away))}&h=${encodeURIComponent(nick_(g.home))}&d=${day}`)
-    .then(r => r.json()).catch(() => null).then(res => { if (res && res.main) HL[key] = res; draw(res); });
+  hlFetch(`${RELAY}/yt?a=${encodeURIComponent(nick_(g.away))}&h=${encodeURIComponent(nick_(g.home))}&d=${day}&v=2`)
+    .then(res => { if (res && res.main) hlSave(key, res); draw(res); });
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-hl]'); if (!b) return;
