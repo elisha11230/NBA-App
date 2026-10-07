@@ -1022,6 +1022,12 @@ button.dsd:hover{background:var(--bg2)}
 .rsteal small{font-family:'Barlow Condensed',sans-serif;font-size:11.5px;color:var(--good)}
 @media (max-width:640px){.rkrow{grid-template-columns:44px 38px minmax(0,1fr) 44px;gap:8px}.rks{grid-column:3 / 5;grid-row:2;text-align:left}.rkf{width:38px;height:38px}.rkpk{height:38px;font-size:13px}
   .lcats .rsteals{display:none}}
+.phdraft{display:flex;align-items:center;gap:6px;margin-top:7px;padding:4px 9px 4px 6px;width:fit-content;max-width:100%;border-radius:10px;background:rgba(0,0,0,.22);font-size:12.5px;color:var(--chalk);line-height:1.25}
+:root[data-theme="light"] .phdraft{background:rgba(255,255,255,.55)}
+.phdraft img{width:18px;height:18px;object-fit:contain;flex:0 0 auto}
+.phdraft b{color:var(--strong)}
+.phdraft small{color:var(--dim)}
+.dhead .phdraft{margin-top:6px}
 /* ---------- who is on the floor in a live game ---------- */
 .oncourt{margin-top:12px;container:oc / inline-size}
 .ochead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
@@ -1865,7 +1871,7 @@ function renderPlayer(){
     <div class="phface">${face(id)}</div>
     <button class="favstar phfav" data-favp="${id}" type="button" aria-label="Add to My Teams">${isFav('players', id) ? '★' : '☆'}</button>
     <div class="phinfo"><div class="phfirst">${esc(first)}</div><div class="phlast blk">${esc(last)}</div>
-      <div class="phmeta"><img src="${t.logo}" alt="">${esc(t.abbr)}${p.j ? ` · #${esc(p.j)}` : ''} · ${esc(p.posn || p.pos)}</div></div>
+      <div class="phmeta"><img src="${t.logo}" alt="">${esc(t.abbr)}${p.j ? ` · #${esc(p.j)}` : ''} · ${esc(p.posn || p.pos)}</div>${draftLine(id, p.n, (p.yr || [])[0]?.[0])}</div>
     ${s ? `<div class="phstats"><div><b>${f1(s.pts)}</b><span>PTS</span></div><div><b>${f1(s.reb)}</b><span>REB</span></div><div><b>${f1(s.ast)}</b><span>AST</span></div></div>` : ''}</div>`;
   h += `<div class="tags">${slot >= 0 ? `<span class="pill team">Starter <b>${SLOTS[slot]}</b></span>` : `<span class="pill">Bench</span>`}
     ${p.age ? `<span class="pill">Age <b>${p.age}</b></span>` : ''}${p.ht ? `<span class="pill"><b>${esc(p.ht)}</b></span>` : ''}
@@ -2664,7 +2670,7 @@ function renderHistPlayer(){
   const gp = C.reduce((a, r) => a + r.gp, 0), w = k => { let s = 0, n = 0; for (const r of C) if (r[k] != null){ s += r[k] * r.gp; n += r.gp; } return n ? s / n : null; };
   let h = `<button id="back">&larr; ${pastSeason ? esc(T[cur].past[pastSeason]?.n || T[cur].name) + ' ' + pastSeason : 'Team'}</button>`;
   h += `<div class="dhead"><div class="dphoto">${photo(id, nm, 'ini', 'fallback')}</div><div>
-    <div class="dname blk">${esc(nm)}</div><div class="dpos">${esc(personPos(id))}</div><div class="histhead" style="margin-top:6px">Not on a current NBA roster</div></div></div>`;
+    <div class="dname blk">${esc(nm)}</div><div class="dpos">${esc(personPos(id))}</div>${draftLine(id, nm, null)}<div class="histhead" style="margin-top:6px">Not on a current NBA roster</div></div></div>`;
   h += honorsSection(id);
   const hs = playerShotSection(null, id);
   h += `<section class="sect k-stat"><h3>Career since ${C.length ? C[0].s : '2001-02'}<span>${C.length} team seasons, ${gp} games</span></h3>
@@ -4229,6 +4235,31 @@ function rookieView(){
   return {title: `Rookie tracker ${M.stats}`, side, html};
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-rsort]'); if (b){ rookieSort = b.dataset.rsort; openBoard(); } });
+
+/* ---------- where and when a player was drafted (Wikipedia draft lists since 1980) ---------- */
+let DRAFT_IX = null;
+function draftInfo(id, name){
+  if (!DRAFT_IX){
+    DRAFT_IX = {id: {}, name: {}};
+    for (const y in (D.drafts || {})) for (const r of D.drafts[y]){
+      const x = {year: +y, round: r[0], pick: r[1], overall: r[1] + (r[0] > 1 && r[1] <= 30 ? (r[0] - 1) * 30 : 0), team: r[5], teamName: (r[6] || '').split(/[(,;]/)[0].trim() || T[byAbbr[r[5]]]?.name || '', via: (/traded to ([^,()]+)/i.exec(r[6] || '')?.[1] || '').trim()};
+      if (r[7]) DRAFT_IX.id[String(r[7])] = x;
+      const k = normName(r[2]); if (!DRAFT_IX.name[k]) DRAFT_IX.name[k] = x;
+    }
+  }
+  return DRAFT_IX.id[String(id)] || (name ? DRAFT_IX.name[normName(name)] : null) || null;
+}
+function draftLine(id, name, firstSeason){
+  const d = draftInfo(id, name);
+  if (d){
+    const t = Object.values(T).find(x => x.name === d.teamName) || T[byAbbr[d.team]];
+    return `<div class="phdraft">${t ? `<img src="${t.logo}" alt="">` : ''}<span><b>${d.year} Draft</b> · ${d.round === 1 ? '1st' : d.round === 2 ? '2nd' : ord(d.round)} round, pick ${d.pick}${d.round > 1 && d.overall !== d.pick ? ` (${ord(d.overall)} overall)` : ''} · ${esc(d.teamName || d.team)}${d.via ? ` <small>(rights traded to ${esc(d.via)})</small>` : ''}</span></div>`;
+  }
+  // nobody by that name in any draft since 1980: undrafted, if his career started inside that window
+  const y0 = firstSeason ? 2000 + +String(firstSeason).slice(0, 2) : null;
+  if (y0 && y0 >= 1981 && Object.keys(D.drafts || {}).length) return `<div class="phdraft"><span><b>Undrafted</b> · went undrafted in ${y0}</span></div>`;
+  return '';
+}
 
 /* ---------- demo live game: a real finished game replayed as if live ---------- */
 // The 2026 Finals, Game 4: Spurs at Knicks, 107-106. The real play by play is fed in
