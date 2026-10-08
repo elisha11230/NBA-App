@@ -1403,6 +1403,10 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .wlab.must{color:#fff;background:linear-gradient(90deg,#D9502A,#E3962F)}
 .wlab.worth{color:var(--chalk);background:color-mix(in srgb,#2FA59A 16%,transparent);border:1px solid color-mix(in srgb,#2FA59A 55%,var(--line))}
 .wlab.skip{color:var(--mute);border:1px solid var(--line)}
+.wlab.rp.great{color:#fff;background:linear-gradient(90deg,#B8452A,#E3962F)}
+.wlab.rp.good{color:var(--chalk);background:color-mix(in srgb,#2FA59A 16%,transparent);border:1px solid color-mix(in srgb,#2FA59A 55%,var(--line))}
+.wlab.rp.meh{color:var(--mute);border:1px dashed var(--line)}
+.wlab.rp::before{content:"";width:0;height:0;border-left:6px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;margin-right:6px}
 .wt{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;flex:none;color:var(--wc);background:color-mix(in srgb,var(--wc) 15%,transparent);border:1px solid color-mix(in srgb,var(--wc) 42%,transparent);cursor:pointer;transition:transform .12s}
 .wt:hover{transform:scale(1.1)}
 .wt svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -1419,6 +1423,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .wtp p small,.wtp small{color:var(--dim)}
 .wtp em.wout{font-style:normal;color:#E0503A;font-weight:600}
 .wtp em.wq{font-style:normal;color:#D9A23A;font-weight:600}
+.wtp+.wtph{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
 .wtph{margin:-2px 0 8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .wtph.must{color:#E3962F}.wtph.worth{color:#2FA59A}
 .wtbar{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
@@ -2101,7 +2106,10 @@ async function loadDay(quiet){
   const grp = [['Live now', ev.filter(e => liveWindow(e.status.type.state, e.date))], ['Coming up', ev.filter(e => e.status.type.state === 'pre' && !liveWindow('pre', e.date))],
     ['Final', ev.filter(e => e.status.type.state === 'post')]].filter(g => g[1].length);
   for (const e of ev) wtSafe(e, (liveWindow(e.status.type.state, e.date) && liveDelay > 0) || e.status.type.state === 'post');
-  if (wtSort === 'best') for (const g_ of grp) g_[1] = [...g_[1]].sort((a, b) => (WT_CACHE[String(b.id)]?.score || 0) - (WT_CACHE[String(a.id)]?.score || 0));
+  const wsc = e => { const w = WT_CACHE[String(e.id)]; return w ? (w.replay ? w.replay.score : w.score) : 0; };
+  if (wtSort === 'best') for (const g_ of grp) g_[1] = [...g_[1]].sort((a, b) => wsc(b) - wsc(a));
+  const day_ = stamp(scDate);
+  xiLoad(ev).then(ch => { if (ch && !gameId && !$('#scores').hidden && stamp(scDate) === day_) loadDay(true); });
   gbox.innerHTML = `<div class="wtbar">${wtBanner(ev)}<div class="lseg wsort"><span>Sort</span><button class="lseason" data-wsort="time" aria-pressed="${wtSort === 'time'}">By time</button><button class="lseason" data-wsort="best" aria-pressed="${wtSort === 'best'}">Best first</button></div></div>` + grp.map(([t, L]) => `<section class="gsec${t === 'Live now' ? ' lv' : ''}"><h4>${t === 'Live now' ? '<i class="gdot"></i>' : ''}${t}<span>${L.length}</span></h4><div class="gcards">${L.map(gameCard).join('')}</div></section>`).join('');
   const nLive = ev.filter(e => e.status.type.state === 'in').length, sl = $('#sclive');
   if (sl){ sl.hidden = !nLive; sl.textContent = `${nLive} live`; }
@@ -2171,14 +2179,22 @@ const WT_SVG = {
   clutch: '<path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 21h14v-3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/>',
   comeback: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   bignight: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  revenge: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  stakes: '<path d="M5 22V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  record: '<path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/>',
+  upset: '<path d="M12 3 2 21h20z"/><path d="M12 10v5M12 18h.01"/>',
+  excite: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+  replay: '<circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/>',
 };
 const WT_META = {
   star: ['Star power', '#D9A23A'], matchup: ['Matchup', '#E0603A'], heavy: ['Heavyweights', '#9B7BE0'], close: ['Close game expected', '#2FA59A'],
   rookie: ['Rookie watch', '#5DAA55'], hot: ['Hot streak', '#F08A2A'], rival: ['Rivalry', '#D9578A'], tv: ['National TV', '#4A8FE0'],
   milestone: ['Milestone watch', '#C08A4A'], mine: ['My Teams', '#E0505A'],
   clutch: ['Close late', '#E0402A'], comeback: ['Comeback', '#F08A2A'], bignight: ['Big night', '#C46BD6'],
+  revenge: ['Revenge game', '#5FA8D3'], stakes: ['Playoff stakes', '#3DBB8F'], record: ['Record chase', '#D4A84B'], upset: ['Upset alert', '#E86F4E'],
+  excite: ['Excitement', '#FF5D8F'], replay: ['Replay rating', '#E3962F'],
 };
-const WT_LIVE = new Set(['clutch', 'comeback', 'bignight']);
+const WT_LIVE = new Set(['clutch', 'comeback', 'bignight', 'excite']);
 const wtIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${WT_SVG[k]}</svg>`;
 let WT_STATIC = null;
 const WT_CACHE = {}, WT_LEAD = {};
@@ -2231,9 +2247,29 @@ function wtStatic(){
       for (let i = done.length - 1; i >= 0 && done[i][5] > done[i][6]; i--) streak++;
       hotP = R.map(pid => [pid, streakInfo(P[pid])]).filter(([pid, si]) => si && si.tag === 'hot' && P[pid].s && P[pid].s.min >= 24).slice(0, 2);
     }
-    teams[id] = {stars, rookies, miles, streak, hotP};
+    // former teams in the last three seasons, for players who matter in the rotation
+    const y3 = +String(M.stats).slice(2, 4) - 2, former = [];
+    for (const pid of R){
+      const p = P[pid], notable = stars.includes(pid) || (p.k?.o || 0) >= 80 || (p.s && p.s.min >= 20);
+      if (!notable) continue;
+      const seen = new Set();
+      for (const r of p.yr || []) if (+String(r[0]).slice(0, 2) >= y3 && r[1] && r[1] !== T[id].abbr) seen.add(r[1]);
+      if (p.prev && p.prev !== T[id].abbr) seen.add(p.prev);
+      for (const ab of seen) former.push({pid, ab, yrs: (p.yr || []).filter(r => r[1] === ab).length, star: stars.includes(pid)});
+    }
+    // this season's results, oldest first: record, current streak (+ wins, - losses), last five
+    const res = current ? (T[id].sched || []).filter(x => x[5] != null && x[7] === 2).sort((a, b) => a[1] < b[1] ? -1 : 1).map(x => x[5] > x[6]) : [];
+    let run = 0; for (let i = res.length - 1; i >= 0; i--){ if (!run) run = res[i] ? 1 : -1; else if (res[i] === run > 0) run += run > 0 ? 1 : -1; else break; }
+    const w = res.filter(Boolean).length;
+    teams[id] = {stars, rookies, miles, streak, hotP, former, rec: {w, l: res.length - w, run, l5: res.slice(-5).filter(Boolean).length, n5: Math.min(5, res.length)}};
   }
-  return WT_STATIC = {teams, rank, str, pick, dy, starScore, current};
+  // playoff odds once the season is past its first half
+  let odds = null;
+  if (current && Object.values(teams).reduce((a, t_) => a + t_.rec.w + t_.rec.l, 0) / 30 >= 45){
+    if (!ODDS || Date.now() - ODDS.at > 3600e3) ODDS = runOdds();
+    odds = ODDS?.teams || null;
+  }
+  return WT_STATIC = {teams, rank, str, pick, dy, starScore, current, odds};
 }
 
 const wtNum = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
@@ -2330,6 +2366,47 @@ function wtTags(g, opts = {}){
   // milestones
   const ms = [...(tA.miles || []), ...(tH.miles || [])].filter(m => wtInj(m.pid) !== 'out');
   if (ms.length) add('milestone', ms.some(m => m.tonight) ? 1.5 : 1, ms.map(m => `<b>${wtName(m.pid)}</b> is about ${m.left.toLocaleString()} ${m.name} from ${m.goal.toLocaleString()} <small>(averages ${f1(m.per)}${m.tonight ? ', could happen tonight' : ''})</small>`));
+  // revenge: someone facing a team he played for in the last three seasons
+  const rev = [];
+  for (const [me, x, opp] of [[A, tA, H], [H, tH, A]]) for (const f of (x.former || [])) if (f.ab === opp.abbr && wtInj(f.pid) !== 'out'){
+    const met = (T[me.tid]?.sched || []).some(s_ => s_[2] === opp.abbr && s_[5] != null && s_[7] === 2);
+    rev.push({f, line: `<b>${wtName(f.pid)}</b> faces ${esc(T[opp.tid]?.name || opp.abbr)}${f.yrs ? ` <small>(played ${f.yrs} season${f.yrs > 1 ? 's' : ''} there${met ? '' : ', first meeting since leaving'})</small>` : met ? '' : ' <small>(first meeting since leaving)</small>'}`});
+  }
+  if (rev.length) add('revenge', Math.min(2.5, rev.reduce((a, r) => a + (r.f.star ? 2 : 1), 0)), rev.map(r => r.line));
+  // playoff stakes: both in the same conference and both still in the race
+  if (W.odds && TA.conf && TA.conf === TH.conf){
+    const inRace = o => o && ((o.po > .08 && o.po < .97) || (o.top6 > .1 && o.top6 < .9));
+    const oA = W.odds[A.tid], oH = W.odds[H.tid];
+    if (inRace(oA) && inRace(oH)) add('stakes', 2, [`Both are in the ${esc(TA.conf)} race`,
+      ...[[A, oA], [H, oH]].map(([t_, o]) => `<b>${esc(t_.abbr)}</b> ${o.w0}-${o.l0} <small>· ${Math.round(o.po * 100)}% to make the playoffs · ${Math.round(o.top6 * 100)}% for a top 6 seed</small>`),
+      `<small>Head to head results can decide tiebreakers</small>`]);
+  }
+  // record chases: unbeaten or winless starts, long streaks, historic paces
+  const rc = [];
+  for (const [t_, x] of [[A, tA], [H, tH]]){
+    const r = x.rec; if (!r) continue; const n = r.w + r.l, nm = esc(t_.abbr);
+    if (r.l === 0 && r.w >= 4) rc.push(`<b>${nm}</b> are unbeaten at ${r.w}-0`);
+    else if (r.w === 0 && r.l >= 5) rc.push(`<b>${nm}</b> are still looking for their first win (0-${r.l})`);
+    else if (r.run >= 10) rc.push(`<b>${nm}</b> have won ${r.run} in a row`);
+    else if (r.run <= -10) rc.push(`<b>${nm}</b> have lost ${-r.run} in a row`);
+    if (n >= 15){ const pace = Math.round(r.w / n * 82); if (pace >= 66) rc.push(`<b>${nm}</b> are on pace for ${pace} wins <small>(${r.w}-${r.l})</small>`); else if (pace <= 16) rc.push(`<b>${nm}</b> are on pace for just ${pace} wins <small>(${r.w}-${r.l})</small>`); }
+  }
+  if (rc.length) add('record', 1.5, rc);
+  // upset alert: a hot underdog against a favorite that's struggling (or missing a star)
+  if (W.current && tA.rec && tH.rec && tA.rec.w + tA.rec.l >= 8 && tH.rec.w + tH.rec.l >= 8){
+    let fav = null, how = '';
+    const tok = String(g.line || '').split(/\s+/)[0];
+    if (g.spread != null && g.spread >= 5 && (tok === A.abbr || tok === H.abbr)){ fav = tok === A.abbr ? 0 : 1; how = `${g.spread} point favorites`; }
+    else if (g.spread == null && Math.abs(W.rank[A.tid] - W.rank[H.tid]) >= 10){ fav = W.rank[A.tid] < W.rank[H.tid] ? 0 : 1; how = `ranked #${W.rank[[A, H][fav].tid]} to #${W.rank[[A, H][1 - fav].tid]}`; }
+    if (fav != null){
+      const F = [A, H][fav], U = [A, H][1 - fav], fx = [tA, tH][fav], ux = [tA, tH][1 - fav];
+      const starOut = (fx.stars || []).filter(pid => wtInj(pid) === 'out');
+      if (ux.rec.l5 >= 4 && (fx.rec.l5 <= 2 || starOut.length)) add('upset', 1.5, [`<b>${esc(F.abbr)}</b> are ${how}`,
+        `<b>${esc(U.abbr)}</b> have won ${ux.rec.l5} of their last ${ux.rec.n5}`,
+        fx.rec.l5 <= 2 ? `<b>${esc(F.abbr)}</b> have won just ${fx.rec.l5} of their last ${fx.rec.n5}` : '',
+        starOut.length ? `<b>${esc(F.abbr)}</b> are without ${starOut.map(wtName).join(' and ')}` : ''].filter(Boolean));
+    }
+  }
   // my teams and players
   const mineT = [A, H].filter(t_ => isFav('teams', t_.tid)).map(t_ => T[t_.tid]?.name || t_.abbr);
   const mineP = (FAV.players || []).filter(pid => P[pid] && [A.tid, H.tid].includes(String(P[pid].t))).map(pid => P[pid].n);
@@ -2357,24 +2434,92 @@ function wtTags(g, opts = {}){
     }
     if (big.length) add('bignight', 1.5, big, {live: true});
   }
+  // how exciting it's been so far (live), or a spoiler free rating once it's over
+  const xi = opts.xi || XI[g.id];
+  if (g.state === 'in' && !opts.noLive && xi && !xi.final && xi.level >= 7)
+    add('excite', xi.level >= 10 ? 3 : xi.level >= 8 ? 2 : 1.5, [`Excitement so far: <b>${xi.level}/10</b>`, ...xiLines(xi)], {live: true});
+  const replay = g.state === 'post' && xi && xi.final ? xiReplay(xi) : null;
   const score = tags.reduce((a, t_) => a + (t_.off ? 0 : t_.pts), 0);
   const label = score >= 7 ? 'must' : score >= 4 ? 'worth' : 'skip';
-  return WT_CACHE[g.id] = {tags, score, label};
+  return WT_CACHE[g.id] = {tags, score, label, replay};
 }
 const WT_LABEL = {must: 'Must watch', worth: 'Worth it', skip: 'Skip'};
+const WT_RLABEL = {great: 'Great game', good: 'Good game', meh: 'Skip the replay'};
+// excitement from the relay: win chance swings, lead changes and late drama, never who won
+const XI = (() => { try { return JSON.parse(localStorage.getItem('nba_xi') || '{}'); } catch (e){ return {}; } })();
+let xiAt = 0;
+function xiLines(x){
+  const L = [];
+  if (x.ot) L.push('Went to overtime');
+  else if (x.late) L.push(x.final ? 'Came down to the last two minutes' : 'Close in the last two minutes');
+  if (x.lc || x.ties) L.push(`${x.lc} lead change${x.lc === 1 ? '' : 's'} and ${x.ties} tie${x.ties === 1 ? '' : 's'}`);
+  if (x.comeback >= 12) L.push(`A team came back from ${x.comeback} points down`);
+  if (x.u >= .45) L.push('Up for grabs most of the way');
+  else if (x.swing >= 3) L.push('Big swings in who was likely to win');
+  return L;
+}
+function xiReplay(x){
+  return {r: x.score >= 10 ? 'great' : x.score >= 6.5 ? 'good' : 'meh', score: x.score, level: x.level,
+    lines: [`Excitement: <b>${x.level}/10</b>`, ...xiLines(x), '<small>Rated without giving away the result</small>']};
+}
+// the same measure as the relay's, worked out here from a game's own feed (game page)
+function xiCalc(s){
+  const comp = s?.header?.competitions?.[0], state = comp?.status?.type?.state;
+  if (!comp || state === 'pre') return null;
+  const final = state === 'post', period = +comp.status?.period || 0;
+  const plays = (s.plays || []).filter(p => p.awayScore != null && p.homeScore != null);
+  let last = 0, lc = 0, ties = 0, maxA = 0, maxH = 0, prevM = 0;
+  for (const p of plays){ const m = (+p.awayScore || 0) - (+p.homeScore || 0);
+    if (m !== 0){ const sg = Math.sign(m); if (last && sg !== last) lc++; last = sg; } else if (prevM !== 0) ties++;
+    prevM = m; maxA = Math.max(maxA, m); maxH = Math.max(maxH, -m); }
+  const lastP = plays[plays.length - 1], fmS = lastP ? (+lastP.awayScore || 0) - (+lastP.homeScore || 0) : 0, fm = Math.abs(fmS);
+  const comeback = fmS > 0 ? maxH : fmS < 0 ? maxA : Math.min(maxA, maxH), ot = period > 4;
+  const at2 = plays.find(p => +p.period?.number >= 4 && (clockToSecs(p.clock?.displayValue) ?? 999) <= 120);
+  const late = ot || (at2 ? Math.abs((+at2.awayScore || 0) - (+at2.homeScore || 0)) <= 5 : false);
+  const lp = lastP ? +lastP.period?.number || period : period, lcl = lastP ? clockToSecs(lastP.clock?.displayValue) ?? 0 : 0;
+  const frac = final ? 1 : Math.min(1, Math.max(.02, ((Math.min(lp, 4) - 1) * 720 + (720 - (lp > 4 ? 0 : lcl))) / 2880));
+  const wp = (s.winprobability || []).map(w => +w.homeWinPercentage).filter(Number.isFinite);
+  const step = Math.max(1, Math.round(wp.length / Math.max(1, 48 * frac)));
+  let swing = 0; for (let i = step; i < wp.length; i += step) swing += Math.abs(wp[i] - wp[i - step]);
+  const unc = a => a.length ? a.reduce((x, p) => x + 2 * Math.min(p, 1 - p), 0) / a.length : 0;
+  const u = unc(wp), u4 = unc(wp.slice(Math.floor(wp.length * .75)));
+  const running = (swing + lc * .12 + ties * .06) / (final ? 1 : Math.max(.4, frac));
+  const nowClose = wp.length ? 2 * Math.min(wp[wp.length - 1], 1 - wp[wp.length - 1]) : 0;
+  const score = running + u * 3 + (final ? u4 : nowClose) * 4 + (late ? 2 : 0) + (ot ? 1.5 : 0) + (final ? (fm <= 3 ? 1 : fm <= 6 ? .5 : 0) : 0) + (comeback >= 12 ? Math.min(3, (comeback - 8) / 6) : 0);
+  return {final, swing, lc, ties, late, ot, fm, comeback, frac, u, u4, score: Math.round(score * 10) / 10, level: Math.max(1, Math.min(10, Math.round(score)))};
+}
+async function xiLoad(ev){
+  // finished games once (they never change), live ones at most every 45 seconds
+  const live = ev.filter(e => e.status.type.state === 'in').map(e => String(e.id));
+  const fins = ev.filter(e => e.status.type.state === 'post' && !XI[e.id]?.final).map(e => String(e.id));
+  const ids = [...(Date.now() - xiAt > 45000 ? live : []), ...fins].slice(0, 16);
+  if (!ids.length) return false;
+  if (live.length) xiAt = Date.now();
+  let r; try { r = await (await fetch(`${RELAY}/xi?ids=${ids.join(',')}`)).json(); } catch (e){ return false; }
+  let changed = false;
+  for (const id in r){ if (JSON.stringify(XI[id]) !== JSON.stringify(r[id])){ XI[id] = r[id]; changed = true; } }
+  const keep = Object.keys(XI).filter(k => XI[k].final);
+  if (keep.length > 500) keep.slice(0, keep.length - 500).forEach(k => delete XI[k]);
+  try { localStorage.setItem('nba_xi', JSON.stringify(Object.fromEntries(keep.map(k => [k, XI[k]])))); } catch (e){}
+  return changed;
+}
 function wtRow(w, gid){
-  if (!w || !w.tags.length) return '';
+  if (!w || (!w.tags.length && !w.replay)) return '';
   const order = t_ => (t_.live ? -10 : 0) - t_.pts;
-  return `<div class="wtrow"><span class="wlab ${w.label}" role="button" tabindex="0" data-wt="${gid}|*">${WT_LABEL[w.label]}</span>${[...w.tags].sort((a, b) => order(a) - order(b)).map(t_ =>
+  const lab = w.replay ? `<span class="wlab rp ${w.replay.r}" role="button" tabindex="0" data-wt="${gid}|*">${WT_RLABEL[w.replay.r]}</span>`
+    : `<span class="wlab ${w.label}" role="button" tabindex="0" data-wt="${gid}|*">${WT_LABEL[w.label]}</span>`;
+  return `<div class="wtrow">${lab}${[...w.tags].sort((a, b) => order(a) - order(b)).map(t_ =>
     `<span class="wt${t_.off ? ' off' : ''}${t_.live ? ' lv' : ''}" role="button" tabindex="0" aria-label="${esc(WT_META[t_.k][0])}" data-wt="${gid}|${t_.k}" style="--wc:${WT_META[t_.k][1]}">${wtIcon(t_.k)}</span>`).join('')}</div>`;
 }
 // the little card that explains a tag (tap on a phone, hover on a computer)
 let wtPinned = null;
+const WT_RCOL = {great: '#E3962F', good: '#2FA59A', meh: '#8A94A0'};
 function wtShow(el, pin){
   const [gid, k] = el.dataset.wt.split('|'), w = WT_CACHE[gid]; if (!w) return;
   let pop = $('#wtpop'); if (!pop){ pop = document.createElement('div'); pop.id = 'wtpop'; pop.setAttribute('role', 'dialog'); document.body.appendChild(pop); }
   const one = t_ => `<div class="wtp" style="--wc:${WT_META[t_.k][1]}"><h5><span class="wt${t_.off ? ' off' : ''}">${wtIcon(t_.k)}</span>${esc(WT_META[t_.k][0])}${t_.live ? ' <i>Live</i>' : ''}</h5>${t_.lines.map(l => `<p>${l}</p>`).join('')}</div>`;
-  pop.innerHTML = k === '*' ? `<div class="wtph ${w.label}">${WT_LABEL[w.label]}</div>${w.tags.map(one).join('')}` : one(w.tags.find(t_ => t_.k === k) || w.tags[0]);
+  const rp = w.replay ? `<div class="wtp" style="--wc:${WT_RCOL[w.replay.r]}"><h5><span class="wt">${wtIcon('replay')}</span>${WT_RLABEL[w.replay.r]}</h5>${w.replay.lines.map(l => `<p>${l}</p>`).join('')}</div>` : '';
+  pop.innerHTML = k === '*' ? (w.replay ? rp + (w.tags.length ? `<div class="wtph">Before the game</div>` : '') : `<div class="wtph ${w.label}">${WT_LABEL[w.label]}</div>`) + w.tags.map(one).join('') : one(w.tags.find(t_ => t_.k === k) || w.tags[0]);
   pop.hidden = false;
   const r = el.getBoundingClientRect(), pw = Math.min(300, innerWidth - 24);
   pop.style.width = pw + 'px';
@@ -2413,15 +2558,25 @@ function wtBanner(ev){
 }
 // "Why watch" on a game's Preview tab
 function whySection(s){
-  if (!wtRecent(s.header?.competitions?.[0]?.date)) return '';
-  let w; try { w = wtTags(wtFromSummary(s), {noLive: !!(s.__delayed && liveDelay)}); } catch (e){ return ''; }
-  if (!w.tags.length) return '';
-  return `<section class="sect wtwhy"><h3>Why watch<span class="wlab ${w.label}">${WT_LABEL[w.label]}</span></h3>${[...w.tags].sort((a, b) => (b.live ? 9 : 0) + b.pts - (a.live ? 9 : 0) - a.pts).map(t_ =>
-    `<div class="wtp" style="--wc:${WT_META[t_.k][1]}"><h5><span class="wt${t_.off ? ' off' : ''}">${wtIcon(t_.k)}</span>${esc(WT_META[t_.k][0])}${t_.live ? ' <i>Live</i>' : ''}</h5>${t_.lines.map(l => `<p>${l}</p>`).join('')}</div>`).join('')}</section>`;
+  const c = s.header?.competitions?.[0], st = c?.status?.type?.state, recent = wtRecent(c?.date);
+  let xi = null; try { xi = st && st !== 'pre' ? xiCalc(s) : null; } catch (e){}
+  if (xi?.final && s.header?.id) XI[s.header.id] = XI[s.header.id] || xi;
+  let w;
+  if (recent){ try { w = wtTags(wtFromSummary(s), {noLive: !!(s.__delayed && liveDelay), xi}); } catch (e){ return ''; } }
+  else if (xi?.final) w = {tags: [], replay: xiReplay(xi)};
+  else return '';
+  if (!w.tags.length && !w.replay) return '';
+  const blk = t_ => `<div class="wtp" style="--wc:${WT_META[t_.k][1]}"><h5><span class="wt${t_.off ? ' off' : ''}">${wtIcon(t_.k)}</span>${esc(WT_META[t_.k][0])}${t_.live ? ' <i>Live</i>' : ''}</h5>${t_.lines.map(l => `<p>${l}</p>`).join('')}</div>`;
+  const rp = w.replay ? `<div class="wtp" style="--wc:${WT_RCOL[w.replay.r]}"><h5><span class="wt">${wtIcon('replay')}</span>Replay rating</h5>${w.replay.lines.map(l => `<p>${l}</p>`).join('')}</div>` : '';
+  const head = w.replay ? `<span class="wlab rp ${w.replay.r}">${WT_RLABEL[w.replay.r]}</span>` : `<span class="wlab ${w.label}">${WT_LABEL[w.label]}</span>`;
+  return `<section class="sect wtwhy"><h3>${w.replay ? 'Worth a replay?' : 'Why watch'}${head}</h3>${rp}${w.replay && w.tags.length ? '<div class="wtph">Before the game</div>' : ''}${[...w.tags].sort((a, b) => (b.live ? 9 : 0) + b.pts - (a.live ? 9 : 0) - a.pts).map(blk).join('')}</section>`;
 }
 // only for games from the last couple of days onward: older games would be judged by today's rosters
 const wtRecent = d => !d || Date.now() - Date.parse(d) < 2 * 864e5;
-function wtSafe(e, noLive){ if (!wtRecent(e.date)) return null; try { return wtTags(wtFromEvent(e), {noLive}); } catch (err){ console.warn('watch tags', err); return null; } }
+function wtSafe(e, noLive){
+  if (!wtRecent(e.date)){ const x = XI[e.id]; if (e.status.type.state !== 'post' || !x?.final) return null;
+    return WT_CACHE[String(e.id)] = {tags: [], score: 0, label: 'skip', replay: xiReplay(x)}; }
+  try { return wtTags(wtFromEvent(e), {noLive}); } catch (err){ console.warn('watch tags', err); return null; } }
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
