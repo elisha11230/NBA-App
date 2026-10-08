@@ -1976,10 +1976,27 @@ function ptsChart(log){
 
 /* ---------- scores and live games (ESPN, read straight from the browser like the NFL app) ---------- */
 const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba';
-async function espn(path){
-  const r = await fetch(ESPN + path, {cache: 'no-store'});
+// ESPN straight from the browser first; if that fails (a network blip, a content blocker, or
+// ESPN answering without its CORS header) the relay fetches the same thing for us.
+let espnViaRelay = 0;   // after a direct failure, use the relay first for the next two minutes
+async function espnDirect(path){
+  const r = await fetch(ESPN + path, {cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined});
   if (!r.ok) throw new Error('ESPN ' + r.status);
   return r.json();
+}
+async function espnRelay(path){
+  const r = await fetch(`${RELAY}/espn?p=${encodeURIComponent(path)}`, {cache: 'no-store'});
+  if (!r.ok) throw new Error('relay ' + r.status);
+  return r.json();
+}
+async function espn(path){
+  if (Date.now() < espnViaRelay){ try { return await espnRelay(path); } catch {} }
+  try { return await espnDirect(path); }
+  catch (e){
+    espnViaRelay = Date.now() + 120000;
+    try { return await espnRelay(path); }
+    catch { await new Promise(ok => setTimeout(ok, 1500)); return espnDirect(path); }
+  }
 }
 const logoOf = abbr => { const id = byAbbr[abbr] || byAbbr[{GSW:'GS',NOP:'NO',NYK:'NY',SAS:'SA',UTA:'UTAH',WAS:'WSH'}[abbr]]; return id ? T[id].logo : ''; };
 const stamp = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
@@ -2009,7 +2026,7 @@ function schedule(ms, fn){ clearInterval(scTimer); scTimer = setInterval(() => {
 
 function drawNav(){ drawNav0(); drawSpoilBtns(); drawAlertBtns(); }
 function drawNav0(){
-  const iso = scDate.toISOString().slice(0, 10);
+  const iso = iso8601(scDate);   // the local date (toISOString is UTC, a day ahead after 8 PM Eastern)
   if (gameId === 'demo'){ $('#scnav').innerHTML = `<button class="qx" id="gback">&larr; All games</button><span class="dl" style="text-align:left">Demo live game</span>`; return; }
   const label = scDate.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'});
   $('#scnav').innerHTML = gameId
@@ -2025,7 +2042,10 @@ async function loadDay(quiet){
   if (!quiet) $('#scbody').innerHTML = '<div class="empty">Loading games</div>';
   let j;
   try { j = await espn('/scoreboard?dates=' + stamp(scDate)); }
-  catch (e){ $('#scbody').innerHTML = `<div class="empty">ESPN's scoreboard did not answer (${esc(e.message)}). Try again in a minute.</div>`; return; }
+  catch (e){
+    if (!quiet || !$('#daygames')) $('#scbody').innerHTML = `<div class="empty">ESPN's scoreboard did not answer. Trying again in a few seconds…<br><button class="qx" type="button" onclick="loadDay()" style="margin-top:12px">Try now</button></div>`;
+    schedule(8000, () => loadDay(true)); return;
+  }
   const ev = j.events || [];
   if (!ev.length){ $('#scbody').innerHTML = '<div class="empty">No NBA games on this date. Use the arrows or pick a date.</div>'; schedule(120000, () => loadDay(true)); return; }
   // The games and the Top 10 live in separate boxes, so the 20 second refresh of the scores
@@ -4996,8 +5016,7 @@ async function liveCheck(){
   try{
     if (!scoreboard || Date.now() - sbAt > 60000){
       const d = new Date(), ds = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-      const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${ds}`);
-      scoreboard = await r.json(); sbAt = Date.now();
+      scoreboard = await espn('/scoreboard?dates=' + ds); sbAt = Date.now();
     }
     const ev = (scoreboard.events || []).find(e => e.competitions[0].competitors.some(c => String(c.team.id) === String(cur)));
     const p = $('#livepill'); if (!ev || !p) return;
