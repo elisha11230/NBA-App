@@ -1396,6 +1396,50 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   #detail{padding:14px 12px 24px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* worth watching */
+.wtrow{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:9px}
+.wlab{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;cursor:pointer;line-height:1.5}
+.wlab.must{color:#fff;background:linear-gradient(90deg,#D9502A,#E3962F)}
+.wlab.worth{color:var(--chalk);background:color-mix(in srgb,#2FA59A 16%,transparent);border:1px solid color-mix(in srgb,#2FA59A 55%,var(--line))}
+.wlab.skip{color:var(--mute);border:1px solid var(--line)}
+.wt{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;flex:none;color:var(--wc);background:color-mix(in srgb,var(--wc) 15%,transparent);border:1px solid color-mix(in srgb,var(--wc) 42%,transparent);cursor:pointer;transition:transform .12s}
+.wt:hover{transform:scale(1.1)}
+.wt svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.wt.off{filter:grayscale(1);opacity:.45}
+.wt.lv{box-shadow:0 0 0 2px color-mix(in srgb,var(--wc) 35%,transparent);animation:wtglow 1.8s infinite}
+@keyframes wtglow{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--wc) 10%,transparent)}}
+#wtpop{position:fixed;z-index:9500;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,.35);font-size:13px;line-height:1.4;max-height:70vh;overflow:auto}
+.wtp+.wtp{margin-top:10px;padding-top:10px;border-top:1px solid var(--rule)}
+.wtp h5{display:flex;align-items:center;gap:7px;margin:0 0 5px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--wc)}
+.wtp h5 .wt{width:22px;height:22px;cursor:default}
+.wtp h5 .wt svg{width:12px;height:12px}
+.wtp h5 i{font-style:normal;font-size:10px;padding:0 6px;border-radius:8px;background:#E0402A;color:#fff;letter-spacing:.1em}
+.wtp p{margin:3px 0;color:var(--chalk)}
+.wtp p small,.wtp small{color:var(--dim)}
+.wtp em.wout{font-style:normal;color:#E0503A;font-weight:600}
+.wtp em.wq{font-style:normal;color:#D9A23A;font-weight:600}
+.wtph{margin:-2px 0 8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.wtph.must{color:#E3962F}.wtph.worth{color:#2FA59A}
+.wtbar{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.wtbest{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr auto;gap:6px 12px;width:100%;text-align:left;padding:13px 15px;border-radius:14px;border:1px solid var(--line);
+  background:linear-gradient(110deg,color-mix(in srgb,var(--ac) 22%,var(--panel)),var(--panel) 45%,color-mix(in srgb,var(--hc) 22%,var(--panel)));cursor:pointer}
+.wtbest:hover{border-color:var(--team-accent)}
+.wtbk{grid-column:1/-1;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:#E3962F}
+.wtbt{display:flex;align-items:center;gap:8px;min-width:0;font-size:17px;color:var(--strong)}
+.wtbt img{width:28px;height:28px;object-fit:contain}
+.wtbt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wtbt em{font-style:normal;color:var(--dim);font-size:13px}
+.wtbtime{align-self:center;font-size:12.5px;color:var(--dim);white-space:nowrap}
+.wtbw{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.wsort{display:flex;align-items:center;gap:6px;align-self:flex-end}
+.wsort .lseason{flex:0 0 auto;padding:5px 12px;font-size:12px}
+.wtbtime{display:flex;align-items:center}.wtbtime .gdot{display:inline-block;margin-right:6px}
+.wsort>span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin-right:2px}
+.wtwhy h3 .wlab{margin-left:auto;cursor:default}
+.wtwhy .wtp{padding:8px 0}
+.wtwhy .wtp+.wtp{margin-top:0;padding-top:10px}
+@media (max-width:600px){.wtbt{font-size:15px}.wtbt img{width:24px;height:24px}}
 </style>
 </head>
 <body>
@@ -2056,7 +2100,9 @@ async function loadDay(quiet){
   // grouped: live now, coming up, final
   const grp = [['Live now', ev.filter(e => liveWindow(e.status.type.state, e.date))], ['Coming up', ev.filter(e => e.status.type.state === 'pre' && !liveWindow('pre', e.date))],
     ['Final', ev.filter(e => e.status.type.state === 'post')]].filter(g => g[1].length);
-  gbox.innerHTML = grp.map(([t, L]) => `<section class="gsec${t === 'Live now' ? ' lv' : ''}"><h4>${t === 'Live now' ? '<i class="gdot"></i>' : ''}${t}<span>${L.length}</span></h4><div class="gcards">${L.map(gameCard).join('')}</div></section>`).join('');
+  for (const e of ev) wtSafe(e, (liveWindow(e.status.type.state, e.date) && liveDelay > 0) || e.status.type.state === 'post');
+  if (wtSort === 'best') for (const g_ of grp) g_[1] = [...g_[1]].sort((a, b) => (WT_CACHE[String(b.id)]?.score || 0) - (WT_CACHE[String(a.id)]?.score || 0));
+  gbox.innerHTML = `<div class="wtbar">${wtBanner(ev)}<div class="lseg wsort"><span>Sort</span><button class="lseason" data-wsort="time" aria-pressed="${wtSort === 'time'}">By time</button><button class="lseason" data-wsort="best" aria-pressed="${wtSort === 'best'}">Best first</button></div></div>` + grp.map(([t, L]) => `<section class="gsec${t === 'Live now' ? ' lv' : ''}"><h4>${t === 'Live now' ? '<i class="gdot"></i>' : ''}${t}<span>${L.length}</span></h4><div class="gcards">${L.map(gameCard).join('')}</div></section>`).join('');
   const nLive = ev.filter(e => e.status.type.state === 'in').length, sl = $('#sclive');
   if (sl){ sl.hidden = !nLive; sl.textContent = `${nLive} live`; }
   const pbox = $('#potnbox');
@@ -2108,6 +2154,274 @@ document.addEventListener('click', e => {
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.allowFullscreen = true; f.title = 'NBA Top 10 Plays of the Night';
   wrap.appendChild(f); v.replaceWith(wrap);
 });
+/* =================================================================================
+   Worth watching: icons on each game card for the reasons to tune in, and a rating
+   ================================================================================= */
+const WT_SVG = {
+  star: '<path d="M12 3l2.8 5.9 6.2.7-4.6 4.3 1.3 6.1L12 16.9 6.3 20l1.3-6.1L3 9.6l6.2-.7z"/>',
+  matchup: '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6M16 16l4 4M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4M7 17l-3 3M3 19l2 2"/>',
+  heavy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+  close: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  rookie: '<path d="M12 21v-9"/><path d="M12 12C12 8 9 5 4 5c0 4 3 7 8 7z"/><path d="M12 14c0-3.5 2.5-6 7-6 0 3.5-2.5 6-7 6z"/>',
+  hot: '<path d="M12 22c4 0 7-3 7-7 0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-3 3-5 5-5 8 0 4 3 7 7 7z"/>',
+  rival: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  tv: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2 4 4 4-4"/>',
+  milestone: '<circle cx="12" cy="15" r="6"/><path d="M8.5 10 6 2h4l2 5 2-5h4l-2.5 8"/>',
+  mine: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
+  clutch: '<path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 21h14v-3H5z"/><path d="M12 2v2M4.2 5.2l1.4 1.4M19.8 5.2l-1.4 1.4"/>',
+  comeback: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  bignight: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+};
+const WT_META = {
+  star: ['Star power', '#D9A23A'], matchup: ['Matchup', '#E0603A'], heavy: ['Heavyweights', '#9B7BE0'], close: ['Close game expected', '#2FA59A'],
+  rookie: ['Rookie watch', '#5DAA55'], hot: ['Hot streak', '#F08A2A'], rival: ['Rivalry', '#D9578A'], tv: ['National TV', '#4A8FE0'],
+  milestone: ['Milestone watch', '#C08A4A'], mine: ['My Teams', '#E0505A'],
+  clutch: ['Close late', '#E0402A'], comeback: ['Comeback', '#F08A2A'], bignight: ['Big night', '#C46BD6'],
+};
+const WT_LIVE = new Set(['clutch', 'comeback', 'bignight']);
+const wtIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${WT_SVG[k]}</svg>`;
+let WT_STATIC = null;
+const WT_CACHE = {}, WT_LEAD = {};
+let wtSort = (() => { try { return localStorage.getItem('nba_wsort') || 'time'; } catch (e){ return 'time'; } })();
+
+// Things about each team that don't change during a night: its stars, rookies, milestones, strength
+function wtStatic(){
+  if (WT_STATIC) return WT_STATIC;
+  const roster = tid => { const t = T[tid]; return t ? [...(t.five || []), ...(t.bench || [])].map(String).filter(id => P[id]) : []; };
+  const allNBA = p => (p.aw || []).some(a => a[0] === M.stats && /^All-NBA/.test(a[1]));
+  const starScore = p => (p.k?.o || 75) + (allNBA(p) ? 3 : 0) + (p.rapm ? Math.max(0, 30 - p.rapm[0]) * .1 : 0);
+  const current = M.stats === M.roster;   // stats are from the season being played (not last season's)
+  // team strength: this season's power ranking once teams have played, blended early on with 2K team ratings
+  const pr = powerRank(), byId = {}; pr.forEach(r => { byId[r.id] = r; });
+  const ids = Object.keys(T), zs = arr => { const m = arr.reduce((a, b) => a + b, 0) / arr.length, sd = Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length) || 1; return v => (v - m) / sd; };
+  const zO = zs(ids.map(id => T[id].k?.ovr ?? 78)), played = ids.map(id => byId[id]).filter(r => r && r.n);
+  const zP = played.length ? zs(played.map(r => r.score)) : () => 0;
+  const str = {};
+  for (const id of ids){
+    const r = byId[id], w = !r || !r.n ? 0 : current ? Math.min(1, r.n / 10) : .5;
+    str[id] = w * zP(r && r.n ? r.score : 0) + (1 - w) * zO(T[id].k?.ovr ?? 78);
+  }
+  const rank = {}; [...ids].sort((a, b) => str[b] - str[a]).forEach((id, i) => { rank[id] = i + 1; });
+  // the newest draft class
+  const dy = String(Math.max(...Object.keys(D.drafts || {}).map(Number).filter(y => y <= +String(M.roster || M.stats).slice(0, 4))));
+  const byName = {}; for (const id in P) byName[normName(P[id].n)] = id;
+  const pick = {};
+  for (const r of (D.drafts || {})[dy] || []){ const id = r[7] && P[r[7]] ? String(r[7]) : byName[normName(r[2])]; if (id) pick[id] = {n: r[1] + (r[0] - 1) * 30, from: (r[4] || '').replace(/\s*\(.*\)/, '')}; }
+  const teams = {};
+  for (const id of ids){
+    const R = roster(id);
+    const stars = R.filter(pid => { const p = P[pid]; return (p.k?.o || 0) >= 89 || allNBA(p); }).sort((a, b) => starScore(P[b]) - starScore(P[a]));
+    const rookies = R.filter(pid => pick[pid] && pick[pid].n <= 10).sort((a, b) => pick[a].n - pick[b].n);
+    // career milestones within about two games of reach (regular season totals from his season rows)
+    const miles = [];
+    for (const pid of R){
+      const Y = P[pid].yr || []; if (!Y.length) continue;
+      const last = Y[Y.length - 1];
+      for (const [idx, name, steps] of [[5, 'points', [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000]], [6, 'rebounds', [5000, 7500, 10000, 12500, 15000]],
+        [7, 'assists', [2500, 5000, 7500, 10000, 12500]], [11, 'threes', [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]]]){
+        const tot = Math.round(Y.reduce((a, r) => a + (+r[2] || 0) * (+r[idx] || 0), 0)), per = +last[idx] || 0;
+        const goal = steps.find(s => s > tot); if (!goal || per <= 0) continue;
+        const left = goal - tot; if (left <= per * 2.2) miles.push({pid, name, goal, left, per, tonight: left <= per * 1.15});
+      }
+    }
+    // hot: a win streak of 5+ or a player well above his average, only once this season is underway
+    let streak = 0, hotP = [];
+    if (current){
+      const done = (T[id].sched || []).filter(x => x[5] != null && x[7] === 2).sort((a, b) => a[1] < b[1] ? -1 : 1);
+      for (let i = done.length - 1; i >= 0 && done[i][5] > done[i][6]; i--) streak++;
+      hotP = R.map(pid => [pid, streakInfo(P[pid])]).filter(([pid, si]) => si && si.tag === 'hot' && P[pid].s && P[pid].s.min >= 24).slice(0, 2);
+    }
+    teams[id] = {stars, rookies, miles, streak, hotP};
+  }
+  return WT_STATIC = {teams, rank, str, pick, dy, starScore, current};
+}
+
+const wtNum = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+const wtLine = p => p && p.s ? `${f1(p.s.pts)} pts, ${f1(p.s.reb)} reb, ${f1(p.s.ast)} ast` : '';
+const wtName = pid => esc(P[pid]?.n || '');
+const wtInj = pid => { const x = INJ[pid]; return x ? (x.out ? 'out' : 'dtd') : ''; };
+function wtSpread(o){
+  if (!o) return null;
+  const s = wtNum(o.spread); if (s != null) return Math.abs(s);
+  const d = String(o.details || ''); if (/^(EVEN|PK|PICK)/i.test(d)) return 0;
+  const m = /(-?\d+(?:\.\d+)?)\s*$/.exec(d); return m ? Math.abs(+m[1]) : null;
+}
+// one shape for a game, whether it came from the scoreboard or from a game's own feed
+function wtFromEvent(e){
+  const c = e.competitions[0], cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
+  const tv = [...new Set([...(c.broadcasts || []).filter(b => b.market === 'national').flatMap(b => b.names || []),
+    ...(c.geoBroadcasts || []).filter(b => /national/i.test(b.market?.type || '')).map(b => b.media?.shortName).filter(Boolean)])];
+  return {id: String(e.id), date: e.date, state: e.status.type.state, period: +e.status.period || 0, clock: clockToSecs(e.status.displayClock), neutral: !!c.neutralSite,
+    spread: wtSpread((c.odds || [])[0]), line: (c.odds || [])[0]?.details || '', tv,
+    teams: cs.map(x => ({tid: String(byAbbr[x.team.abbreviation] || x.team.id), abbr: x.team.abbreviation, score: +x.score || 0,
+      ls: (x.linescores || []).map(l => +(l.value ?? l.displayValue) || 0), rec: ((x.records || [])[0]?.summary || '').replace(/^0-0$/, ''),
+      leaders: (x.leaders || []).map(L => ({k: L.name, v: wtNum(L.leaders?.[0]?.value ?? L.leaders?.[0]?.displayValue), id: String(L.leaders?.[0]?.athlete?.id || ''), n: L.leaders?.[0]?.athlete?.displayName || ''}))}))};
+}
+function wtFromSummary(s){
+  const c = s.header.competitions[0], cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1)), st = c.status || {};
+  const pc = (s.pickcenter || [])[0];
+  const tv = [...new Set((c.broadcasts || []).filter(b => /national/i.test(b.market?.type || b.market || '')).map(b => b.media?.shortName || b.names?.[0]).filter(Boolean))];
+  return {id: String(s.header.id || gameId), date: c.date, state: st.type?.state, period: +st.period || 0, clock: clockToSecs(st.displayClock), neutral: !!c.neutralSite,
+    spread: wtSpread(pc), line: pc?.details || '', tv,
+    teams: cs.map(x => {
+      const L = (s.leaders || []).find(l => String(l.team?.id) === String(x.team.id))?.leaders || [];
+      return {tid: String(byAbbr[x.team.abbreviation] || x.team.id), abbr: x.team.abbreviation, score: +x.score || 0,
+        ls: (x.linescores || []).map(l => +(l.value ?? l.displayValue) || 0), rec: ((x.record || [])[0]?.summary || '').replace(/^0-0$/, ''),
+        leaders: L.map(l => ({k: l.name, v: wtNum(l.leaders?.[0]?.value ?? l.leaders?.[0]?.displayValue), id: String(l.leaders?.[0]?.athlete?.id || ''), n: l.leaders?.[0]?.athlete?.displayName || ''}))};
+    })};
+}
+
+function wtTags(g, opts = {}){
+  const W = wtStatic(), [A, H] = g.teams, tA = W.teams[A.tid] || {}, tH = W.teams[H.tid] || {};
+  const TA = T[A.tid] || {}, TH = T[H.tid] || {};
+  const tags = [], add = (k, pts, lines, extra = {}) => tags.push({k, pts, lines, ...extra});
+  // stars: up to 3 per side, worth a point each when healthy
+  const stars = [...(tA.stars || []).slice(0, 3), ...(tH.stars || []).slice(0, 3)];
+  if (stars.length){
+    const healthy = stars.filter(pid => wtInj(pid) !== 'out');
+    add('star', healthy.length ? Math.min(2.5, 1 + (healthy.length - 1) * .5) : 0, stars.map(pid => `<b>${wtName(pid)}</b> <small>${esc(T[P[pid].t]?.abbr || '')} · ${wtLine(P[pid])}${wtInj(pid) === 'out' ? ' · <em class="wout">Out tonight</em>' : wtInj(pid) === 'dtd' ? ' · <em class="wq">Questionable</em>' : ''}</small>`),
+      {off: !healthy.length});
+  }
+  // matchup: the best pair of healthy stars who play the same spot
+  const grp = pid => { const p = String(P[pid]?.pos || '')[0]; return p === 'C' ? 'big' : p === 'G' ? 'guard' : 'wing'; };
+  let best = null;
+  for (const a of (tA.stars || [])) for (const h of (tH.stars || [])){
+    if (wtInj(a) === 'out' || wtInj(h) === 'out' || grp(a) !== grp(h)) continue;
+    const v = W.starScore(P[a]) + W.starScore(P[h]); if (!best || v > best.v) best = {a, h, v};
+  }
+  if (best) add('matchup', 2, [`<b>${wtName(best.a)}</b> vs <b>${wtName(best.h)}</b>`, `<small>${wtName(best.a)}: ${wtLine(P[best.a])}</small>`, `<small>${wtName(best.h)}: ${wtLine(P[best.h])}</small>`]);
+  // heavyweights: both in the top 8
+  const rA = W.rank[A.tid], rH = W.rank[H.tid];
+  if (rA <= 8 && rH <= 8) add('heavy', 3, [`Both are top 8 teams in our rankings`, `<b>${esc(A.abbr)}</b> #${rA}${A.rec ? ` <small>(${esc(A.rec)})</small>` : ''} · <b>${esc(H.abbr)}</b> #${rH}${H.rec ? ` <small>(${esc(H.rec)})</small>` : ''}`,
+    `<small>${W.current ? 'Power ranking blended with 2K team ratings early in the season' : 'Last season\'s power ranking blended with 2K ratings for this year\'s rosters'}</small>`]);
+  // close game expected: the betting line, or our own estimate when there isn't one
+  if (g.spread != null && g.spread <= 3) add('close', g.spread <= 1.5 ? 2.5 : 1.5, [`Betting line: <b>${esc(g.line || (g.spread ? `${g.spread} points` : 'even'))}</b>`, `<small>A spread of ${g.spread} points or less usually means a tight game</small>`]);
+  else if (g.spread == null){
+    const pr = (W.str[H.tid] - W.str[A.tid]) * 4 + (g.neutral ? 0 : 2.5);
+    if (Math.abs(pr) <= 2.5) add('close', 1, [`No betting line yet. Our estimate: <b>about a ${Math.max(1, Math.round(Math.abs(pr)))} point game</b>`, `<small>From team strength and home court</small>`]);
+  }
+  // rookies: top 10 picks from the newest draft class
+  const rk = [...(tA.rookies || []), ...(tH.rookies || [])];
+  if (rk.length) add('rookie', W.pick[rk[0]].n <= 3 ? 1.5 : 1, rk.map(pid => { const p = P[pid], s_ = p.s && (p.yr || [])[0]?.[0] === M.stats.slice(2, 5) + M.stats.slice(-2) ? p.s : null;
+    return `<b>${wtName(pid)}</b> <small>${esc(T[p.t]?.abbr || '')} · No. ${W.pick[pid].n} pick in ${W.dy}${W.pick[pid].from ? ` (${esc(W.pick[pid].from)})` : ''}${s_ ? ` · ${f1(s_.pts)} pts` : ''}${wtInj(pid) === 'out' ? ' · <em class="wout">Out</em>' : ''}</small>`; }));
+  // hot streaks
+  const hot = [];
+  for (const [t_, x] of [[A, tA], [H, tH]]){
+    if (x.streak >= 5) hot.push(`<b>${esc(t_.abbr)}</b> have won ${x.streak} straight`);
+    for (const [pid, si] of x.hotP || []) hot.push(`<b>${wtName(pid)}</b> <small>${f1(si.l10)} pts over his last ${si.n}, season ${f1(si.avg)}</small>`);
+  }
+  if (hot.length) add('hot', 1, hot);
+  // rivalry: division rivals, a recent playoff series, or tight recent games
+  const ia = A.tid, ih = H.tid, key = +ia < +ih ? `${ia}-${ih}` : `${ih}-${ia}`, HH = (D.h2h || {})[key];
+  const rv = [];
+  if (TA.div && TA.div === TH.div) rv.push(`${esc(TA.div)} Division rivals`);
+  if (HH){
+    const yr0 = +String(M.stats).slice(0, 4) - 3, po = HH.g.filter(x => x[4] === 3 && +x[0].slice(0, 4) >= yr0);
+    if (po.length) rv.push(`Met in the ${po[0][0].slice(0, 4)} playoffs`);
+    const l3 = HH.g.filter(x => x[4] === 2).slice(0, 3);
+    if (l3.length === 3 && l3.every(x => Math.abs(x[2] - x[3]) <= 6)) rv.push(`Last 3 meetings all decided by 6 or fewer`);
+    if (rv.length){
+      const lo = key.split('-')[0], wA = HH.r[String(ia) === lo ? 0 : 1], wH = HH.r[String(ih) === lo ? 0 : 1];
+      rv.push(`<small>Head to head: ${esc(A.abbr)} ${wA}, ${esc(H.abbr)} ${wH}${HH.p[0] + HH.p[1] ? ` · playoffs ${esc(A.abbr)} ${HH.p[String(ia) === lo ? 0 : 1]}, ${esc(H.abbr)} ${HH.p[String(ih) === lo ? 0 : 1]}` : ''}</small>`);
+    }
+  }
+  if (rv.length > 1 || (rv.length === 1 && !/^<small/.test(rv[0]))) add('rival', 1, rv);
+  if (g.tv.length) add('tv', .5, [`On <b>${esc(g.tv.join(', '))}</b>`]);
+  // milestones
+  const ms = [...(tA.miles || []), ...(tH.miles || [])].filter(m => wtInj(m.pid) !== 'out');
+  if (ms.length) add('milestone', ms.some(m => m.tonight) ? 1.5 : 1, ms.map(m => `<b>${wtName(m.pid)}</b> is about ${m.left.toLocaleString()} ${m.name} from ${m.goal.toLocaleString()} <small>(averages ${f1(m.per)}${m.tonight ? ', could happen tonight' : ''})</small>`));
+  // my teams and players
+  const mineT = [A, H].filter(t_ => isFav('teams', t_.tid)).map(t_ => T[t_.tid]?.name || t_.abbr);
+  const mineP = (FAV.players || []).filter(pid => P[pid] && [A.tid, H.tid].includes(String(P[pid].t))).map(pid => P[pid].n);
+  if (mineT.length || mineP.length) add('mine', 1, [...mineT, ...mineP].map(n => `<b>${esc(n)}</b>`));
+  // live: only while it's on, and never ahead of a delayed feed
+  if (g.state === 'in' && !opts.noLive){
+    const margin = A.score - H.score, gap = Math.abs(margin);
+    if (g.period > 4 && gap <= 8) add('clutch', 5, [`<b>Overtime</b>, ${gap ? `${gap} point game` : 'tied'}`], {live: true});
+    else if (g.period >= 4 && g.clock != null && g.clock <= 300 && gap <= 5) add('clutch', 5, [`<b>${gap ? `${gap} point game` : 'Tied'}</b> with ${Math.floor(g.clock / 60)}:${String(g.clock % 60).padStart(2, '0')} left`], {live: true});
+    // biggest lead each side has had: from the quarter by quarter scores and what we've seen tonight
+    const L = WT_LEAD[g.id] || (WT_LEAD[g.id] = {a: 0, h: 0});
+    let ca = 0, ch = 0;
+    for (let i = 0; i < Math.min(A.ls.length, H.ls.length) - 1; i++){ ca += A.ls[i]; ch += H.ls[i]; L.a = Math.max(L.a, ca - ch); L.h = Math.max(L.h, ch - ca); }
+    L.a = Math.max(L.a, margin); L.h = Math.max(L.h, -margin);
+    const back = [[A, L.h, -margin], [H, L.a, margin]].find(([t_, was, now]) => was >= 15 && now >= -6 && now < was);   // trailing side has cut a 15+ deficit to 6 or less
+    if (back) add('comeback', 2.5, [`<b>${esc(back[0].abbr)}</b> were down ${back[1]}${back[2] >= 0 ? (back[2] ? `, now lead by ${back[2]}` : ', now tied') : `, now within ${-back[2]}`}`], {live: true});
+    // big nights: on pace for 40, or a triple double
+    const el = Math.min(1, Math.max(.05, ((Math.min(g.period, 4) - 1) * 720 + (720 - (g.clock ?? 720))) / 2880));
+    const big = [];
+    for (const t_ of [A, H]){
+      const pts = t_.leaders.find(l => l.k === 'points'), reb = t_.leaders.find(l => l.k === 'rebounds'), ast = t_.leaders.find(l => l.k === 'assists');
+      if (pts && pts.v != null && g.period >= 2 && pts.v / el >= 40) big.push(`<b>${esc(pts.n)}</b> has ${pts.v} points <small>(on pace for ${Math.round(pts.v / el)})</small>`);
+      if (pts && reb && ast && pts.id && pts.id === reb.id && reb.id === ast.id && Math.min(pts.v, reb.v, ast.v) >= 6 && Math.min(pts.v, reb.v, ast.v) / el >= 9)
+        big.push(`<b>${esc(pts.n)}</b> triple double watch: ${pts.v} pts, ${reb.v} reb, ${ast.v} ast`);
+    }
+    if (big.length) add('bignight', 1.5, big, {live: true});
+  }
+  const score = tags.reduce((a, t_) => a + (t_.off ? 0 : t_.pts), 0);
+  const label = score >= 7 ? 'must' : score >= 4 ? 'worth' : 'skip';
+  return WT_CACHE[g.id] = {tags, score, label};
+}
+const WT_LABEL = {must: 'Must watch', worth: 'Worth it', skip: 'Skip'};
+function wtRow(w, gid){
+  if (!w || !w.tags.length) return '';
+  const order = t_ => (t_.live ? -10 : 0) - t_.pts;
+  return `<div class="wtrow"><span class="wlab ${w.label}" role="button" tabindex="0" data-wt="${gid}|*">${WT_LABEL[w.label]}</span>${[...w.tags].sort((a, b) => order(a) - order(b)).map(t_ =>
+    `<span class="wt${t_.off ? ' off' : ''}${t_.live ? ' lv' : ''}" role="button" tabindex="0" aria-label="${esc(WT_META[t_.k][0])}" data-wt="${gid}|${t_.k}" style="--wc:${WT_META[t_.k][1]}">${wtIcon(t_.k)}</span>`).join('')}</div>`;
+}
+// the little card that explains a tag (tap on a phone, hover on a computer)
+let wtPinned = null;
+function wtShow(el, pin){
+  const [gid, k] = el.dataset.wt.split('|'), w = WT_CACHE[gid]; if (!w) return;
+  let pop = $('#wtpop'); if (!pop){ pop = document.createElement('div'); pop.id = 'wtpop'; pop.setAttribute('role', 'dialog'); document.body.appendChild(pop); }
+  const one = t_ => `<div class="wtp" style="--wc:${WT_META[t_.k][1]}"><h5><span class="wt${t_.off ? ' off' : ''}">${wtIcon(t_.k)}</span>${esc(WT_META[t_.k][0])}${t_.live ? ' <i>Live</i>' : ''}</h5>${t_.lines.map(l => `<p>${l}</p>`).join('')}</div>`;
+  pop.innerHTML = k === '*' ? `<div class="wtph ${w.label}">${WT_LABEL[w.label]}</div>${w.tags.map(one).join('')}` : one(w.tags.find(t_ => t_.k === k) || w.tags[0]);
+  pop.hidden = false;
+  const r = el.getBoundingClientRect(), pw = Math.min(300, innerWidth - 24);
+  pop.style.width = pw + 'px';
+  const left = Math.max(12, Math.min(innerWidth - pw - 12, r.left + r.width / 2 - pw / 2));
+  pop.style.left = left + 'px';
+  const h = pop.offsetHeight, below = r.bottom + 8 + h < innerHeight - 8;
+  pop.style.top = (below ? r.bottom + 8 : Math.max(8, r.top - 8 - h)) + 'px';
+  wtPinned = pin ? el : null;
+}
+function wtHide(){ const p = $('#wtpop'); if (p) p.hidden = true; wtPinned = null; }
+// tapping an icon explains it instead of opening the game
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-wt]');
+  if (el){ e.stopPropagation(); e.preventDefault(); if (wtPinned === el) wtHide(); else wtShow(el, true); return; }
+  if (!e.target.closest('#wtpop')) wtHide();
+}, true);
+document.addEventListener('keydown', e => { const el = e.target.closest?.('[data-wt]'); if (el && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.stopPropagation(); wtShow(el, true); } if (e.key === 'Escape') wtHide(); }, true);
+if (matchMedia('(hover:hover) and (pointer:fine)').matches){
+  document.addEventListener('mouseover', e => { const el = e.target.closest('[data-wt]'); if (el && !wtPinned) wtShow(el, false); });
+  document.addEventListener('mouseout', e => { const el = e.target.closest('[data-wt]'); if (el && !wtPinned && !(e.relatedTarget && el.contains(e.relatedTarget))) wtHide(); });
+}
+addEventListener('scroll', () => { if (!wtPinned) wtHide(); }, true);
+// top of the day: the best game still to come or on now
+function wtBanner(ev){
+  const open = ev.filter(e => e.status.type.state !== 'post');
+  if (open.length < 2) return '';
+  const top = open.map(e => [e, WT_CACHE[String(e.id)]]).filter(x => x[1]).sort((a, b) => b[1].score - a[1].score)[0];
+  if (!top || top[1].label === 'skip') return '';
+  const [e, w] = top, c = e.competitions[0], cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
+  const liveNow = e.status.type.state === 'in';
+  const why = w.tags.filter(t_ => !t_.off).sort((a, b) => b.pts - a.pts).slice(0, 3).map(t_ => WT_META[t_.k][0]).join(' · ');
+  return `<button class="wtbest" data-game="${e.id}" style="--ac:${sideColor(cs[0].team).c};--hc:${sideColor(cs[1].team).c}"><span class="wtbk">${liveNow ? 'Best game on now' : 'Best game tonight'}</span>
+    <span class="wtbt"><img src="${cs[0].team.logo || logoOf(cs[0].team.abbreviation)}" alt=""><b>${esc(cs[0].team.shortDisplayName)}</b><em>at</em><b>${esc(cs[1].team.shortDisplayName)}</b><img src="${cs[1].team.logo || logoOf(cs[1].team.abbreviation)}" alt=""></span>
+    <span class="wtbtime">${liveNow ? '<i class="gdot"></i>Live' : new Date(e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}</span>
+    <span class="wtbw"><span class="wlab ${w.label}">${WT_LABEL[w.label]}</span>${esc(why)}</span></button>`;
+}
+// "Why watch" on a game's Preview tab
+function whySection(s){
+  if (!wtRecent(s.header?.competitions?.[0]?.date)) return '';
+  let w; try { w = wtTags(wtFromSummary(s), {noLive: !!(s.__delayed && liveDelay)}); } catch (e){ return ''; }
+  if (!w.tags.length) return '';
+  return `<section class="sect wtwhy"><h3>Why watch<span class="wlab ${w.label}">${WT_LABEL[w.label]}</span></h3>${[...w.tags].sort((a, b) => (b.live ? 9 : 0) + b.pts - (a.live ? 9 : 0) - a.pts).map(t_ =>
+    `<div class="wtp" style="--wc:${WT_META[t_.k][1]}"><h5><span class="wt${t_.off ? ' off' : ''}">${wtIcon(t_.k)}</span>${esc(WT_META[t_.k][0])}${t_.live ? ' <i>Live</i>' : ''}</h5>${t_.lines.map(l => `<p>${l}</p>`).join('')}</div>`).join('')}</section>`;
+}
+// only for games from the last couple of days onward: older games would be judged by today's rosters
+const wtRecent = d => !d || Date.now() - Date.parse(d) < 2 * 864e5;
+function wtSafe(e, noLive){ if (!wtRecent(e.date)) return null; try { return wtTags(wtFromEvent(e), {noLive}); } catch (err){ console.warn('watch tags', err); return null; } }
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
@@ -2122,10 +2436,12 @@ function gameCard(e){
   const col = cs.map(x => sideColor(x.team));
   const rec = x => { const r = (x.records || [])[0]?.summary; return r && r !== '0-0' ? r : ''; };
   const clutch = isClutch(e);
+  const wt = wtSafe(e, hideLive || fin);
   return `<button class="gcard${live ? ' live' : ''}${fin ? ' fin' : ''}${pregame ? ' soon' : ''}${clutch ? ' clutch' : ''}" data-game="${e.id}" style="--ac:${col[0].c};--hc:${col[1].c}"><div class="gstat"><span>${status}</span>${clutch ? '<span class="ctag">Clutch</span>' : tv ? `<span class="gtv">${tv}</span>` : ''}</div>
     ${cs.map((x, i) => `<div class="gteam${fin && +x.score < hi ? ' lost' : ''}${fin && +x.score === hi ? ' won' : ''}" style="--tc:${col[i].c}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">
       <span class="gn">${esc(x.team.shortDisplayName || x.team.displayName)}</span><span class="gr">${esc(rec(x))}</span>
       <span class="gs">${st.state === 'pre' ? '' : hideLive ? '•' : esc(x.score)}</span></div>`).join('')}
+    ${wtRow(wt, e.id)}
     ${leadTxt && !hideLive ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
     ${fin ? `<span class="ghl">▶ Highlights</span>` : ''}
     ${live ? (() => { const sl = fixtureSlug(e.date, cs[0].team.abbreviation, cs[1].team.abbreviation); return sl ? `<a class="gstream" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶ Stream</a>` : ''; })() : ''}</button>`;
@@ -2180,7 +2496,7 @@ function drawGame(s, quiet){
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   const covered = noSpoil && !SPOIL_OK.has(String(gameId)) && st.state !== 'pre';
   if (covered && ['pbp', 'box', 'shots'].includes(gameTab)) h += `<div class="spcover"><b>Scores are hidden</b><span>Play by play, the box score and the shot chart give the score away.</span><button class="pbtn" id="spreveal" type="button">Show this game</button></div>`;
-  else h += gameTab === 'preview' ? previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
+  else h += gameTab === 'preview' ? whySection(s) + previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
   const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
   if (s.__demo) head = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + head;
@@ -2397,6 +2713,7 @@ $('#scores').addEventListener('click', e => {
   if (t.closest('#demobtn')){ openDemo(); return; }
   if (t.closest('#mvopen')){ openMulti(); return; }
   if (t.closest('#demorestart')){ demoSrc = null; delete SNAPS.demo; openGame('demo'); return; }
+  const ws = t.closest('[data-wsort]'); if (ws){ wtSort = ws.dataset.wsort; try { localStorage.setItem('nba_wsort', wtSort); } catch (e_){} loadDay(true); return; }
   const g = t.closest('[data-game]'); if (g){ gameTab = 'pbp'; openGame(g.dataset.game); return; }
   const gt = t.closest('[data-gt]'); if (gt){ gameTab = gt.dataset.gt; drawGame(lastSummary); return; }
   const pf = t.closest('[data-pf]'); if (pf){ playFilter = pf.dataset.pf; drawGame(lastSummary); return; }
