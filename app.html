@@ -2312,7 +2312,7 @@ function wtTags(g, opts = {}){
   const TA = T[A.tid] || {}, TH = T[H.tid] || {};
   const tags = [], add = (k, pts, lines, extra = {}) => tags.push({k, pts, lines, ...extra});
   // stars: up to 3 per side, worth a point each when healthy
-  const stars = [...(tA.stars || []).slice(0, 3), ...(tH.stars || []).slice(0, 3)];
+  const stars = [...(tA.stars || []).slice(0, 5), ...(tH.stars || []).slice(0, 5)];   // everyone who qualifies is listed; the rating still caps
   if (stars.length){
     const healthy = stars.filter(pid => wtInj(pid) !== 'out');
     add('star', healthy.length ? Math.min(2.5, 1 + (healthy.length - 1) * .5) : 0, stars.map(pid => `<b>${wtName(pid)}</b> <small>${esc(T[P[pid].t]?.abbr || '')} · ${wtLine(P[pid])}${wtInj(pid) === 'out' ? ' · <em class="wout">Out tonight</em>' : wtInj(pid) === 'dtd' ? ' · <em class="wq">Questionable</em>' : ''}</small>`),
@@ -5507,6 +5507,37 @@ async function liveCheck(){
 setInterval(liveCheck, 60000);
 
 /* ---------- boot ---------- */
+/* ---------- the phone's back gesture (and back button) steps back inside the app ---------- */
+// Each open layer (a game, the scores page, standings, a player...) gets its own history
+// entry, so swiping back closes the top one instead of leaving the app for a blank page.
+let navDepth = 0, navSkip = false;
+function navLayers(){
+  return [
+    [() => !$('#cmp').hidden, closeCompare],
+    [() => !$('#scores').hidden && gameId, () => { gameId = null; clearInterval(delayTick); loadDay(); if (STREAM.slug) floatDock(); }],
+    [() => !$('#scores').hidden, closeScores],
+    [() => !$('#multi').hidden, closeMulti],
+    [() => !$('#mine').hidden, closeMine],
+    [() => !$('#stand').hidden, closeStandings],
+    [() => !$('#lead').hidden, closeLeaders],
+    [() => view === 'player', () => setView('team')],
+  ];
+}
+function syncNav(){
+  let want = 0; try { want = navLayers().filter(([open]) => open()).length; } catch (e){ return; }
+  if (want > navDepth){ while (navDepth < want){ navDepth++; history.pushState({nba: navDepth}, ''); } }
+  else if (want < navDepth){ navSkip = true; history.go(want - navDepth); navDepth = want; }   // closed with a button: drop the extra entries
+}
+addEventListener('popstate', () => {
+  if (navSkip){ navSkip = false; return; }
+  if (/^#GAME=/i.test(location.hash)) return;   // a notification opening a game, not a back step
+  wtHide(); if (!$('#moremenu').hidden) closeMore();
+  if (navDepth > 0){ navDepth--; const top = navLayers().find(([open]) => open()); if (top) top[1](); }
+  setTimeout(syncNav, 0);
+});
+document.addEventListener('click', () => setTimeout(syncNav, 60));
+document.addEventListener('keydown', () => setTimeout(syncNav, 60));
+setInterval(syncNav, 800);
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
 if (!Object.keys(T).length){
   $('#detail').innerHTML = '<p class="note">No data in this file yet. Run the update workflow in GitHub Actions to fill it.</p>';
