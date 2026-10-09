@@ -44,7 +44,8 @@
 *::-webkit-scrollbar{width:6px;height:6px}
 *::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+html,body{height:100%;overscroll-behavior:none}
+html{background:var(--ink)}
 body{background:var(--ink);color:var(--chalk);font:400 15px/1.5 Barlow,-apple-system,system-ui,sans-serif;
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overflow:hidden}
 .blk{font-family:'Archivo Black',Impact,sans-serif;letter-spacing:-.01em}
@@ -5511,6 +5512,11 @@ setInterval(liveCheck, 60000);
 // Each open layer (a game, the scores page, standings, a player...) gets its own history
 // entry, so swiping back closes the top one instead of leaving the app for a blank page.
 let navDepth = 0, navSkip = false;
+// Opened from the home screen there's no browser to go back to, and iOS shows a blank white
+// page if a swipe goes past the app's first page. So the app keeps one entry of its own at
+// the bottom: a swipe there just lands back on the app.
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+if (STANDALONE){ try { history.replaceState({nbaBase: 1}, ''); history.pushState({nbaTop: 1}, ''); } catch (e){} }
 function navLayers(){
   return [
     [() => !$('#cmp').hidden, closeCompare],
@@ -5533,7 +5539,14 @@ addEventListener('popstate', () => {
   if (/^#GAME=/i.test(location.hash)) return;   // a notification opening a game, not a back step
   wtHide(); if (!$('#moremenu').hidden) closeMore();
   if (navDepth > 0){ navDepth--; const top = navLayers().find(([open]) => open()); if (top) top[1](); }
+  else if (STANDALONE){ try { history.pushState({nbaTop: 1}, ''); } catch (e){} }   // at the bottom: stay in the app
   setTimeout(syncNav, 0);
+});
+// coming back to a page iOS kept in memory can leave it unpainted: nudge it, or reload if empty
+addEventListener('pageshow', e => {
+  if (!e.persisted) return;
+  if (!$('#app') || !$('#app').children.length) { location.reload(); return; }
+  document.body.style.display = 'none'; void document.body.offsetHeight; document.body.style.display = '';
 });
 document.addEventListener('click', () => setTimeout(syncNav, 60));
 document.addEventListener('keydown', () => setTimeout(syncNav, 60));
