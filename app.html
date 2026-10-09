@@ -1446,6 +1446,36 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .wtwhy .wtp{padding:8px 0}
 .wtwhy .wtp+.wtp{margin-top:0;padding-top:10px}
 @media (max-width:600px){.wtbt{font-size:15px}.wtbt img{width:24px;height:24px}}
+
+/* in game clips */
+.clipsec{margin:0 0 14px}
+.clipsh{display:flex;align-items:baseline;gap:10px;margin:0 2px 8px}
+.clipsh b{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--strong)}
+.clipsh span{font-size:12px;color:var(--dim)}
+.cliprow{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.clipc{flex:0 0 156px;display:flex;flex-direction:column;gap:5px;text-align:left;scroll-snap-align:start}
+.clipth{position:relative;display:block;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000;border:1px solid var(--line)}
+.clipth img{width:100%;height:100%;object-fit:cover;display:block}
+.clipth.sh img{object-fit:cover;object-position:center 30%}
+.clipth i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:20px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.clipth em{position:absolute;left:6px;top:6px;font-style:normal;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.1em;padding:1px 6px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff}
+.clipt{font-size:12.5px;line-height:1.3;color:var(--chalk);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.clipc small{font-size:11px;color:var(--mute)}
+#clipview{position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.86);display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 12px)}
+#clipview[hidden]{display:none}
+.cvbox{width:min(720px,100%);max-height:100%;display:flex;flex-direction:column;gap:10px}
+.cvtop{display:flex;align-items:center;gap:10px;color:#fff}
+.cvsrc{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;padding:2px 8px;border-radius:7px;background:rgba(255,255,255,.14)}
+.cvn{font-size:12px;opacity:.7}
+.cvx{margin-left:auto;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:16px}
+.cvmedia{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+.cvmedia.sh{aspect-ratio:9/16;width:auto;height:min(68vh,calc((100vw - 24px) * 16 / 9));margin:0 auto}
+.cvmedia video,.cvmedia iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.cvt{color:#fff;font-size:14px;line-height:1.35}
+.cvt small{display:block;color:rgba(255,255,255,.6);font-size:12px;margin-top:2px}
+.cvnav{display:flex;justify-content:space-between;gap:10px}
+#clipview .pbtn{color:#fff;border-color:rgba(255,255,255,.3)}
+#clipview .pbtn:disabled{opacity:.35}
 </style>
 </head>
 <body>
@@ -2706,6 +2736,91 @@ function winChance(s, cs){
       <path d="M${pts}" style="fill:none;stroke:var(--strong);stroke-width:1.5;vector-effect:non-scaling-stroke"/></svg></div>`;
   }  return wp;
 }
+
+/* ---------- clips during (and right after) a game ----------
+   ESPN's own clips come with the game feed. The relay adds YouTube uploads since tip off from
+   the NBA's channel and both teams' channels; the NBA's are kept when their title names someone
+   (or a team) from this game. Tapping one plays it here, in a viewer over the page. */
+const CLIPS = {};
+const CLIP_NICK = {wemby: 'wembanyama', kd: 'durant', steph: 'curry', sga: 'gilgeous-alexander', ant: 'edwards', bron: 'james', ad: 'davis', joker: 'jokic', spida: 'mitchell', dame: 'lillard', cp3: 'paul', melo: 'ball', jjj: 'jackson', book: 'booker', jb: 'brown', jt: 'tatum', zo: 'ball', klay: 'thompson', bam: 'adebayo', giannis: 'antetokounmpo'};
+const TEAM_WORDS = {PHI: ['sixers', '76ers', 'philly'], CLE: ['cavs', 'cavaliers'], DAL: ['mavs', 'mavericks'], MIN: ['wolves', 'timberwolves'], POR: ['blazers'], GS: ['dubs', 'warriors'], NO: ['pels', 'pelicans'], OKC: ['thunder'], LAL: ['lakers'], LAC: ['clippers', 'clips'], NY: ['knicks'], BKN: ['nets'], SA: ['spurs'], UTAH: ['jazz'], WSH: ['wizards'], MIA: ['heat'], BOS: ['celtics'], CHI: ['bulls'], ATL: ['hawks'], CHA: ['hornets'], DET: ['pistons'], IND: ['pacers'], MIL: ['bucks'], ORL: ['magic'], TOR: ['raptors'], HOU: ['rockets'], MEM: ['grizzlies', 'grizz'], DEN: ['nuggets'], PHX: ['suns'], SAC: ['kings']};
+let CLIP_IX = null;
+// which teams each word in a title points to: last names, league-unique first names, nicknames, team names
+function clipIndex(){
+  if (CLIP_IX) return CLIP_IX;
+  const ix = new Map(), add = (w, ab) => { if (!w || w.length < 2) return; if (!ix.has(w)) ix.set(w, new Set()); ix.get(w).add(ab); };
+  const firsts = {};
+  for (const id in P){ const f = normWord(P[id].n.split(' ')[0]); firsts[f] = (firsts[f] || 0) + 1; }
+  for (const id in P){
+    const p = P[id], ab = T[p.t]?.abbr; if (!ab) continue;
+    const parts = p.n.split(' ').map(normWord).filter(Boolean), last = parts.filter(w => !/^(jr|sr|ii|iii|iv)$/.test(w)).pop();
+    if (last && last.length >= 3) add(last, ab);
+    if (parts[0] && firsts[parts[0]] === 1 && parts[0].length >= 2) add(parts[0], ab);
+    for (const [nk, ln] of Object.entries(CLIP_NICK)) if (ln === last) add(nk, ab);
+  }
+  for (const [ab, ws] of Object.entries(TEAM_WORDS)) for (const w of ws) add(w, ab);
+  return CLIP_IX = ix;
+}
+const normWord = w => String(w || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9-]/g, '');
+function clipTeams(title){
+  const ix = clipIndex(), votes = {};
+  const toks = String(title).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9-]+/);
+  for (const t of toks){ const hit = ix.get(t); if (hit) for (const ab of hit) votes[ab] = (votes[ab] || 0) + 1 / hit.size; }
+  return votes;
+}
+function clipsFor(s, cs){
+  const c = s.header?.competitions?.[0], st = c?.status?.type?.state, tip = Date.parse(c?.date || '');
+  if (!(st === 'in' || (st === 'post' && Date.now() - tip < 14 * 3600e3))) return [];
+  const abs = cs.map(x => x.team.abbreviation), tri = ab => NBA_TRI[ab] || ab;
+  // YouTube, refreshed every 90 seconds while it's on
+  const C = CLIPS[gameId] || (CLIPS[gameId] = {at: 0, yt: []});
+  if (!C.busy && Date.now() - C.at > (st === 'in' ? 9e4 : 6e5)){
+    C.busy = true; C.at = Date.now();
+    const gid = gameId;
+    fetch(`${RELAY}/clips?t=${abs.map(tri).join(',')}&since=${encodeURIComponent(new Date(tip).toISOString())}`).then(r => r.json()).then(j => {
+      const before = C.yt.length;
+      C.yt = (j.clips || []).filter(v => {
+        if (v.src !== 'NBA') return true;   // a team's own channel
+        const vt = clipTeams(v.title), mine = abs.reduce((a, ab) => a + (vt[ab] || 0), 0), all = Object.values(vt).reduce((a, b) => a + b, 0);
+        return mine > 0 && mine >= all / 2 && !/FULL GAME HIGHLIGHTS/i.test(v.title);
+      });
+      if (C.yt.length !== before && gameId === gid && lastSummary && gameTab === 'pbp') drawGame(lastSummary, true);
+    }).catch(() => {}).finally(() => { C.busy = false; });
+  }
+  const espn = (s.videos || []).filter(v => vidSrc(v)).map(v => ({k: 'e' + v.id, kind: 'espn', title: v.headline || '', thumb: v.thumbnail || '', pub: Date.parse(v.originalPublishDate || v.lastModified || '') || 0, src: 'ESPN', mp4: vidSrc(v)}));
+  const yt = C.yt.map(v => ({k: 'y' + v.id, kind: 'yt', id: v.id, title: v.title.replace(/\s*#\w+/g, '').trim() || v.title, thumb: `https://i.ytimg.com/vi/${v.id}/${v.short ? 'oar2' : 'mqdefault'}.jpg`, pub: Date.parse(v.pub) || 0, src: v.src === 'NBA' ? 'NBA' : (Object.entries(NBA_TRI).find(([, t]) => t === v.src)?.[0] || v.src), short: v.short}));
+  // never ahead of a delayed feed
+  const cut = st === 'in' && liveDelay ? Date.now() - liveDelay * 1000 : Infinity;
+  return [...espn, ...yt].filter(x => x.pub <= cut).sort((a, b) => b.pub - a.pub);
+}
+const agoTxt = t => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ${m % 60}m ago`; };
+function clipStrip(s, cs){
+  let L = []; try { L = clipsFor(s, cs); } catch (e){ return ''; }
+  CLIPS[gameId] && (CLIPS[gameId].list = L);
+  if (!L.length) return '';
+  return `<section class="clipsec"><div class="clipsh"><b>Highlights so far</b><span>${L.length} clip${L.length === 1 ? '' : 's'} · newest first</span></div>
+    <div class="cliprow">${L.map(c => `<button class="clipc" type="button" data-k="c${esc(c.k)}" data-clip="${esc(c.k)}"><span class="clipth${c.short ? ' sh' : ''}"><img src="${esc(c.thumb)}" alt="" loading="lazy"${c.kind === 'yt' ? ` onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${esc(c.id)}/hqdefault.jpg'"` : ''}><i>▶</i><em>${esc(c.src)}</em></span><span class="clipt">${esc(c.title)}</span><small>${agoTxt(c.pub)}</small></button>`).join('')}</div></section>`;
+}
+function openClip(k){
+  const L = CLIPS[gameId]?.list || []; const i = L.findIndex(c => c.k === k); if (i < 0) return;
+  let v = $('#clipview');
+  if (!v){ v = document.createElement('div'); v.id = 'clipview'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); document.body.appendChild(v); }
+  const c = L[i];
+  const media = c.kind === 'espn' ? `<video src="${esc(c.mp4)}" controls autoplay playsinline poster="${esc(c.thumb)}"></video>`
+    : `<iframe src="https://www.youtube-nocookie.com/embed/${esc(c.id)}?autoplay=1&playsinline=1&rel=0&modestbranding=1" title="${esc(c.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  v.innerHTML = `<div class="cvbox"><div class="cvtop"><span class="cvsrc">${esc(c.src)}</span><span class="cvn">${i + 1} of ${L.length}</span><button class="cvx" type="button" data-cv="close" aria-label="Close">✕</button></div>
+    <div class="cvmedia${c.short ? ' sh' : ''}">${media}</div><div class="cvt">${esc(c.title)}<small>${agoTxt(c.pub)}</small></div>
+    <div class="cvnav"><button class="pbtn" type="button" data-cv="${esc(L[i - 1]?.k || '')}" ${i ? '' : 'disabled'}>‹ Newer</button><button class="pbtn" type="button" data-cv="${esc(L[i + 1]?.k || '')}" ${i < L.length - 1 ? '' : 'disabled'}>Older ›</button></div></div>`;
+  v.hidden = false;
+}
+function closeClip(){ const v = $('#clipview'); if (v){ v.innerHTML = ''; v.hidden = true; } }
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-clip]'); if (c){ openClip(c.dataset.clip); return; }
+  const b = e.target.closest('[data-cv]');
+  if (b){ if (b.dataset.cv === 'close') closeClip(); else if (b.dataset.cv) openClip(b.dataset.cv); return; }
+  if (e.target.id === 'clipview') closeClip();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#clipview') && !$('#clipview').hidden) closeClip(); });
 function playsView(s, cs, quiet){
   const plays = s.plays || [];
   if (!plays.length) return `<div class="empty">Play by play starts at tip off.</div>`;
@@ -2757,7 +2872,7 @@ function playsView(s, cs, quiet){
   plays.forEach(p => seenPlays.add(p.id));
   const rlink = replay ? `<a class="more replay" href="${replay}" target="_blank" rel="noopener">▶ This game on NBA.com</a>
     <p class="note">${nb && nb.gid ? 'Tap ▶ on any play to watch that exact clip on NBA.com (opens a new tab).' : nb ? 'Clips were not found for this game.' : 'Finding NBA.com clips for this game…'}</p>` : '';
-  return wp + rlink + filt + (out || '<div class="empty">No plays match this filter yet.</div>');
+  return clipStrip(s, cs) + wp + rlink + filt + (out || '<div class="empty">No plays match this filter yet.</div>');
 }
 const openQ = new Set();
 document.addEventListener('toggle', e => {
@@ -5519,6 +5634,7 @@ const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator
 if (STANDALONE){ try { history.replaceState({nbaBase: 1}, ''); history.pushState({nbaTop: 1}, ''); } catch (e){} }
 function navLayers(){
   return [
+    [() => $('#clipview') && !$('#clipview').hidden, closeClip],
     [() => !$('#cmp').hidden, closeCompare],
     [() => !$('#scores').hidden && gameId, () => { gameId = null; clearInterval(delayTick); loadDay(); if (STREAM.slug) floatDock(); }],
     [() => !$('#scores').hidden, closeScores],
