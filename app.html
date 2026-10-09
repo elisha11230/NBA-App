@@ -1448,7 +1448,8 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 @media (max-width:600px){.wtbt{font-size:15px}.wtbt img{width:24px;height:24px}}
 
 /* in game clips */
-.clipsec{margin:0 0 14px}
+.clipsec{margin:12px 0 4px}
+#gamehead.sphide .clipsec{display:none}
 .clipsh{display:flex;align-items:baseline;gap:10px;margin:0 2px 8px}
 .clipsh b{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--strong)}
 .clipsh span{font-size:12px;color:var(--dim)}
@@ -2678,6 +2679,7 @@ function drawGame(s, quiet){
   }
   head += winChance(s, cs) + '</div>';
   if (live) head += floorView(s, cs);
+  if (gameId !== 'demo') head += clipStrip(s, cs);
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   const covered = noSpoil && !SPOIL_OK.has(String(gameId)) && st.state !== 'pre';
@@ -2784,7 +2786,7 @@ function clipsFor(s, cs){
         const vt = clipTeams(v.title), mine = abs.reduce((a, ab) => a + (vt[ab] || 0), 0), all = Object.values(vt).reduce((a, b) => a + b, 0);
         return mine > 0 && mine >= all / 2 && !/FULL GAME HIGHLIGHTS/i.test(v.title);
       });
-      if (C.yt.length !== before && gameId === gid && lastSummary && gameTab === 'pbp') drawGame(lastSummary, true);
+      if (C.yt.length !== before && gameId === gid && lastSummary) drawGame(lastSummary, true);
     }).catch(() => {}).finally(() => { C.busy = false; });
   }
   const espn = (s.videos || []).filter(v => vidSrc(v)).map(v => ({k: 'e' + v.id, kind: 'espn', title: v.headline || '', thumb: v.thumbnail || '', pub: Date.parse(v.originalPublishDate || v.lastModified || '') || 0, src: 'ESPN', mp4: vidSrc(v)}));
@@ -2872,7 +2874,7 @@ function playsView(s, cs, quiet){
   plays.forEach(p => seenPlays.add(p.id));
   const rlink = replay ? `<a class="more replay" href="${replay}" target="_blank" rel="noopener">▶ This game on NBA.com</a>
     <p class="note">${nb && nb.gid ? 'Tap ▶ on any play to watch that exact clip on NBA.com (opens a new tab).' : nb ? 'Clips were not found for this game.' : 'Finding NBA.com clips for this game…'}</p>` : '';
-  return clipStrip(s, cs) + wp + rlink + filt + (out || '<div class="empty">No plays match this filter yet.</div>');
+  return wp + rlink + filt + (out || '<div class="empty">No plays match this filter yet.</div>');
 }
 const openQ = new Set();
 document.addEventListener('toggle', e => {
@@ -5623,6 +5625,22 @@ async function liveCheck(){
 setInterval(liveCheck, 60000);
 
 /* ---------- boot ---------- */
+/* ---------- picking up a new version: a home screen app can stay open for days ---------- */
+const BUILD = '__BUILD__';
+let updAt = 0;
+async function checkUpdate(){
+  if (BUILD.startsWith('__') || Date.now() - updAt < 60000) return;
+  updAt = Date.now();
+  let v = ''; try { v = (await (await fetch('data/version.txt?t=' + Date.now(), {cache: 'no-store'})).text()).trim(); } catch (e){ return; }
+  if (!/^[0-9a-f]{8,}$/.test(v) || v === BUILD) return;
+  const busy = STREAM.slug || [...document.querySelectorAll('video,iframe')].some(x => x.offsetParent);
+  if (!busy){ location.reload(); return; }
+  toast('A new version is ready. It loads the next time you close the stream or reopen the app.');
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+setInterval(() => { if (document.visibilityState === 'visible') checkUpdate(); }, 10 * 60000);
+setTimeout(checkUpdate, 15000);
+
 /* ---------- the phone's back gesture (and back button) steps back inside the app ---------- */
 // Each open layer (a game, the scores page, standings, a player...) gets its own history
 // entry, so swiping back closes the top one instead of leaving the app for a blank page.

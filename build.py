@@ -2861,6 +2861,11 @@ new = re.sub(r"(<script id=\"nba-data\" type=\"application/json\">).*?(</script>
              lambda m: m.group(1) + blob + m.group(2), html, count=1, flags=re.S)
 if new == html and blob not in html:
     sys.exit(f"Data markers not found in {src_file}")
+# a version stamp the open app compares against version.txt, so it reloads itself after an update
+import hashlib as _hl
+_ver = _hl.sha1(new.encode("utf-8")).hexdigest()[:12]
+new = new.replace("'__BUILD__'", f"'{_ver}'", 1)
+_os.makedirs("data", exist_ok=True); open("data/version.txt", "w").write(_ver + "\n")
 open("index.html", "w", encoding="utf-8").write(new)
 print(f"built {len(teams)} teams, {len(players)} players, stats {season_label(stats_season)}, "
       f"lineups {lineup_mode}, {len(blob)//1024} KB")
