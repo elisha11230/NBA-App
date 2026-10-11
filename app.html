@@ -1404,6 +1404,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .wlab.must{color:#fff;background:linear-gradient(90deg,#D9502A,#E3962F)}
 .wlab.worth{color:var(--chalk);background:color-mix(in srgb,#2FA59A 16%,transparent);border:1px solid color-mix(in srgb,#2FA59A 55%,var(--line))}
 .wlab.skip{color:var(--mute);border:1px solid var(--line)}
+.wlab.rp.classic{color:#1A1405;background:linear-gradient(90deg,#E8C85A,#F5E3A0 50%,#D4A83A);box-shadow:0 0 0 1px rgba(232,200,90,.5),0 0 14px rgba(232,200,90,.35)}
 .wlab.rp.great{color:#fff;background:linear-gradient(90deg,#B8452A,#E3962F)}
 .wlab.rp.good{color:var(--chalk);background:color-mix(in srgb,#2FA59A 16%,transparent);border:1px solid color-mix(in srgb,#2FA59A 55%,var(--line))}
 .wlab.rp.meh{color:var(--mute);border:1px dashed var(--line)}
@@ -2329,7 +2330,8 @@ function wtFromSummary(s){
   const c = s.header.competitions[0], cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1)), st = c.status || {};
   const pc = (s.pickcenter || [])[0];
   const tv = [...new Set((c.broadcasts || []).filter(b => /national/i.test(b.market?.type || b.market || '')).map(b => b.media?.shortName || b.names?.[0]).filter(Boolean))];
-  return {id: String(s.header.id || gameId), date: c.date, state: st.type?.state, period: +st.period || 0, clock: clockToSecs(st.displayClock), neutral: !!c.neutralSite,
+  const lp = (s.plays || [])[(s.plays || []).length - 1];   // the feed's header has no period or clock: take them from the latest play
+  return {id: String(s.header.id || gameId), date: c.date, state: st.type?.state, period: +st.period || +lp?.period?.number || 0, clock: clockToSecs(st.displayClock || lp?.clock?.displayValue), neutral: !!c.neutralSite,
     spread: wtSpread(pc), line: pc?.details || '', tv,
     teams: cs.map(x => {
       const L = (s.leaders || []).find(l => String(l.team?.id) === String(x.team.id))?.leaders || [];
@@ -2476,14 +2478,19 @@ function wtTags(g, opts = {}){
   return WT_CACHE[g.id] = {tags, score, label, replay};
 }
 const WT_LABEL = {must: 'Must watch', worth: 'Worth it', skip: 'Skip'};
-const WT_RLABEL = {great: 'Great game', good: 'Good game', meh: 'Skip the replay'};
+const WT_RLABEL = {classic: 'Instant classic', great: 'Great game', good: 'Good game', meh: 'Skip the replay'};
 // excitement from the relay: win chance swings, lead changes and late drama, never who won
 const XI = (() => { try { return JSON.parse(localStorage.getItem('nba_xi') || '{}'); } catch (e){ return {}; } })();
 let xiAt = 0;
 function xiLines(x){
   const L = [];
-  if (x.ot) L.push('Went to overtime');
-  else if (x.late) L.push(x.final ? 'Came down to the last two minutes' : 'Close in the last two minutes');
+  if (x.buzzer) L.push('<b>Decided at the buzzer</b>');
+  else if (x.decided != null && x.decided <= 10) L.push(`<b>Decided in the final ${Math.max(1, x.decided)} seconds</b>`);
+  else if (x.decided != null && x.decided <= 60 && x.final) L.push(`Decided in the last minute${x.ots ? ' of overtime' : ''}`);
+  if (x.forcedOT) L.push('<b>A shot in the final seconds forced overtime</b>');
+  if (x.ots >= 2) L.push(`<b>${['', '', 'Double', 'Triple', 'Quadruple'][x.ots] || x.ots + ' overtimes:'} overtime</b>`);
+  else if (x.ot) L.push('Went to overtime');
+  else if (x.late && !(x.decided != null && x.decided <= 60)) L.push(x.final ? 'Came down to the last two minutes' : 'Close in the last two minutes');
   if (x.lc || x.ties) L.push(`${x.lc} lead change${x.lc === 1 ? '' : 's'} and ${x.ties} tie${x.ties === 1 ? '' : 's'}`);
   if (x.comeback >= 12) L.push(`A team came back from ${x.comeback} points down`);
   if (x.u >= .45) L.push('Up for grabs most of the way');
@@ -2491,15 +2498,16 @@ function xiLines(x){
   return L;
 }
 function xiReplay(x){
-  return {r: x.score >= 10 ? 'great' : x.score >= 6.5 ? 'good' : 'meh', score: x.score, level: x.level,
+  return {r: x.classic ? 'classic' : x.score >= 10 ? 'great' : x.score >= 6.5 ? 'good' : 'meh', score: x.score + (x.classic ? 5 : 0), level: x.level,
     lines: [`Excitement: <b>${x.level}/10</b>`, ...xiLines(x), '<small>Rated without giving away the result</small>']};
 }
 // the same measure as the relay's, worked out here from a game's own feed (game page)
 function xiCalc(s){
   const comp = s?.header?.competitions?.[0], state = comp?.status?.type?.state;
   if (!comp || state === 'pre') return null;
-  const final = state === 'post', period = +comp.status?.period || 0;
+  const final = state === 'post';
   const plays = (s.plays || []).filter(p => p.awayScore != null && p.homeScore != null);
+  const period = Math.max(+comp.status?.period || 0, ...plays.map(p => +p.period?.number || 0));   // the feed's header has no period
   let last = 0, lc = 0, ties = 0, maxA = 0, maxH = 0, prevM = 0;
   for (const p of plays){ const m = (+p.awayScore || 0) - (+p.homeScore || 0);
     if (m !== 0){ const sg = Math.sign(m); if (last && sg !== last) lc++; last = sg; } else if (prevM !== 0) ties++;
@@ -2518,12 +2526,23 @@ function xiCalc(s){
   const running = (swing + lc * .12 + ties * .06) / (final ? 1 : Math.max(.4, frac));
   const nowClose = wp.length ? 2 * Math.min(wp[wp.length - 1], 1 - wp[wp.length - 1]) : 0;
   const score = running + u * 3 + (final ? u4 : nowClose) * 4 + (late ? 2 : 0) + (ot ? 1.5 : 0) + (final ? (fm <= 3 ? 1 : fm <= 6 ? .5 : 0) : 0) + (comeback >= 12 ? Math.min(3, (comeback - 8) / 6) : 0);
-  return {final, swing, lc, ties, late, ot, fm, comeback, frac, u, u4, score: Math.round(score * 10) / 10, level: Math.max(1, Math.min(10, Math.round(score)))};
+  // instant classics: how late the winner took the lead for good, shots that forced overtime, extra overtimes
+  const ots = Math.max(0, period - 4);
+  let decided = null, forcedOT = false;
+  if (final && fmS !== 0){ const w = Math.sign(fmS); let at = -1, pv = 0;
+    plays.forEach((p, i) => { const sg = Math.sign((+p.awayScore || 0) - (+p.homeScore || 0)); if (sg === w && pv !== w) at = i; pv = sg; });
+    const p = plays[at]; if (p && +p.period?.number === period) decided = clockToSecs(p.clock?.displayValue); }
+  for (let q = 4; q < period; q++){ const inQ = plays.filter(p => +p.period?.number === q); let lt = -1;
+    inQ.forEach((p, i) => { const m = (+p.awayScore || 0) - (+p.homeScore || 0), pm = i ? (+inQ[i - 1].awayScore || 0) - (+inQ[i - 1].homeScore || 0) : 1; if (m === 0 && pm !== 0) lt = i; });
+    if (inQ[lt] && (clockToSecs(inQ[lt].clock?.displayValue) ?? 99) <= 5) forcedOT = true; }
+  const buzzer = decided != null && decided <= 1;
+  const classic = final && (buzzer || (decided != null && decided <= 10) || forcedOT || ots >= 2 || score >= 14 || (ot && decided != null && decided <= 60) || (comeback >= 20 && fm <= 5 && late));
+  return {v: 2, final, ots, decided, buzzer, forcedOT, classic, swing, lc, ties, late, ot, fm, comeback, frac, u, u4, score: Math.round(score * 10) / 10, level: Math.max(1, Math.min(10, Math.round(score)))};
 }
 async function xiLoad(ev){
   // finished games once (they never change), live ones at most every 45 seconds
   const live = ev.filter(e => e.status.type.state === 'in').map(e => String(e.id));
-  const fins = ev.filter(e => e.status.type.state === 'post' && !XI[e.id]?.final).map(e => String(e.id));
+  const fins = ev.filter(e => e.status.type.state === 'post' && !(XI[e.id]?.final && XI[e.id]?.v === 2)).map(e => String(e.id));
   const ids = [...(Date.now() - xiAt > 45000 ? live : []), ...fins].slice(0, 16);
   if (!ids.length) return false;
   if (live.length) xiAt = Date.now();
@@ -2545,7 +2564,7 @@ function wtRow(w, gid){
 }
 // the little card that explains a tag (tap on a phone, hover on a computer)
 let wtPinned = null;
-const WT_RCOL = {great: '#E3962F', good: '#2FA59A', meh: '#8A94A0'};
+const WT_RCOL = {classic: '#C9A227', great: '#E3962F', good: '#2FA59A', meh: '#8A94A0'};
 function wtShow(el, pin){
   const [gid, k] = el.dataset.wt.split('|'), w = WT_CACHE[gid]; if (!w) return;
   let pop = $('#wtpop'); if (!pop){ pop = document.createElement('div'); pop.id = 'wtpop'; pop.setAttribute('role', 'dialog'); document.body.appendChild(pop); }
@@ -2592,7 +2611,7 @@ function wtBanner(ev){
 function whySection(s){
   const c = s.header?.competitions?.[0], st = c?.status?.type?.state, recent = wtRecent(c?.date);
   let xi = null; try { xi = st && st !== 'pre' ? xiCalc(s) : null; } catch (e){}
-  if (xi?.final && s.header?.id) XI[s.header.id] = XI[s.header.id] || xi;
+  if (xi?.final && s.header?.id && XI[s.header.id]?.v !== 2) XI[s.header.id] = xi;
   let w;
   if (recent){ try { w = wtTags(wtFromSummary(s), {noLive: !!(s.__delayed && liveDelay), xi}); } catch (e){ return ''; } }
   else if (xi?.final) w = {tags: [], replay: xiReplay(xi)};
