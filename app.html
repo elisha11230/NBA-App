@@ -1611,8 +1611,9 @@ function applyTheme(th){
 }
 const isLight = () => document.documentElement.dataset.theme === 'light';
 /* ---------- spoilers: one switch hides every score and live stat in the app ---------- */
-// Scores start hidden; the eye toggle (here, on the welcome screen and on the scores page) shows them, and the choice is remembered
-let noSpoil = (() => { try { return localStorage.getItem('nba_scores') !== 'show'; } catch (e){ return true; } })();
+// Scores always start hidden: every launch, and every return to the app after a while away.
+// Showing them (eye toggle, welcome screen, scores page) lasts only for that sitting.
+let noSpoil = true;
 document.documentElement.classList.toggle('nospoil', noSpoil);
 const SPOIL_OK = new Set();   // games you chose to reveal anyway, for this visit
 applyTheme(savedTheme() || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
@@ -4422,7 +4423,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#multi
 
 function setSpoil(v){
   noSpoil = v; document.documentElement.classList.toggle('nospoil', v);
-  try { localStorage.setItem('nba_scores', v ? 'hide' : 'show'); } catch (e){}
   if (!$('#welcome')?.hidden) wcDraw();
   drawSpoilBtns();
   if (typeof MV !== 'undefined'){ MV.scores = !v; if (!$('#multi').hidden){ mvTools(); mvPicker(); MV.ids.forEach(mvTile); } }
@@ -5715,6 +5715,16 @@ $('#welcome').addEventListener('click', e => {
   const g = e.target.closest('[data-game]'); if (g){ closeWelcome(); gameTab = 'pbp'; openScores(g.dataset.game); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#welcome').hidden) closeWelcome(); });
+// back after 30 minutes or more away (the app was in the background): hide scores again and say hello
+let awayAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden'){ awayAt = Date.now(); return; }
+  if (!awayAt || Date.now() - awayAt < 30 * 60000) return;
+  awayAt = 0;
+  SPOIL_OK.clear();
+  if (!noSpoil) setSpoil(true);
+  if (!STREAM.slug && $('#welcome').hidden) openWelcome();
+});
 
 /* ---------- picking up a new version: a home screen app can stay open for days ---------- */
 const BUILD = '__BUILD__';
