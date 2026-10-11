@@ -1478,6 +1478,24 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .cvnav{display:flex;justify-content:space-between;gap:10px}
 #clipview .pbtn{color:#fff;border-color:rgba(255,255,255,.3)}
 #clipview .pbtn:disabled{opacity:.35}
+
+/* welcome screen */
+#welcome{position:fixed;inset:0;z-index:68;background:radial-gradient(120% 60% at 50% 0%,color-mix(in srgb,var(--team-accent) 14%,var(--ink)),var(--ink) 60%);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px))}
+#welcome[hidden]{display:none}
+.wcwrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.wchead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wchead small{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.wchead h1{font-size:clamp(30px,8vw,44px);line-height:1.05;color:var(--strong);margin-top:2px}
+.wctog .note{margin:8px 2px 0;font-size:12.5px}
+.wcseg{max-width:460px;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.wcseg button{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 10px;border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.wcseg button .ico{display:inline-flex;width:18px;height:18px}
+.wcseg button .ico svg{width:18px;height:18px}
+.wcseg button[aria-pressed="true"]{background:var(--team-accent);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#wcbody .wtbar{margin-bottom:12px}
+.wcfoot{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:6px 0 4px}
+.wcfoot .pbtn{padding:10px 18px}
 </style>
 </head>
 <body>
@@ -1568,6 +1586,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   <div id="minebody"></div>
 </div>
 
+<div id="welcome" hidden role="dialog" aria-modal="true" aria-label="Today's games"><div class="wcwrap"><div class="wchead"><div><small id="wcdate"></small><h1 class="blk" id="wchi">Welcome</h1></div><button class="qx" id="wcclose" type="button">Skip</button></div><div class="wctog" id="wctog"></div><div id="wcbody"></div><div class="wcfoot"><button class="pbtn" type="button" id="wcscores">All scores</button><button class="pbtn" type="button" id="wcgo">Go to the app</button></div></div></div>
 <div id="stand" hidden role="dialog" aria-modal="true" aria-label="Standings">
   <div class="lhead"><h2 id="standh">Standings</h2><button class="qx" id="stclose">Close</button></div>
   <div class="sttabs" role="tablist"><button data-stt="table" aria-pressed="true">Standings</button><button data-stt="odds" aria-pressed="false">Playoff odds</button><button data-stt="power" aria-pressed="false">Power rankings</button></div>
@@ -1592,7 +1611,8 @@ function applyTheme(th){
 }
 const isLight = () => document.documentElement.dataset.theme === 'light';
 /* ---------- spoilers: one switch hides every score and live stat in the app ---------- */
-let noSpoil = (() => { try { return localStorage.getItem('nba_spoil') === 'hide'; } catch (e){ return false; } })();
+// Scores start hidden; the eye toggle (here, on the welcome screen and on the scores page) shows them, and the choice is remembered
+let noSpoil = (() => { try { return localStorage.getItem('nba_scores') !== 'show'; } catch (e){ return true; } })();
 document.documentElement.classList.toggle('nospoil', noSpoil);
 const SPOIL_OK = new Set();   // games you chose to reveal anyway, for this visit
 applyTheme(savedTheme() || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
@@ -4402,7 +4422,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#multi
 
 function setSpoil(v){
   noSpoil = v; document.documentElement.classList.toggle('nospoil', v);
-  try { localStorage.setItem('nba_spoil', v ? 'hide' : 'show'); } catch (e){}
+  try { localStorage.setItem('nba_scores', v ? 'hide' : 'show'); } catch (e){}
+  if (!$('#welcome')?.hidden) wcDraw();
   drawSpoilBtns();
   if (typeof MV !== 'undefined'){ MV.scores = !v; if (!$('#multi').hidden){ mvTools(); mvPicker(); MV.ids.forEach(mvTile); } }
   if (!$('#scores').hidden){ if (gameId && lastSummary) drawGame(lastSummary, true); else if (!gameId) loadDay(true); }
@@ -5644,6 +5665,57 @@ async function liveCheck(){
 setInterval(liveCheck, 60000);
 
 /* ---------- boot ---------- */
+
+/* ---------- welcome screen: today's games when the app opens, scores hidden unless you show them ---------- */
+let wcEv = null, wcDay = null, wcTimer = 0;
+function wcToggle(){
+  return `<div class="wcseg" role="group" aria-label="Scores"><button type="button" data-wcs="hide" aria-pressed="${noSpoil}"><span class="ico">${ICON.eyeOff}</span>Hide scores</button><button type="button" data-wcs="show" aria-pressed="${!noSpoil}"><span class="ico">${ICON.eye}</span>Show scores</button></div>
+    <p class="note">${noSpoil ? 'Scores and live stats are hidden everywhere in the app. Ratings and highlights never give the result away.' : 'Scores are showing everywhere in the app.'}</p>`;
+}
+function wcDraw(){
+  $('#wctog').innerHTML = wcToggle();
+  const body = $('#wcbody');
+  if (!wcEv){ body.innerHTML = '<div class="empty">Loading today\'s games</div>'; return; }
+  if (!wcEv.length){ body.innerHTML = '<div class="empty">No NBA games in the next week.</div>'; return; }
+  const today = iso8601(new Date()) === iso8601(wcDay);
+  const label = today ? 'Tonight' : wcDay.toLocaleDateString([], {weekday: 'long', month: 'short', day: 'numeric'});
+  const live = wcEv.filter(e => e.status.type.state === 'in'), up = wcEv.filter(e => e.status.type.state === 'pre'), fin = wcEv.filter(e => e.status.type.state === 'post');
+  const grp = [['Live now', live], [today ? 'Coming up' : label, up], ['Final', fin]].filter(g => g[1].length);
+  const wsc = e => { const w = WT_CACHE[String(e.id)]; return w ? (w.replay ? w.replay.score : w.score) : 0; };
+  body.innerHTML = (today ? '' : `<p class="note" style="margin:0 0 12px">No games today. Next up: <b>${esc(label)}</b>.</p>`) + wtBanner(wcEv)
+    + grp.map(([t, L]) => `<section class="gsec${t === 'Live now' ? ' lv' : ''}"><h4>${t === 'Live now' ? '<i class="gdot"></i>' : ''}${esc(t)}<span>${L.length}</span></h4><div class="gcards">${[...L].sort((a, b) => wsc(b) - wsc(a)).map(gameCard).join('')}</div></section>`).join('');
+}
+async function wcLoad(){
+  // today, or the next day with games if there are none today
+  let d = new Date(), ev = [];
+  for (let i = 0; i < 8; i++){
+    let j; try { j = await espn('/scoreboard?dates=' + stamp(d)); } catch (e){ break; }
+    ev = j.events || []; if (ev.length) break;
+    d = new Date(d.getTime() + 864e5);
+  }
+  wcEv = ev; wcDay = d;
+  for (const e of ev) wtSafe(e, (liveWindow(e.status.type.state, e.date) && liveDelay > 0) || e.status.type.state === 'post');
+  if (!$('#welcome').hidden) wcDraw();
+  xiLoad(ev).then(ch => { if (ch && !$('#welcome').hidden){ for (const e of ev) wtSafe(e, e.status.type.state === 'post'); wcDraw(); } });
+}
+function openWelcome(){
+  const h = new Date().getHours();
+  $('#wchi').textContent = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  $('#wcdate').textContent = new Date().toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
+  $('#welcome').hidden = false; document.body.style.overflow = 'hidden';
+  wcDraw(); wcLoad();
+  clearInterval(wcTimer); wcTimer = setInterval(() => { if (!$('#welcome').hidden && wcEv?.some(e => e.status.type.state !== 'post')) wcLoad(); }, 30000);
+  const t = T[cur]; $('#wcgo').textContent = t ? `Go to the ${t.name.split(' ').slice(-1)[0]}` : 'Go to the app';
+}
+function closeWelcome(){ $('#welcome').hidden = true; document.body.style.overflow = ''; clearInterval(wcTimer); }
+$('#welcome').addEventListener('click', e => {
+  const s_ = e.target.closest('[data-wcs]'); if (s_){ setSpoil(s_.dataset.wcs === 'hide'); wcDraw(); return; }
+  if (e.target.closest('#wcclose') || e.target.closest('#wcgo')){ closeWelcome(); return; }
+  if (e.target.closest('#wcscores')){ closeWelcome(); openScores(); return; }
+  const g = e.target.closest('[data-game]'); if (g){ closeWelcome(); gameTab = 'pbp'; openScores(g.dataset.game); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#welcome').hidden) closeWelcome(); });
+
 /* ---------- picking up a new version: a home screen app can stay open for days ---------- */
 const BUILD = '__BUILD__';
 let updAt = 0;
@@ -5672,6 +5744,7 @@ if (STANDALONE){ try { history.replaceState({nbaBase: 1}, ''); history.pushState
 function navLayers(){
   return [
     [() => $('#clipview') && !$('#clipview').hidden, closeClip],
+    [() => !$('#welcome').hidden, closeWelcome],
     [() => !$('#cmp').hidden, closeCompare],
     [() => !$('#scores').hidden && gameId, () => { gameId = null; clearInterval(delayTick); loadDay(); if (STREAM.slug) floatDock(); }],
     [() => !$('#scores').hidden, closeScores],
@@ -5713,6 +5786,7 @@ if (!Object.keys(T).length){
   $('#stamp').textContent = `Rosters as of ${fmtDate(M.rosterStamp)}. Built ${fmtDate(M.built)}`;
   let start = null;
   const hash = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+  if (!/^(DEMO|MULTI|MULTIVIEW|MINE|GAME=\d+)$/.test(hash)) setTimeout(openWelcome, 0);
   if (hash === 'DEMO') setTimeout(openDemo, 300);
   if (hash === 'MULTI' || hash === 'MULTIVIEW') setTimeout(openMulti, 300);
   if (hash === 'MINE') setTimeout(openMine, 300);
