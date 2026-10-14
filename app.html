@@ -1531,6 +1531,33 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   #detail > .sect.half > h3{gap:10px;white-space:nowrap}
   #detail > .sect.half > h3 > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* player and team panels: sections washed in the team color like the live game header, stat rows as tiles */
+#detail > .ptabs{margin-top:22px}
+#detail > .sect{background:linear-gradient(160deg,color-mix(in srgb,var(--team-accent) 13%,var(--panel)),var(--panel) 62%);border-color:color-mix(in srgb,var(--team-accent) 22%,var(--line))}
+#detail > .sect::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--team-accent),color-mix(in srgb,var(--team-accent) 30%,transparent))}
+#detail > .sect > h3{font-size:14px;letter-spacing:.11em;margin-top:2px}
+.stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:2px 0 10px}
+.stgrid .stat{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"l l" "v r" "pb pb";align-items:end;gap:3px 8px;padding:11px 12px 11px 13px;border:1px solid color-mix(in srgb,var(--line) 85%,transparent);
+  border-left:3px solid color-mix(in srgb,var(--mute) 45%,transparent);border-radius:11px;background:color-mix(in srgb,var(--ink) 35%,var(--panel))}
+.stgrid .stat:has(.r.good),.stgrid .stat:has(.pb.good){border-left-color:#5FC28A}
+.stgrid .stat:has(.r.low),.stgrid .stat:has(.pb.low){border-left-color:#E07A6A}
+.stgrid .stat .l{grid-area:l;font-size:12px;letter-spacing:.09em;line-height:1.25}
+.stgrid .stat .l small{margin-top:2px;font-size:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stgrid .stat .v{grid-area:v;text-align:left;min-width:0;font-size:22px;line-height:1.1;margin-top:2px}
+.stgrid .stat .r{grid-area:r;flex:none;align-self:center;margin-top:3px;padding:1px 7px;border-radius:7px;font-size:11.5px;font-weight:600;background:color-mix(in srgb,var(--strong) 7%,transparent);white-space:nowrap}
+.stgrid .stat .r.good{color:#5FC28A;background:color-mix(in srgb,#5FC28A 14%,transparent)}
+.stgrid .stat .r.low{color:#E07A6A;background:color-mix(in srgb,#E07A6A 14%,transparent)}
+.stgrid .stat .r:empty{display:none}
+.stgrid .stat .pb{grid-area:pb;flex:none;width:100%;height:5px;margin-top:4px}
+.stgrid .stat:last-child{border-bottom:1px solid color-mix(in srgb,var(--line) 85%,transparent)}
+@media (max-width:600px){.stgrid{grid-template-columns:1fr 1fr}.stgrid .stat .v{font-size:20px}}
+/* tables in the panels: a line score look */
+#detail .tb th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:color-mix(in srgb,var(--ink) 40%,transparent)}
+#detail .tb td{font-variant-numeric:tabular-nums}
+#detail .tb tr:nth-child(odd) td{background:color-mix(in srgb,var(--strong) 2.5%,transparent)}
+#detail .tb td b{color:var(--strong);font-weight:700}
+#detail .money b{font-family:'Archivo Black',sans-serif}
 </style>
 </head>
 <body>
@@ -5807,7 +5834,7 @@ function panelHero(kind, tab){
 // sections short enough to sit two across on a wide screen
 const HALF = {
   team: /(record$|^Coaching staff|^News|^Injury report|^Ratings|^NBA 2K|^Four factors|^Scoring|^Shooting|^Everything else|^Clutch and quarters|^Leading scorers|^New this season|^Roster makeup|^Future draft picks)/i,
-  player: /(^Honors|^Background|^Contract|^NBA 2K|averages$|^Shooting|^Per 36|^Playoffs|^Advanced|^Impact|^Skills|^News|^Injury)/i,
+  player: /(^Honors|^Background|^Contract|^NBA 2K|^Playoffs|^Impact|^Skills|^News|^Injury)/i,
 };
 function tabifyPanel(d, kind){
   if (!d) return;
@@ -5824,6 +5851,15 @@ function tabifyPanel(d, kind){
   const tabs = defs.filter(([k]) => used.has(k));
   if (tabs.length < 2){ rest.forEach(n => { delete n.dataset.ptab; n.classList.remove('ptoff'); }); return; }
   if (!used.has(PANEL_TAB[kind])) PANEL_TAB[kind] = tabs[0][0];
+  d.dataset.kind = kind;
+  if (kind === 'player' && !pastSeason && P[curP]) for (const sec of rest){ if (/averages$/i.test(panelTitle(sec) || '')) sec.querySelector(':scope > .big3')?.remove(); }
+  // runs of stat rows become a grid of tiles
+  for (const sec of rest) if (sec.classList.contains('sect')){
+    let run = [];
+    const flush = () => { if (run.length > 1){ const g = document.createElement('div'); g.className = 'stgrid'; run[0].before(g); run.forEach(x => g.appendChild(x)); } run = []; };
+    for (const ch of [...sec.children]){ if (ch.classList.contains('stat')) run.push(ch); else flush(); }
+    flush();
+  }
   const bar = document.createElement('div'); bar.className = 'ptabs'; bar.setAttribute('role', 'tablist');
   for (const [k, label] of tabs){ const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.pt = k; b.onclick = () => { PANEL_TAB[kind] = k; show(); keepBarInView(); }; bar.appendChild(b); }
   const mark = document.createElement('div'); mark.className = 'ptabmark';
