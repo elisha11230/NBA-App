@@ -1510,6 +1510,27 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 #detail > .ptoff{display:none !important}
 #detail > .ptabs + .sect{margin-top:0}
 @media (min-width:1101px) and (max-width:1300px){#detail .ptabs{gap:1px}#detail .ptabs button{padding:7px 3px;font-size:11.5px;letter-spacing:.02em}}
+
+/* tab headline strip */
+.thero{display:flex;flex-wrap:wrap;margin:0 0 14px;border-radius:14px;overflow:hidden;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--team-accent) 26%,var(--panel)),var(--panel) 70%);border:1px solid color-mix(in srgb,var(--team-accent) 35%,var(--line))}
+.thc{flex:1 1 104px;display:flex;flex-direction:column;gap:2px;padding:13px 14px 12px;border-right:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);min-width:0}
+.thc b{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:27px;line-height:1;color:var(--strong);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thc span{font-size:12px;color:var(--dim);line-height:1.25}
+.thc i{font-style:normal;align-self:flex-start;margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:11.5px;padding:0 7px;border-radius:7px;color:var(--mute);background:color-mix(in srgb,var(--strong) 7%,transparent);white-space:nowrap}
+.thc i.g{color:#5FC28A;background:color-mix(in srgb,#5FC28A 14%,transparent)}
+.thc i.b{color:#E07A6A;background:color-mix(in srgb,#E07A6A 14%,transparent)}
+@media (max-width:600px){.thc{flex-basis:132px;padding:11px 13px 10px}.thc b{font-size:24px}}
+/* wide screens: short sections sit two across */
+@media (min-width:1280px){
+  #detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:14px;align-content:start;align-items:start;grid-auto-flow:row dense}
+  #detail > *{grid-column:1/-1}
+  #detail > .sect.half{grid-column:auto}
+  #detail > .sect{margin-top:0;margin-bottom:14px}
+  #detail > .ptabs{margin-bottom:14px}
+  #detail > .sect.half > h3{gap:10px;white-space:nowrap}
+  #detail > .sect.half > h3 > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+}
 </style>
 </head>
 <body>
@@ -5708,10 +5729,90 @@ function panelTitle(node){
   if (!h) return null;
   return (h.firstChild ? h.firstChild.textContent : h.textContent).trim() || null;
 }
+
+/* Each tab opens with a strip of its headline numbers, read like a box score line:
+   the number big, what it is underneath, and where it ranks when that tells you something. */
+const usdM = v => v == null ? '—' : `$${(v / 1e6).toFixed(v >= 1e8 ? 0 : 1)}M`;
+function heroCell(v, label, rank, of = 30, sub = ''){
+  const tier = rank == null ? '' : rank <= Math.ceil(of * .27) ? 'g' : rank > of - Math.ceil(of * .27) ? 'b' : '';
+  return `<div class="thc"><b>${v}</b><span>${label}</span>${rank != null ? `<i class="rk ${tier}">${ord(rank)}${of > 30 ? ' in NBA' : ''}</i>` : sub ? `<i class="rk">${sub}</i>` : ''}</div>`;
+}
+function panelHero(kind, tab){
+  if (pastSeason) return '';
+  if (kind === 'team'){
+    const t = T[cur]; if (!t) return '';
+    const st = t.st || {}, rec = t.rec || {}, c = (k, l, f = x => x) => st[k] ? heroCell(f(st[k][0]), l, st[k][1]) : '';
+    if (tab === 'overview'){
+      const nx = (t.sched || []).find(x => x[5] == null && Date.parse(x[1]) > Date.now() - 3 * 3600e3);
+      return [rec.rec ? heroCell(rec.rec, `${M.stats} record`, null, 30, rec.seed ? `${ord(rec.seed)} in the ${t.conf}` : '') : '',
+        rec.l10 ? heroCell(rec.l10, 'Last 10') : '', rec.strk ? heroCell(rec.strk, 'Finished on') : '',
+        nx ? heroCell(`${nx[3] ? '@' : 'vs'} ${esc(nx[2])}`, 'Next game', null, 30, new Date(nx[1]).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})) : ''].join('');
+    }
+    if (tab === 'stats') return [c('ppg', 'Points'), c('opp', 'Allowed'), c('diff', 'Margin', v => (v > 0 ? '+' : '') + v), c('pace', 'Pace'), c('tpp', '3 point %')].join('');
+    if (tab === 'adv'){
+      const pr = powerRank().find(r => r.id === String(cur));
+      return [c('ortg', 'Offense rating'), c('drtg', 'Defense rating'), c('net', 'Net rating', v => (v > 0 ? '+' : '') + v),
+        t.k ? heroCell(t.k.ovr, 'NBA 2K rating', t.k.rk) : '', pr && pr.n ? heroCell((pr.score > 0 ? '+' : '') + pr.score.toFixed(1), 'Power', pr.rank) : ''].join('');
+    }
+    if (tab === 'roster'){
+      const R = [...(t.five || []), ...(t.bench || [])].map(String).filter(id => P[id]);
+      const ages = R.map(id => P[id].age).filter(Boolean), k2 = R.map(id => P[id].k?.o).filter(Boolean);
+      const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : '—';
+      return [heroCell(R.length, 'Players'), heroCell(avg(ages), 'Average age'), heroCell(R.filter(id => P[id].prev).length, 'New this season'),
+        k2.length ? heroCell(Math.max(...k2), 'Best 2K rating', null, 30, esc(P[R.find(id => P[id].k?.o === Math.max(...k2))].n.split(' ').slice(-1)[0])) : ''].join('');
+    }
+    if (tab === 'history'){
+      const H = (t.hist || []).slice(-10); if (!H.length) return '';
+      const po = H.filter(h => h.po && !/missed/i.test(h.po)).length, best = [...H].sort((a, b) => b.w - a.w)[0];
+      const deep = H.filter(h => /conference finals|nba finals|won/i.test(h.po || '')).length;
+      return [heroCell(`${po} of ${H.length}`, 'Playoff trips'), heroCell(deep, 'Conference finals or better'), heroCell(`${best.w}-${best.l}`, 'Best record', null, 30, best.s),
+        heroCell((H.reduce((a, h) => a + h.w, 0) / H.length).toFixed(1), 'Wins a season')].join('');
+    }
+    if (tab === 'money'){
+      const m = t.$ || {}, r = M.cap?.rules || {};
+      const line = !m.total || !r.cap ? null : m.total > r.a2 ? ['2nd apron', 'Over the second apron', r.a2] : m.total > r.a1 ? ['1st apron', 'Over the first apron', r.a1] : m.total > r.tax ? ['Tax', 'Paying the luxury tax', r.tax] : m.total > r.cap ? ['Over cap', 'Over the salary cap', r.cap] : ['Under cap', 'Room under the cap', r.cap];
+      return [m.total ? heroCell(usdM(m.total), 'Payroll', m.rk) : '', line ? heroCell(line[0], line[1], null, 30, `${usdM(Math.abs(m.total - line[2]))} ${m.total >= line[2] ? 'over' : 'under'}`) : '',
+        m.next ? heroCell(usdM(m.next), 'Next season so far') : '', m.n ? heroCell(m.n, 'Contracts') : ''].join('');
+    }
+    return '';
+  }
+  const p = P[curP]; if (!p) return '';
+  const s_ = p.s, rk = s_?.rk || {}, a = p.adv || {};
+  if (tab === 'overview'){
+    const d = draftInfo(curP, p.n), pay = p.$?.y?.[0]?.[0];
+    return [heroCell(p.age || '—', 'Age'), heroCell(esc(p.ht || '—'), 'Height', null, 30, esc((p.wt || '').replace(' lbs', ' lb'))),
+      heroCell(p.exp ? ord(+p.exp + 1) : 'Rookie', 'NBA season'), d ? heroCell(`#${d.overall}`, 'Draft pick', null, 30, String(d.year)) : '',
+      pay ? heroCell(usdM(pay), 'Salary this season', p.$.rk, 450) : ''].join('');
+  }
+  if (tab === 'stats'){
+    if (!s_) return '';
+    const c = (k, l, f = f1) => s_[k] != null ? heroCell(f(s_[k]), l, rk[k] != null && rk[k] <= 60 ? rk[k] : null, 450) : '';
+    return [c('pts', 'Points'), c('reb', 'Rebounds'), c('ast', 'Assists'), c('ts', 'True shooting'), c('min', 'Minutes'), heroCell(s_.gp, 'Games', null, 30, `${s_.gs || 0} starts`)].join('');
+  }
+  if (tab === 'adv'){
+    return [a.per != null ? heroCell(f1(a.per), 'PER') : '', a.bpm != null ? heroCell((a.bpm > 0 ? '+' : '') + f1(a.bpm), 'Box plus minus') : '',
+      a.ws != null ? heroCell(f1(a.ws), 'Win shares') : '', a.usg != null ? heroCell(f1(a.usg) + '%', 'Usage') : '',
+      p.rapm ? heroCell((p.rapm[1] > 0 ? '+' : '') + f1(p.rapm[1]), 'RAPM impact', p.rapm[0] <= 60 ? p.rapm[0] : null, 450) : '',
+      p.k ? heroCell(p.k.o, 'NBA 2K') : ''].join('');
+  }
+  if (tab === 'career'){
+    const Y = p.yr || []; if (!Y.length) return '';
+    const gp = Y.reduce((x, r) => x + (+r[2] || 0), 0), pts = Math.round(Y.reduce((x, r) => x + (+r[2] || 0) * (+r[5] || 0), 0));
+    const allStar = (p.aw || []).filter(x => x[1] === 'All-Star').length, allNba = (p.aw || []).filter(x => /^All-NBA/.test(x[1])).length;
+    return [heroCell(Y.length, 'Seasons'), heroCell(gp.toLocaleString(), 'Games'), heroCell(pts.toLocaleString(), 'Career points'),
+      heroCell(gp ? f1(pts / gp) : '—', 'Points a game'), allStar ? heroCell(allStar, 'All-Star picks', null, 30, allNba ? `${allNba} All-NBA` : '') : ''].join('');
+  }
+  return '';
+}
+// sections short enough to sit two across on a wide screen
+const HALF = {
+  team: /(record$|^Coaching staff|^News|^Injury report|^Ratings|^NBA 2K|^Four factors|^Scoring|^Shooting|^Everything else|^Clutch and quarters|^Leading scorers|^New this season|^Roster makeup|^Future draft picks)/i,
+  player: /(^Honors|^Background|^Contract|^NBA 2K|averages$|^Shooting|^Per 36|^Playoffs|^Advanced|^Impact|^Skills|^News|^Injury)/i,
+};
 function tabifyPanel(d, kind){
   if (!d) return;
   if (d._tabObs){ d._tabObs.disconnect(); d._tabObs = null; }
-  d.querySelectorAll(':scope > .ptabs, :scope > .ptabmark').forEach(x => x.remove());
+  d.querySelectorAll(':scope > .ptabs, :scope > .ptabmark, :scope > .thero').forEach(x => x.remove());
   const defs = PANEL_TABS[kind], kids = [...d.children];
   const first = kids.findIndex(c => c.classList.contains('sect'));
   if (first < 0) return;
@@ -5719,7 +5820,7 @@ function tabifyPanel(d, kind){
   const tabOf = (node, prev) => { const t = panelTitle(node); if (!t) return prev; const hit = defs.find(([, , re]) => re.test(t)); return hit ? hit[0] : (node.classList.contains('sect') ? prev : prev); };
   let prev = defs[0][0];
   const used = new Set();
-  rest.forEach(n => { prev = tabOf(n, prev); n.dataset.ptab = prev; used.add(prev); });
+  rest.forEach(n => { prev = tabOf(n, prev); n.dataset.ptab = prev; used.add(prev); const t_ = panelTitle(n); n.classList.toggle('half', !!(t_ && HALF[kind].test(t_))); });
   const tabs = defs.filter(([k]) => used.has(k));
   if (tabs.length < 2){ rest.forEach(n => { delete n.dataset.ptab; n.classList.remove('ptoff'); }); return; }
   if (!used.has(PANEL_TAB[kind])) PANEL_TAB[kind] = tabs[0][0];
@@ -5727,6 +5828,8 @@ function tabifyPanel(d, kind){
   for (const [k, label] of tabs){ const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.pt = k; b.onclick = () => { PANEL_TAB[kind] = k; show(); keepBarInView(); }; bar.appendChild(b); }
   const mark = document.createElement('div'); mark.className = 'ptabmark';
   d.insertBefore(mark, rest[0]); d.insertBefore(bar, rest[0]);
+  for (const [k] of tabs){ let h = ''; try { h = panelHero(kind, k); } catch (e){ console.warn('hero', e); }
+    if (h){ const el = document.createElement('div'); el.className = 'thero'; el.dataset.ptab = k; el.innerHTML = h; d.insertBefore(el, rest[0]); } }
   function show(){
     const on = PANEL_TAB[kind];
     bar.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pt === on)));
@@ -5749,7 +5852,7 @@ function tabifyPanel(d, kind){
       for (const n of m.addedNodes){
         if (n.nodeType !== 1 || n.parentNode !== d || n.dataset.ptab || n === bar || n === mark) continue;
         const before = n.previousElementSibling;
-        n.dataset.ptab = tabOf(n, (before && before.dataset.ptab) || defs[0][0]);
+        n.dataset.ptab = tabOf(n, (before && before.dataset.ptab) || defs[0][0]); { const t_ = panelTitle(n); n.classList.toggle('half', !!(t_ && HALF[kind].test(t_))); }
         n.classList.toggle('ptoff', n.dataset.ptab !== PANEL_TAB[kind]);
       }
       // a section filled in place (it got its heading later) may belong elsewhere
