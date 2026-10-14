@@ -7003,7 +7003,7 @@ function fingerprint(tid){
     ['Defense', P_(st.drtg[1]), `${f1(st.drtg[0])} allowed per 100`, 'Defends', 'Leaks points on defense'],
   ];
 }
-function radarSvg(F, G, colA, colB){
+function fpRadarSvg(F, G, colA, colB){
   const n = F.length, R = 100, cx = 150, cy = 130, pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n, r = R * (.12 + .88 * v / 100); return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
   const ring = v => F.map((_, i) => pt(i, v).map(x => x.toFixed(1)).join(',')).join(' ');
   const poly = (X, c, o) => `<polygon points="${X.map((x, i) => pt(i, x[1]).map(v => v.toFixed(1)).join(',')).join(' ')}" fill="${c}" fill-opacity="${o}" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
@@ -7020,7 +7020,7 @@ function fingerprintSection(t, tid){
   const hi = [...F].sort((a, b) => b[1] - a[1]).slice(0, 3).filter(f => f[1] >= 70), lo = [...F].sort((a, b) => a[1] - b[1]).slice(0, 2).filter(f => f[1] <= 30);
   const opts = Object.keys(T).filter(id => id !== String(tid)).sort((a, b) => T[a].name.localeCompare(T[b].name)).map(id => `<option value="${id}" ${id === fpCmp ? 'selected' : ''}>${esc(T[id].name)}</option>`).join('');
   return `<section class="sect k-stat" id="fpsect"><h3>Team fingerprint<span>${esc(M.stats)}, against the league</span></h3>
-    <div class="fpwrap"><div class="fprad">${radarSvg(F, G, colA, colB)}</div>
+    <div class="fpwrap"><div class="fprad">${fpRadarSvg(F, G, colA, colB)}</div>
     <div class="fpside">${hi.length ? `<div class="fpid"><span>Identity</span>${hi.map(f => `<b>${f[3]}</b>`).join('')}</div>` : ''}${lo.length ? `<div class="fpid lo"><span>Weak spots</span>${lo.map(f => `<b>${f[4]}</b>`).join('')}</div>` : ''}
       <label class="fpcmp">Compare with <select id="fpsel"><option value="">No one</option>${opts}</select></label>
       ${G ? `<div class="legend"><span><i style="background:${colA}"></i>${esc(t.abbr)}</span><span><i style="background:${colB}"></i>${esc(T[fpCmp].abbr)}</span></div>` : ''}</div></div>
