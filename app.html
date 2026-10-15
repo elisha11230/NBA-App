@@ -1905,6 +1905,38 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
 #gamehead.sphide .oclu{display:none}
 .hzpick{flex-wrap:wrap;align-items:center}
 .hzpick .plab{flex:0 0 auto;margin-right:4px}
+/* ---------- settings page ---------- */
+#opts{position:fixed;inset:0;z-index:66;background:var(--ink);display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(12px + env(safe-area-inset-bottom,0px))}
+#opts[hidden]{display:none}
+#opts .lhead h2{font-size:22px}
+#optbody{flex:1 1 auto;overflow-y:auto;max-width:760px;width:100%;margin:0 auto;padding:2px 2px 24px}
+.optsec{margin-bottom:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
+.optsec h3{padding:12px 16px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--strong);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--team) 30%,transparent),transparent);border-bottom:1px solid var(--line)}
+.optrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.optsec h3 + .optrow{border-top:0}
+.optrow.wide{flex-direction:column;align-items:stretch;gap:10px}
+.optl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.optl b{font-size:15px;font-weight:600;color:var(--strong)}
+.optl small{font-size:13px;line-height:1.4;color:var(--mute)}
+.optc{flex:0 0 auto}
+.optseg{display:flex;flex-wrap:wrap;gap:4px;padding:3px;border:1px solid var(--line);border-radius:11px;background:color-mix(in srgb,var(--ink) 40%,transparent)}
+.optseg button{flex:1 1 auto;padding:7px 11px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.06em;color:var(--mute);white-space:nowrap}
+.optseg button[aria-pressed="true"]{background:var(--team);color:var(--team2);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.optsw{position:relative;width:50px;height:30px;border-radius:15px;background:color-mix(in srgb,var(--strong) 14%,transparent);border:1px solid var(--line);transition:background .15s}
+.optsw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:left .15s}
+.optsw[aria-checked="true"]{background:#3DBB8F;border-color:#3DBB8F}
+.optsw[aria-checked="true"] i{left:23px}
+.optsel,.optname input{padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 40%,var(--panel));color:var(--strong);font-size:15px;max-width:200px}
+.optname{display:flex;gap:6px;align-items:center}
+.optname input{width:140px}
+.optdelay{display:flex;align-items:center;gap:12px}
+.optdelay input{flex:1 1 auto;accent-color:var(--brass)}
+.optdelay b{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:16px;color:var(--strong);min-width:46px;text-align:right}
+@media (max-width:520px){.optrow:not(.wide){flex-wrap:wrap}.optrow:not(.wide) .optc{margin-left:auto}}
+/* larger text and less motion, from settings */
+:root.bigtext body{zoom:1.1}
+:root.lessmotion *,:root.lessmotion *::before,:root.lessmotion *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 </style>
 </head>
 <body>
@@ -1920,6 +1952,7 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
     <button type="button" role="menuitem" data-go="dlbtn"><span aria-hidden="true">$</span>Contracts</button>
     <button type="button" role="menuitem" data-go="cupbtn"><span aria-hidden="true">◇</span>NBA Cup</button>
     <button type="button" role="menuitem" data-go="trbtn"><span aria-hidden="true">∿</span>League trends</button>
+    <button type="button" role="menuitem" data-go="optbtn"><span aria-hidden="true">⚙</span>Settings</button>
   </div>
   <nav id="menu" aria-label="Menu">
     <button id="scbtn"><span aria-hidden="true">●</span>Scores</button>
@@ -1933,6 +1966,7 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
     <button id="dlbtn" class="mhid"><span aria-hidden="true">$</span>Contracts</button>
     <button id="cupbtn" class="mhid"><span aria-hidden="true">◇</span>NBA Cup</button>
     <button id="trbtn" class="mhid"><span aria-hidden="true">∿</span>Trends</button>
+    <button id="optbtn" class="mhid"><span aria-hidden="true">⚙</span>Settings</button>
     <button id="morebtn" type="button" aria-haspopup="true" aria-expanded="false"><span aria-hidden="true">▾</span>More</button>
     <button id="spbtn" aria-label="Hide or show scores"></button>
     <button id="themebtn" aria-label="Switch between light and dark"></button>
@@ -2005,7 +2039,7 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
   <div id="minebody"></div>
 </div>
 
-<div id="welcome" hidden role="dialog" aria-modal="true" aria-label="Today's games"><div class="wcwrap"><div class="wchead"><div><small id="wcdate"></small><h1 class="blk" id="wchi">Welcome</h1></div><button class="qx" id="wcclose" type="button">Skip</button></div><div class="wctog" id="wctog"></div><div id="wcbody"></div><div class="wcfoot"><button class="pbtn" type="button" id="wcscores">All scores</button><button class="pbtn" type="button" id="wcpick">Pick'em</button><button class="pbtn" type="button" id="wcgo">Go to the app</button></div></div></div>
+<div id="welcome" hidden role="dialog" aria-modal="true" aria-label="Today's games"><div class="wcwrap"><div class="wchead"><div><small id="wcdate"></small><h1 class="blk" id="wchi">Welcome</h1></div><button class="qx" id="wcclose" type="button">Skip</button></div><div class="wctog" id="wctog"></div><div id="wcbody"></div><div class="wcfoot"><button class="pbtn" type="button" id="wcscores">All scores</button><button class="pbtn" type="button" id="wcpick">Pick'em</button><button class="pbtn" type="button" id="wcopts">⚙ Settings</button><button class="pbtn" type="button" id="wcgo">Go to the app</button></div></div></div>
 <div id="stand" hidden role="dialog" aria-modal="true" aria-label="Standings">
   <div class="lhead"><h2 id="standh">Standings</h2><button class="qx" id="stclose">Close</button></div>
   <div class="sttabs" role="tablist"><button data-stt="table" aria-pressed="true">Standings</button><button data-stt="odds" aria-pressed="false">Playoff odds</button><button data-stt="power" aria-pressed="false">Power rankings</button></div>
@@ -2037,6 +2071,10 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
   <div class="lhead"><h2>League trends</h2><button class="qx" id="trclose">Close</button></div>
   <div id="trbody"></div>
 </div>
+<div id="opts" hidden role="dialog" aria-modal="true" aria-label="Settings">
+  <div class="lhead"><h2>Settings</h2><button class="qx" id="optclose">Done</button></div>
+  <div id="optbody"></div>
+</div>
 <script id="nba-data" type="application/json">{}</script>
 <script>
 "use strict";
@@ -2056,7 +2094,14 @@ const isLight = () => document.documentElement.dataset.theme === 'light';
 /* ---------- spoilers: one switch hides every score and live stat in the app ---------- */
 // Scores always start hidden: every launch, and every return to the app after a while away.
 // Showing them (eye toggle, welcome screen, scores page) lasts only for that sitting.
-let noSpoil = true;
+/* ---------- settings (the Settings page), read first so launch can follow them ---------- */
+const OPT_DEFAULT = {launch: 'welcome', team: '', spoilLaunch: 'hide', awayMins: 30, awayReopen: true, liveTags: 'show', replay: 'show', textSize: 'normal', motion: 'auto'};
+const OPT = (() => { try { return {...OPT_DEFAULT, ...JSON.parse(localStorage.getItem('nba_opts') || '{}')}; } catch (e){ return {...OPT_DEFAULT}; } })();
+function saveOpts(){ try { localStorage.setItem('nba_opts', JSON.stringify(OPT)); } catch (e){} }
+function applyLook(){ const r = document.documentElement; r.classList.toggle('bigtext', OPT.textSize === 'large'); r.classList.toggle('lessmotion', OPT.motion === 'reduce'); }
+applyLook();
+// Scores start hidden on every launch unless the Settings page says otherwise
+let noSpoil = OPT.spoilLaunch === 'show' ? false : OPT.spoilLaunch === 'remember' ? (() => { try { return localStorage.getItem('nba_spoil') !== 'shown'; } catch (e){ return true; } })() : true;
 document.documentElement.classList.toggle('nospoil', noSpoil);
 const SPOIL_OK = new Set();   // games you chose to reveal anyway, for this visit
 applyTheme(savedTheme() || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
@@ -2812,6 +2857,7 @@ function wtFromSummary(s){
 }
 
 function wtTags(g, opts = {}){
+  if (noSpoil && OPT.liveTags === 'hide') opts = {...opts, noLive: true};
   const W = wtStatic(), [A, H] = g.teams, tA = W.teams[A.tid] || {}, tH = W.teams[H.tid] || {};
   const TA = T[A.tid] || {}, TH = T[H.tid] || {};
   const tags = [], add = (k, pts, lines, extra = {}) => tags.push({k, pts, lines, ...extra});
@@ -2944,7 +2990,7 @@ function wtTags(g, opts = {}){
     add('excite', xi.level >= 10 ? 3 : xi.level >= 8 ? 2 : 1.5, [`Excitement so far: <b>${xi.level}/10</b>`, ...xiLines(xi)], {live: true});
   if (g.state === 'in' && !opts.noLive && xi && !xi.final && xi.hot?.length)
     add('heat', xi.hot.some(h => h.lvl > 1) ? 2.5 : 1.5, xi.hot.map(heatLine), {live: true});
-  const replay = g.state === 'post' && xi && xi.final ? xiReplay(xi) : null;
+  const replay = g.state === 'post' && xi && xi.final && !(noSpoil && OPT.replay === 'hide') ? xiReplay(xi) : null;
   const score = tags.reduce((a, t_) => a + (t_.off ? 0 : t_.pts), 0);
   const label = score >= 7 ? 'must' : score >= 4 ? 'worth' : 'skip';
   return WT_CACHE[g.id] = {tags, score, label, replay};
@@ -3099,7 +3145,7 @@ function whySection(s){
 const wtRecent = d => !d || Date.now() - Date.parse(d) < 2 * 864e5;
 function wtSafe(e, noLive){
   if (!wtRecent(e.date)){ const x = XI[e.id]; if (e.status.type.state !== 'post' || !x?.final) return null;
-    return WT_CACHE[String(e.id)] = {tags: [], score: 0, label: 'skip', replay: xiReplay(x)}; }
+    return WT_CACHE[String(e.id)] = {tags: [], score: 0, label: 'skip', replay: noSpoil && OPT.replay === 'hide' ? null : xiReplay(x)}; }
   try { return wtTags(wtFromEvent(e), {noLive}); } catch (err){ console.warn('watch tags', err); return null; } }
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
@@ -4878,7 +4924,7 @@ $('#mvscores').onclick = () => setSpoil(MV.scores);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#multi').hidden) closeMulti(); });
 
 function setSpoil(v){
-  noSpoil = v; document.documentElement.classList.toggle('nospoil', v);
+  noSpoil = v; if (OPT.spoilLaunch === 'remember') try { localStorage.setItem('nba_spoil', v ? 'hidden' : 'shown'); } catch (e){} document.documentElement.classList.toggle('nospoil', v);
   if (!$('#welcome')?.hidden) wcDraw();
   drawSpoilBtns();
   if (typeof MV !== 'undefined'){ MV.scores = !v; if (!$('#multi').hidden){ mvTools(); mvPicker(); MV.ids.forEach(mvTile); } }
@@ -6343,6 +6389,7 @@ $('#welcome').addEventListener('click', e => {
   if (e.target.closest('#wcclose') || e.target.closest('#wcgo')){ closeWelcome(); return; }
   if (e.target.closest('#wcscores')){ closeWelcome(); openScores(); return; }
   if (e.target.closest('#wcpick')){ closeWelcome(); openPickem(); return; }
+  if (e.target.closest('#wcopts')){ closeWelcome(); openOpts(); return; }
   const g = e.target.closest('[data-game]'); if (g){ closeWelcome(); gameTab = 'pbp'; openScores(g.dataset.game); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#welcome').hidden) closeWelcome(); });
@@ -6350,11 +6397,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#welco
 let awayAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden'){ awayAt = Date.now(); return; }
-  if (!awayAt || Date.now() - awayAt < 30 * 60000) return;
+  if (!awayAt || !OPT.awayMins || Date.now() - awayAt < OPT.awayMins * 60000) return;
   awayAt = 0;
-  SPOIL_OK.clear();
-  if (!noSpoil) setSpoil(true);
-  if (!STREAM.slug && $('#welcome').hidden) openWelcome();
+  if (OPT.spoilLaunch === 'hide'){ SPOIL_OK.clear(); if (!noSpoil) setSpoil(true); }
+  if (OPT.awayReopen && !STREAM.slug && $('#welcome').hidden && $('#opts').hidden) launchPage();
 });
 
 /* ---------- picking up a new version: a home screen app can stay open for days ---------- */
@@ -6398,6 +6444,7 @@ function navLayers(){
     [() => !$('#deals').hidden, closeDeals],
     [() => !$('#cup').hidden, closeCup],
     [() => !$('#trends').hidden, closeTrends],
+    [() => !$('#opts').hidden, closeOpts],
     [() => view === 'player', () => setView('team')],
   ];
 }
@@ -7235,6 +7282,89 @@ shotsView = function(s, cs){
 document.addEventListener('click', e => { const b = e.target.closest('[data-hz]'); if (b && lastSummary){ shotPlayer = b.dataset.hz; drawGame(lastSummary, true); return; }
   const z = e.target.closest('[data-hotz]'); if (z && lastSummary){ shotPlayer = z.dataset.hotz; gameTab = 'shots'; drawGame(lastSummary); } });
 
+/* =================================================================================
+   Settings page
+   ================================================================================= */
+function openOpts(){ $('#opts').hidden = false; document.body.style.overflow = 'hidden'; drawOpts(); }
+function closeOpts(){ $('#opts').hidden = true; document.body.style.overflow = ''; }
+function launchPage(){
+  switch (OPT.launch){
+    case 'scores': openScores(); break;
+    case 'mine': openMine(); break;
+    case 'pickem': openPickem(); break;
+    case 'multi': openMulti(); break;
+    case 'team': break;   // straight to the team page
+    default: openWelcome();
+  }
+}
+const optSeg = (key, choices, val = OPT[key]) => `<div class="optseg" role="group">${choices.map(([v, l]) => `<button type="button" data-opt="${key}" data-v="${esc(String(v))}" aria-pressed="${String(val) === String(v)}">${esc(l)}</button>`).join('')}</div>`;
+const optSwitch = (key, on) => `<button type="button" class="optsw" data-optsw="${key}" role="switch" aria-checked="${on}"><i></i></button>`;
+const optRow = (title, sub, ctrl, wide) => `<div class="optrow${wide ? ' wide' : ''}"><div class="optl"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div><div class="optc">${ctrl}</div></div>`;
+function drawOpts(){
+  const teams = Object.keys(T).sort((a, b) => T[a].name.localeCompare(T[b].name));
+  const thm = savedTheme() || 'auto';
+  const cache = (() => { let n = 0; try { for (const k of ['nba_hl', 'nba_xi']) n += (localStorage.getItem(k) || '').length; } catch (e){} return n; })();
+  $('#optbody').innerHTML = `
+    <section class="optsec"><h3>When the app opens</h3>
+      ${optRow('Start on', 'What you see first each time you open the app, and after a long time away.', optSeg('launch', [['welcome', "Today's games"], ['scores', 'Scores'], ['team', 'Team page'], ['mine', 'My Teams'], ['pickem', "Pick'em"], ['multi', 'Multiview']]), true)}
+      ${optRow('Team', 'The team the app opens to. "Last viewed" picks up where you left off.', `<select class="optsel" id="optteam"><option value="">Last viewed</option>${teams.map(id => `<option value="${esc(T[id].abbr)}" ${OPT.team === T[id].abbr ? 'selected' : ''}>${esc(T[id].name)}</option>`).join('')}</select>`)}
+    </section>
+    <section class="optsec"><h3>Spoilers</h3>
+      ${optRow('Scores when the app opens', 'Hidden is safest: you choose to show them each sitting. "Remember" keeps whatever you picked last.', optSeg('spoilLaunch', [['hide', 'Always hidden'], ['remember', 'Remember'], ['show', 'Always shown']]), true)}
+      ${optRow('Hide scores again after', 'Coming back to the app after this long hides scores again' + (OPT.spoilLaunch === 'hide' ? '.' : ' (only when scores start hidden).'), optSeg('awayMins', [[15, '15 min'], [30, '30 min'], [60, '1 hour'], [180, '3 hours'], [0, 'Never']]), true)}
+      ${optRow('Reopen the start page after time away', 'Lands you back on your start page instead of where you left off.', optSwitch('awayReopen', OPT.awayReopen))}
+      ${optRow('Live tags while scores are hidden', 'Close late, Comeback, Big night, Heat check and Excitement hint at how a game is going without the score.', optSeg('liveTags', [['show', 'Show'], ['hide', 'Hide']]))}
+      ${optRow('Replay ratings while scores are hidden', 'Instant classic and Great game ratings never say who won, but tell you it was close.', optSeg('replay', [['show', 'Show'], ['hide', 'Hide']]))}
+      ${optRow('Feed delay', 'Hold live scores and plays back so they never run ahead of your stream.', `<div class="optdelay"><input type="range" min="0" max="180" step="5" value="${liveDelay}" id="optdelay" aria-label="Feed delay in seconds"><b id="optdelayv">${liveDelay}s</b></div>`, true)}
+    </section>
+    <section class="optsec"><h3>Games</h3>
+      ${optRow('Sort the scores page', '"Best first" puts the games most worth watching on top.', optSeg('wsort', [['time', 'By time'], ['best', 'Best first']], wtSort))}
+      ${optRow('Close game alerts', 'A notification when a game is close late.' + ('Notification' in window && Notification.permission === 'denied' ? ' Notifications are blocked in your phone settings.' : ''), optSwitch('alerts', alertsOn))}
+      ${optRow("Pick'em name", 'Your name on the shared leaderboard.', `<div class="optname"><input type="text" id="optme" maxlength="20" value="${esc(pkMe)}" placeholder="Your name" autocomplete="nickname"><button type="button" class="pbtn" id="optmesave">Save</button></div>`)}
+    </section>
+    <section class="optsec"><h3>Look</h3>
+      ${optRow('Theme', '"Match phone" follows your phone\'s light or dark setting.', optSeg('theme', [['auto', 'Match phone'], ['dark', 'Dark'], ['light', 'Light']], thm))}
+      ${optRow('Text size', '', optSeg('textSize', [['normal', 'Normal'], ['large', 'Larger']]))}
+      ${optRow('Motion', 'Turns off pulsing dots, flickering flames and slides.', optSeg('motion', [['auto', 'Normal'], ['reduce', 'Less']]))}
+    </section>
+    <section class="optsec"><h3>App</h3>
+      ${optRow('Version', `Build ${esc(BUILD.startsWith('__') ? 'local' : BUILD)}, data from ${esc(fmtDate(M.built))}. The app updates itself.`, `<button type="button" class="pbtn" id="optupd">Check for update</button>`)}
+      ${optRow('Saved highlights and ratings', `${Math.round(cache / 1024)} KB kept on this phone so finished games load instantly. Safe to clear; they come back.`, `<button type="button" class="pbtn" id="optclear">Clear</button>`)}
+      ${optRow('Reset settings', 'Back to the defaults. Your teams, players and picks stay.', `<button type="button" class="pbtn" id="optreset">Reset</button>`)}
+    </section>`;
+}
+function setOpt(key, v){
+  if (key === 'theme'){
+    if (v === 'auto'){ try { localStorage.removeItem('nba_theme'); } catch (e){} applyTheme(matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
+    else { try { localStorage.setItem('nba_theme', v); } catch (e){} applyTheme(v); }
+    if (cur) teamColors(T[cur]); drawOpts(); return;
+  }
+  if (key === 'wsort'){ wtSort = v; try { localStorage.setItem('nba_wsort', v); } catch (e){} drawOpts(); return; }
+  if (key === 'awayMins') v = +v;
+  OPT[key] = v; saveOpts(); applyLook();
+  if (key === 'spoilLaunch' && v === 'remember') try { localStorage.setItem('nba_spoil', noSpoil ? 'hidden' : 'shown'); } catch (e){}
+  if (key === 'liveTags' || key === 'replay'){ for (const k in WT_CACHE) delete WT_CACHE[k]; }
+  drawOpts();
+}
+$('#opts').addEventListener('click', e => {
+  const s = e.target.closest('[data-opt]'); if (s){ setOpt(s.dataset.opt, s.dataset.v); return; }
+  const w = e.target.closest('[data-optsw]');
+  if (w){ const k = w.dataset.optsw;
+    if (k === 'alerts'){ setAlerts(!alertsOn).then(() => drawOpts()); return; }
+    OPT[k] = !OPT[k]; saveOpts(); drawOpts(); return; }
+  if (e.target.closest('#optmesave')){ const v = ($('#optme').value || '').replace(/[^\p{L}\p{N} .'_-]/gu, '').trim().slice(0, 20); pkMe = v; try { v ? localStorage.setItem('nba_me', v) : localStorage.removeItem('nba_me'); } catch (err){} toast(v ? `Pick'em name saved: ${v}` : "Pick'em name cleared"); drawOpts(); return; }
+  if (e.target.closest('#optupd')){ updAt = 0; toast('Checking for a new version…'); checkUpdate().then(() => setTimeout(() => { if (!$('#opts').hidden) toast("You're on the latest version."); }, 1500)); return; }
+  if (e.target.closest('#optclear')){ try { localStorage.removeItem('nba_hl'); localStorage.removeItem('nba_xi'); } catch (err){} for (const k in XI) delete XI[k]; toast('Cleared.'); drawOpts(); return; }
+  if (e.target.closest('#optreset')){ Object.assign(OPT, OPT_DEFAULT); saveOpts(); applyLook(); try { localStorage.removeItem('nba_theme'); } catch (err){} applyTheme(matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); if (cur) teamColors(T[cur]); toast('Settings reset.'); drawOpts(); return; }
+  if (e.target.closest('#optclose')) closeOpts();
+});
+$('#opts').addEventListener('change', e => {
+  if (e.target.id === 'optteam'){ OPT.team = e.target.value; saveOpts(); if (OPT.team && byAbbr[OPT.team]){ pastSeason = null; setTeam(byAbbr[OPT.team]); drawTimebar(); drawHeaderPast(); renderFloor(); renderBench(); setView('team'); } }
+});
+$('#opts').addEventListener('input', e => { if (e.target.id === 'optdelay'){ setDelay(+e.target.value); const v = $('#optdelayv'); if (v) v.textContent = `${liveDelay}s`; } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#opts').hidden) closeOpts(); });
+$('#optbtn').onclick = openOpts;
+
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
 if (!Object.keys(T).length){
   $('#detail').innerHTML = '<p class="note">No data in this file yet. Run the update workflow in GitHub Actions to fill it.</p>';
@@ -7244,13 +7374,13 @@ if (!Object.keys(T).length){
   $('#stamp').textContent = `Rosters as of ${fmtDate(M.rosterStamp)}. Built ${fmtDate(M.built)}`;
   let start = null;
   const hash = decodeURIComponent(location.hash.slice(1)).toUpperCase();
-  if (!/^(DEMO|MULTI|MULTIVIEW|MINE|GAME=\d+)$/.test(hash)) setTimeout(openWelcome, 0);
+  if (!/^(DEMO|MULTI|MULTIVIEW|MINE|GAME=\d+)$/.test(hash)) setTimeout(launchPage, 0);
   if (hash === 'DEMO') setTimeout(openDemo, 300);
   if (hash === 'MULTI' || hash === 'MULTIVIEW') setTimeout(openMulti, 300);
   if (hash === 'MINE') setTimeout(openMine, 300);
   if (/^GAME=\d+$/.test(hash)) setTimeout(() => openScores(hash.slice(5)), 300);
   addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)).toUpperCase(); if (/^GAME=\d+$/.test(h)){ closeMultiIfOpen(); openScores(h.slice(5)); } });
-  try { start = byAbbr[hash] || byAbbr[localStorage.getItem('nba_team')]; } catch(e){ start = byAbbr[hash]; }
+  try { start = byAbbr[hash] || (OPT.team && byAbbr[OPT.team]) || byAbbr[localStorage.getItem('nba_team')]; } catch(e){ start = byAbbr[hash]; }
   setTeam(start || byAbbr.NY || Object.keys(T)[0]);
   let wasMob = matchMedia('(max-width:640px)').matches;
   addEventListener('resize', () => { const m = matchMedia('(max-width:640px)').matches; if (m !== wasMob){ wasMob = m; drawCourt(); renderFloor(); } });
