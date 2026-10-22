@@ -1990,6 +1990,8 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 .wptip[hidden],.wpln[hidden]{display:none!important}
 .pseg .shl{display:none}
 @media (max-width:640px){.pbar .pseg .lgl{display:none}.pbar .pseg .shl{display:inline}}
+.opthost{width:100%;flex-wrap:wrap}.opthost input{flex:1 1 150px;min-width:0;width:auto;max-width:none}.opthost .pbtn{flex:0 0 auto;padding:7px 10px}
+.optl small code{font-size:12px;padding:0 4px;border-radius:4px;background:color-mix(in srgb,var(--strong) 8%,transparent)}
 </style>
 </head>
 <body>
@@ -2148,7 +2150,7 @@ const isLight = () => document.documentElement.dataset.theme === 'light';
 // Scores always start hidden: every launch, and every return to the app after a while away.
 // Showing them (eye toggle, welcome screen, scores page) lasts only for that sitting.
 /* ---------- settings (the Settings page), read first so launch can follow them ---------- */
-const OPT_DEFAULT = {launch: 'welcome', team: '', spoilLaunch: 'hide', awayMins: 30, awayReopen: true, liveTags: 'show', replay: 'show', textSize: 'normal', motion: 'auto'};
+const OPT_DEFAULT = {hosts: {}, launch: 'welcome', team: '', spoilLaunch: 'hide', awayMins: 30, awayReopen: true, liveTags: 'show', replay: 'show', textSize: 'normal', motion: 'auto'};
 const OPT = (() => { try { return {...OPT_DEFAULT, ...JSON.parse(localStorage.getItem('nba_opts') || '{}')}; } catch (e){ return {...OPT_DEFAULT}; } })();
 function saveOpts(){ try { localStorage.setItem('nba_opts', JSON.stringify(OPT)); } catch (e){} }
 function applyLook(){ const r = document.documentElement; r.classList.toggle('bigtext', OPT.textSize === 'large'); r.classList.toggle('lessmotion', OPT.motion === 'reduce'); }
@@ -4319,16 +4321,18 @@ function fixtureSlug(when, awayAb, homeAb){
   const codes = (D.site && D.site.codes) || {}, c = ab => (codes[ab] || ab).toLowerCase();
   return `${etDay(when)}/${c(awayAb)}-${c(homeAb)}`;
 }
-const streamUrl = sl => sl ? `${(D.site && D.site.streamBase) || ''}/live/nba/${sl}` : null;
+// stream hosts: the ones set on the Settings page win over the build's (site_config.py)
+const siteHost = k => (OPT.hosts && OPT.hosts[k]) || (D.site && D.site[k]) || '';
+const streamUrl = sl => sl ? `${siteHost('streamBase')}/live/nba/${sl}` : null;
 // Second stream: <s2Base><s2Path> with {home}, {away} and {date} filled in (site_config.py)
 function stream2Url(awayAb, homeAb, when){
   const S = D.site || {}, N = S.names || {};
   if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
-  return withOpts((S.s2Base || '') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : ''), S.s2Opts);
+  return withOpts(siteHost('s2Base') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : ''), S.s2Opts);
 }
 let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v >= 1 && v <= 4 ? v : 1; } catch (e){ return 1; } })();
 // Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
-const feedUrl = (sl, side) => sl ? withOpts(`${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}/${side === 'away' ? 'away' : ''}`, D.site?.embedOpts) : null;
+const feedUrl = (sl, side) => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}/${side === 'away' ? 'away' : ''}`, D.site?.embedOpts) : null;
 function streamSources(sl, awayAb, homeAb, when){
   const L = [{n: 1, label: 'Stream 1', short: '1', src: embedUrl(sl), open: streamUrl(sl)}];
   const s2 = stream2Url(awayAb, homeAb, when); if (s2) L.push({n: 2, label: 'Stream 2', short: '2', src: s2, open: s2});
@@ -4339,7 +4343,7 @@ function streamSources(sl, awayAb, homeAb, when){
 }
 // extra player options from site_config.py (EMBED_OPTIONS, STREAM2_OPTIONS), added to the address
 const withOpts = (u, q) => !u || !q ? u : u + (u.includes('?') ? '&' : '?') + q;
-const embedUrl = sl => sl ? withOpts(`${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}`, D.site?.embedOpts) : null;
+const embedUrl = sl => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}`, D.site?.embedOpts) : null;
 let playerOn = true;
 /* ---------- one stream player for the whole app: docked in the game view, or floating ---------- */
 // Browsers reload a frame whenever it is moved in the page, so the stream lives in a single
@@ -7396,6 +7400,12 @@ function drawOpts(){
       ${optRow('Close game alerts', 'A notification when a game is close late.' + ('Notification' in window && Notification.permission === 'denied' ? ' Notifications are blocked in your phone settings.' : ''), optSwitch('alerts', alertsOn))}
       ${optRow("Pick'em name", 'Your name on the shared leaderboard.', `<div class="optname"><input type="text" id="optme" maxlength="20" value="${esc(pkMe)}" placeholder="Your name" autocomplete="nickname"><button type="button" class="pbtn" id="optmesave">Save</button></div>`)}
     </section>
+    <section class="optsec"><h3>Streams</h3>
+      ${optHostRow('embedBase', 'Player site', 'Used for Stream 1 and the home and away feeds: <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>. Paste just the site, like embedsite.st.')}
+      ${optHostRow('s2Base', 'Stream 2 site', 'The site for Stream 2.')}
+      ${optHostRow('streamBase', 'Open button site', 'Where Open takes you for Stream 1: <code>/live/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>.')}
+      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[1, 'Stream 1'], [2, 'Stream 2'], [3, 'Home feed'], [4, 'Away feed']], streamPick), true)}
+    </section>
     <section class="optsec"><h3>Look</h3>
       ${optRow('Theme', '"Match phone" follows your phone\'s light or dark setting.', optSeg('theme', [['auto', 'Match phone'], ['dark', 'Dark'], ['light', 'Light']], thm))}
       ${optRow('Text size', '', optSeg('textSize', [['normal', 'Normal'], ['large', 'Larger']]))}
@@ -7407,7 +7417,18 @@ function drawOpts(){
       ${optRow('Reset settings', 'Back to the defaults. Your teams, players and picks stay.', `<button type="button" class="pbtn" id="optreset">Reset</button>`)}
     </section>`;
 }
+function optHostRow(k, title, sub){
+  const own = OPT.hosts?.[k], def = (D.site && D.site[k]) || '';
+  return optRow(title, sub + (own ? ` Default: ${esc(def.replace(/^https?:\/\//, ''))}.` : ''),
+    `<div class="optname opthost"><input type="text" inputmode="url" autocapitalize="off" spellcheck="false" data-host="${k}" value="${esc((own || def).replace(/^https?:\/\//, ''))}" placeholder="${esc(def.replace(/^https?:\/\//, ''))}"><button type="button" class="pbtn" data-hostsave="${k}">Save</button>${own ? `<button type="button" class="pbtn" data-hostreset="${k}">Default</button>` : ''}</div>`, true);
+}
+function cleanHost(v){
+  v = String(v || '').trim(); if (!v) return '';
+  if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+  try { const u = new URL(v); return /\./.test(u.hostname) ? u.origin : null; } catch (e){ return null; }
+}
 function setOpt(key, v){
+  if (key === 'stream'){ streamPick = +v; try { localStorage.setItem('nba_stream', String(streamPick)); } catch (e){} drawOpts(); return; }
   if (key === 'theme'){
     if (v === 'auto'){ try { localStorage.removeItem('nba_theme'); } catch (e){} applyTheme(matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
     else { try { localStorage.setItem('nba_theme', v); } catch (e){} applyTheme(v); }
@@ -7422,6 +7443,12 @@ function setOpt(key, v){
 }
 $('#opts').addEventListener('click', e => {
   const s = e.target.closest('[data-opt]'); if (s){ setOpt(s.dataset.opt, s.dataset.v); return; }
+  const hs = e.target.closest('[data-hostsave]');
+  if (hs){ const k = hs.dataset.hostsave, inp = $(`#optbody [data-host="${k}"]`), v = cleanHost(inp?.value);
+    if (v === null){ toast("That doesn't look like a web address. Try something like embedsite.st"); return; }
+    OPT.hosts = {...(OPT.hosts || {})}; if (!v || v === D.site?.[k]) delete OPT.hosts[k]; else OPT.hosts[k] = v; saveOpts();
+    toast(`Saved. ${v ? v.replace(/^https?:\/\//, '') : 'Default site'} is used from the next game you open.`); drawOpts(); return; }
+  const hr = e.target.closest('[data-hostreset]'); if (hr){ OPT.hosts = {...(OPT.hosts || {})}; delete OPT.hosts[hr.dataset.hostreset]; saveOpts(); toast('Back to the default site.'); drawOpts(); return; }
   const w = e.target.closest('[data-optsw]');
   if (w){ const k = w.dataset.optsw;
     if (k === 'alerts'){ setAlerts(!alertsOn).then(() => drawOpts()); return; }
@@ -7432,6 +7459,7 @@ $('#opts').addEventListener('click', e => {
   if (e.target.closest('#optreset')){ Object.assign(OPT, OPT_DEFAULT); saveOpts(); applyLook(); try { localStorage.removeItem('nba_theme'); } catch (err){} applyTheme(matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); if (cur) teamColors(T[cur]); toast('Settings reset.'); drawOpts(); return; }
   if (e.target.closest('#optclose')) closeOpts();
 });
+$('#opts').addEventListener('keydown', e => { const k = e.target.dataset?.host; if (k && e.key === 'Enter') $(`#optbody [data-hostsave="${k}"]`)?.click(); });
 $('#opts').addEventListener('change', e => {
   if (e.target.id === 'optteam'){ OPT.team = e.target.value; saveOpts(); if (OPT.team && byAbbr[OPT.team]){ pastSeason = null; setTeam(byAbbr[OPT.team]); drawTimebar(); drawHeaderPast(); renderFloor(); renderBench(); setView('team'); } }
 });
