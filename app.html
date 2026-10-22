@@ -655,8 +655,13 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 #multi.compact.land .lhead h2{display:none}
 #multi.compact.land .mvtools{flex-direction:column;align-items:stretch;gap:6px}
 #multi.compact.land .mvtools .pbtn,#multi.compact.land .mvtools .qx{padding:7px 2px;font-size:10.5px;text-align:center;justify-content:center;white-space:normal;line-height:1.15}
-#multi.compact.land #mvpick{position:absolute;z-index:3;top:calc(6px + env(safe-area-inset-top,0px));left:calc(80px + env(safe-area-inset-left,0px));right:calc(8px + env(safe-area-inset-right,0px));
-  background:var(--ink);padding:6px;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);margin:0}
+#multi.compact.land #mvpick{flex:0 0 172px;flex-direction:column;overflow-x:hidden;overflow-y:auto;margin:0;padding:0 8px 0 0;border-bottom:0;border-right:1px solid var(--rule)}
+#multi.compact.land .mvc{width:100%}
+/* phone upright: every stream as wide as the screen, scroll for the rest */
+#multi.compact:not(.land) .mvt{align-self:start;flex-shrink:0}
+#multi.compact:not(.land) #mvgrid{overflow-y:auto;align-content:start;grid-auto-rows:max-content;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+/* the back to game chip would sit on top of the streams */
+#multi:not([hidden]) ~ #livechip{display:none!important}
 @media (max-width:640px){#multi{padding-left:8px;padding-right:8px}.mvbar{flex-basis:34px;gap:5px;padding:0 5px 0 7px}.mvst{font-size:12px}.mvst b{font-size:12.5px}.mvst img{display:none}.mvdash{width:4px}
   .mvclk{display:none}.mvbtns .pbtn{padding:2px 6px;font-size:10px}.mvtools .plab{display:none}}
 
@@ -5012,7 +5017,7 @@ function mvLayout(){
   let best = {w: 0, c: 1};
   if (compact){   // phone upright: one column, as big as fits. On its side: two across (2x2 for four)
     const c = land ? Math.min(n, 2) : 1, r = Math.ceil(n / c);
-    best = {c, w: fit((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r)};
+    best = {c, w: land ? fit((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r) : Math.floor(W)};
   }
   else for (let c = 1; c <= n; c++){
     const r = Math.ceil(n / c), w = fit((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r);
