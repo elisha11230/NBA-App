@@ -1290,6 +1290,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .dlv{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--strong);min-width:38px;text-align:right}
 .dlsync{margin-top:6px}
 .dlsync b{color:var(--strong)}
+.dlsync .dlcancel{margin-left:6px;background:none;border:0;padding:0;color:var(--brass);text-decoration:underline;font:inherit;cursor:pointer}
 
 /* ---------- demo live game ---------- */
 .demobar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border:1px dashed var(--brass);border-radius:var(--r);font-size:13px;color:var(--chalk);background:color-mix(in srgb,var(--brass) 8%,transparent)}
@@ -2693,6 +2694,7 @@ function openScores(eventId){
   if (eventId) openGame(eventId); else { gameId = null; loadDay(); }
 }
 function closeScores(){
+  if (typeof SYNC !== 'undefined' && SYNC) syncCancel();
   $('#scores').hidden = true; document.body.style.overflow = ''; clearInterval(scTimer); scTimer = null;
   if (STREAM.slug) floatDock(); else updateReturnChip();
   // keep the floating player's score current while you browse
@@ -3263,6 +3265,7 @@ function gameCard(e){
 }
 
 async function openGame(id, quiet){
+  if (typeof SYNC !== 'undefined' && SYNC && SYNC.game !== id) syncCancel();   // a half done sync puts the old delay back
   gameId = id; drawNav();
   if (!quiet){ $('#scbody').innerHTML = '<div class="empty">Loading game</div>'; seenPlays = new Set(); playFilter = 'all'; }
   let s;
@@ -4542,6 +4545,7 @@ function keepSnap(id, s){
   buf.push({t: now, s});
   while (buf.length > 2 && now - buf[0].t > 240000) buf.shift();   // four minutes is more than any delay
   for (const p of (s.plays || [])) if (!FIRST_SEEN[p.id]) FIRST_SEEN[p.id] = now;
+  if (SYNC && SYNC.phase === 'wait' && id === SYNC.game) syncCheck(s);
 }
 const playTime = p => (p.wallclock && Date.parse(p.wallclock)) || FIRST_SEEN[p.id] || 0;
 function setDelay(v){
@@ -4586,22 +4590,37 @@ function redrawDelayed(force){
   lastDrawnKey = key; lastSummary = v; drawGame(v, true);
 }
 function startDelayTicker(){ clearInterval(delayTick); delayTick = setInterval(() => { if (liveDelay) redrawDelayed(); }, 1000); }
-// Sync to stream: tap once to pick the newest play, again when the stream shows it
-let syncPlay = null;
-function syncStep(btn){
+// Sync to stream. Tap once: the delay drops to 0 so the feed runs live (ahead of any
+// stream) and we wait for the next new play. Watch for that play on the stream and tap
+// again when it shows; the gap becomes the delay. Waiting for a fresh play means the
+// stream can never have already shown it, whatever the delay was before.
+let SYNC = null;
+function syncUi(btnTxt, noteHtml){
+  for (const b of document.querySelectorAll('.dls')) b.textContent = btnTxt;
+  for (const n of document.querySelectorAll('.dlsync')){ n.hidden = !noteHtml; n.innerHTML = noteHtml || ''; }
+}
+function syncCheck(s){
+  const p = (s.plays || []).filter(x => x.text && !SYNC.seen.has(x.id)).pop(); if (!p) return;
+  SYNC = {...SYNC, phase: 'watch', play: p};
+  syncUi('Tap when you see it', `Watch the stream for: <b>${esc(p.text)}</b> (${esc(p.period?.displayValue || '')} ${esc(p.clock?.displayValue || '')}) <button class="linkbtn dlcancel" type="button">Cancel</button>`);
+}
+function syncCancel(){
+  if (!SYNC) return; const prev = SYNC.prev; SYNC = null;
+  syncUi('Sync to stream', ''); setDelay(prev);
+}
+function syncStep(){
   const buf = SNAPS[gameId]; if (!buf || !buf.length) return;
-  const plays = (buf[buf.length - 1].s.plays || []).filter(p => p.text);
-  if (!syncPlay){
-    syncPlay = plays[plays.length - 1]; if (!syncPlay) return;
-    btn.textContent = 'Tap when you see it';
-    const note = btn.closest('.pwrap').querySelector('.dlsync'); note.hidden = false;
-    note.innerHTML = `Watch the stream for: <b>${esc(syncPlay.text)}</b> (${esc(syncPlay.period?.displayValue || '')} ${esc(syncPlay.clock?.displayValue || '')})`;
-  } else {
-    setDelay((Date.now() - playTime(syncPlay)) / 1000);
-    syncPlay = null; btn.textContent = 'Sync to stream';
-    const note = btn.closest('.pwrap').querySelector('.dlsync'); note.hidden = false;
-    note.textContent = `Feed delay set to ${liveDelay} seconds.`;
-    setTimeout(() => { note.hidden = true; }, 4000);
+  if (!SYNC){
+    const latest = buf[buf.length - 1].s;
+    SYNC = {phase: 'wait', game: gameId, prev: liveDelay, seen: new Set((latest.plays || []).map(p => p.id))};
+    setDelay(0);
+    syncUi('Cancel', 'Feed delay is at 0 for now. Waiting for the next play, then watch for it on the stream.');
+  } else if (SYNC.phase === 'wait') syncCancel();
+  else {
+    const t = playTime(SYNC.play); SYNC = null;
+    setDelay((Date.now() - t) / 1000);
+    syncUi('Sync to stream', `Feed delay set to ${liveDelay} seconds.`);
+    setTimeout(() => { if (!SYNC) syncUi('Sync to stream', ''); }, 4000);
   }
 }
 function delayControls(){
@@ -4614,7 +4633,8 @@ document.addEventListener('input', e => { if (e.target.classList?.contains('dlra
 document.addEventListener('click', e => {
   if (e.target.closest('.dlm')) setDelay(liveDelay - 1);
   else if (e.target.closest('.dlp')) setDelay(liveDelay + 1);
-  else if (e.target.closest('.dls')) syncStep(e.target.closest('.dls'));
+  else if (e.target.closest('.dls')) syncStep();
+  else if (e.target.closest('.dlcancel')) syncCancel();
 });
 
 /* ---------- on the floor now: the ten players, rebuilt from the play by play ---------- */
