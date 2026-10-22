@@ -637,6 +637,26 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .mvbtns .pbtn{padding:3px 8px}
 .mvbtns .mvrm{font-size:15px;line-height:1;padding:2px 8px}
 .mvnote{flex:0 0 auto;margin-top:6px;text-align:center;font-size:11.5px}
+/* phones: once games are picked the picker folds away behind Games so the streams get the screen */
+#mvgames{display:none}
+#multi.compact #mvgames{display:inline-flex}
+#multi.compact:not(.pickopen) #mvpick,#multi.compact .mvnote{display:none}
+#multi.compact #mvgrid{gap:6px}
+#multi.compact .lhead{margin-bottom:8px}
+#multi.compact .mvbar{flex-basis:30px;gap:4px;padding:0 4px 0 6px}
+#multi.compact .mvbtns{gap:3px;min-width:0;overflow-x:auto;scrollbar-width:none}
+#multi.compact .mvbtns .pbtn{padding:2px 5px;font-size:9.5px;letter-spacing:.04em}
+#multi.compact.land #mvcount{display:none}
+#multi.compact .mvst img{display:none}
+/* phone on its side: the header becomes a slim rail on the left and the grid takes the rest */
+#multi.compact.land{flex-direction:row;align-items:stretch;gap:8px;
+  padding:calc(6px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) calc(6px + env(safe-area-inset-left,0px))}
+#multi.compact.land .lhead{flex:0 0 66px;flex-direction:column;justify-content:flex-start;align-items:stretch;margin:0}
+#multi.compact.land .lhead h2{display:none}
+#multi.compact.land .mvtools{flex-direction:column;align-items:stretch;gap:6px}
+#multi.compact.land .mvtools .pbtn,#multi.compact.land .mvtools .qx{padding:7px 2px;font-size:10.5px;text-align:center;justify-content:center;white-space:normal;line-height:1.15}
+#multi.compact.land #mvpick{position:absolute;z-index:3;top:calc(6px + env(safe-area-inset-top,0px));left:calc(80px + env(safe-area-inset-left,0px));right:calc(8px + env(safe-area-inset-right,0px));
+  background:var(--ink);padding:6px;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);margin:0}
 @media (max-width:640px){#multi{padding-left:8px;padding-right:8px}.mvbar{flex-basis:34px;gap:5px;padding:0 5px 0 7px}.mvst{font-size:12px}.mvst b{font-size:12.5px}.mvst img{display:none}.mvdash{width:4px}
   .mvclk{display:none}.mvbtns .pbtn{padding:2px 6px;font-size:10px}.mvtools .plab{display:none}}
 
@@ -2072,7 +2092,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 </div>
 
 <div id="multi" hidden role="dialog" aria-modal="true" aria-label="Multiview">
-  <div class="lhead"><h2>Multiview</h2><span class="mvtools"><span id="mvcount" class="plab"></span><button class="pbtn" id="mvscores" type="button"></button><button class="qx" id="mvclose">Close</button></span></div>
+  <div class="lhead"><h2>Multiview</h2><span class="mvtools"><span id="mvcount" class="plab"></span><button class="pbtn" id="mvgames" type="button" aria-expanded="false">Games</button><button class="pbtn" id="mvscores" type="button"></button><button class="qx" id="mvclose">Close</button></span></div>
   <div id="mvpick"></div>
   <div id="mvgrid"></div>
   <p class="note mvnote">Each stream plays its own sound. Mute the ones you are not listening to in their player.</p>
@@ -2342,6 +2362,11 @@ function liveLine(id){
   return `<span class="pline">${statLine(id)}</span>`;
 }
 function lastPlayed(p){ return p.yr && p.yr.length ? p.yr[p.yr.length - 1] : null; }
+// how far his team is into the current season, so a player with no games yet is not called out for the year
+function teamSeasonGp(t){
+  const gp = ((t && t.games) || []).filter(g => g[5] === 2).length, tot = ((t && t.sched) || []).filter(g => g[7] === 2).length || 82;
+  return {gp, done: gp >= Math.min(tot, 80)};
+}
 function statLine(id){
   const s = P[id].s, lp = lastPlayed(P[id]);
   if (!s && lp) return isMob() ? `<b>${f1(lp[5])}</b> ppg ${lp[0]}` : `<b>${f1(lp[5])}</b> pts <b>${f1(lp[6])}</b> reb <b>${f1(lp[7])}</b> ast in ${lp[0]}`;
@@ -2367,7 +2392,7 @@ function renderBench(){
     const p = P[id], s = p.s;
     const lp = lastPlayed(p);
     const LV = LIVE && LIVE.team === String(cur) && LIVE.stats[id];
-    const meta = LV ? `<span class="livedot"></span><b>${esc(LV.pts ?? 0)}</b> pts <b>${esc(LV.reb ?? 0)}</b> reb <b>${esc(LV.min ?? 0)}</b> min` : s ? `<b>${f1(s.min)}</b> min <b>${f1(s.pts)}</b> pts` : lp ? `Did not play ${esc(M.stats)}, <b>${f1(lp[5])}</b> pts in ${lp[0]}` : 'No NBA games yet';
+    const meta = LV ? `<span class="livedot"></span><b>${esc(LV.pts ?? 0)}</b> pts <b>${esc(LV.reb ?? 0)}</b> reb <b>${esc(LV.min ?? 0)}</b> min` : s ? `<b>${f1(s.min)}</b> min <b>${f1(s.pts)}</b> pts` : lp ? `${teamSeasonGp(t).done ? 'Did not play' : 'No games yet in'} ${esc(M.stats)}, <b>${f1(lp[5])}</b> pts in ${lp[0]}` : 'No NBA games yet';
     return `<button class="bn${curP == id ? ' sel' : ''}" data-p="${id}"><span class="bf">${face(id)}</span>
       <span class="bi"><div class="bnm" style="display:flex;align-items:baseline"><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(p.n)}</span>${p.prev ? '<span class="newtag">New</span>' : ''}${INJ[id] ? `<span class="injtag ${INJ[id].out ? 'out' : 'dtd'}">${injShort(INJ[id])}</span>` : ''}${p.k ? `<span class="bk2" title="NBA 2K rating">${p.k.o}</span>` : ''}</div>
       <div class="bmt">${p.j ? '#' + esc(p.j) + ' ' : ''}${esc(p.pos)} ${meta}</div></span></button>`;
@@ -2535,8 +2560,13 @@ function renderPlayer(){
   if (!s){
     const lp = lastPlayed(p);
     if (lp){
-      h += `<section class="sect k-health"><h3>Did not play in ${esc(M.stats)}<span>last played ${lp[0]}</span></h3>
-        <p class="note" style="margin-top:0">He missed the whole ${esc(M.stats)} season, usually because of injury, so these are his numbers from ${lp[0]}, the last season he played.</p>
+      const tg = teamSeasonGp(t), yy = +String(M.stats).slice(2, 4), prevS = `${String(yy - 1).padStart(2, '0')}-${String(yy).padStart(2, '0')}`;
+      const lastTxt = lp[0] === prevS ? `last season (${lp[0]})` : `${lp[0]}, the last season he played`;
+      const [mh, mt] = tg.done ? [`Did not play in ${esc(M.stats)}`, `He missed the whole ${esc(M.stats)} season, usually because of injury, so these are his numbers from ${lastTxt}.`]
+        : !tg.gp ? [`No ${esc(M.stats)} games yet`, `The ${esc(t.name)} have not played a ${esc(M.stats)} game yet, so these are his numbers from ${lastTxt}.`]
+        : [`Has not played in ${esc(M.stats)} yet`, `He has not played yet with the ${esc(t.name)} ${tg.gp} game${tg.gp === 1 ? '' : 's'} into the season, so these are his numbers from ${lastTxt}.`];
+      h += `<section class="sect k-health"><h3>${mh}<span>last played ${lp[0]}</span></h3>
+        <p class="note" style="margin-top:0">${mt}</p>
         <div class="big3" style="margin-top:10px"><div><b>${f1(lp[5])}</b><span>Points</span></div><div><b>${f1(lp[6])}</b><span>Rebounds</span></div><div><b>${f1(lp[7])}</b><span>Assists</span></div></div>
         <p class="note">${lp[2]} games, ${f1(lp[4])} minutes, ${lp[12] == null ? '—' : lp[12].toFixed(1)}% from the field, ${lp[13] == null ? '—' : lp[13].toFixed(1)}% on threes.</p></section>`;
       h += yearSection(p);
@@ -4855,6 +4885,7 @@ function openMulti(){
   $('#multi').hidden = false; document.body.style.overflow = 'hidden';
   const sv = MV.saved;
   if (!MV.ids.length && sv && sv.ids && Date.now() - (sv.at || 0) < 12 * 3600e3){ MV.ids = sv.ids.slice(0, 4); MV.focus = sv.focus || null; MV.picks = sv.picks || {}; }
+  MV.pickOpen = !MV.ids.length;
   mvTools(); mvLoad(true);
   clearInterval(MV.timer); MV.timer = setInterval(() => mvLoad(false), 20000);
 }
@@ -4952,8 +4983,13 @@ function mvTile(id){
 }
 // Sizes so every stream stays 16:9 and the whole grid fits the screen
 function mvLayout(){
-  const g = $('#mvgrid'); if (!g || $('#multi').hidden) return;
-  const ids = MV.ids, n = ids.length, gap = 8, bar = 38, W = g.clientWidth, H = g.clientHeight;
+  const g = $('#mvgrid'), box = $('#multi'); if (!g || box.hidden) return;
+  // phones (short side 500px or less): fold the picker away and force the grid shape
+  const small = Math.min(innerWidth, innerHeight) <= 500, land = innerWidth > innerHeight, compact = small && MV.ids.length > 0;
+  box.classList.toggle('compact', compact); box.classList.toggle('land', compact && land); box.classList.toggle('pickopen', !!MV.pickOpen);
+  const gb = $('#mvgames'); gb.textContent = MV.pickOpen ? 'Done' : 'Games'; gb.setAttribute('aria-expanded', String(!!MV.pickOpen));
+  const ids = MV.ids, n = ids.length, gap = compact ? 6 : 8, W = g.clientWidth, H = g.clientHeight;
+  const bar = g.querySelector('.mvbar')?.offsetHeight || 38;
   const fit = (cw, ch) => Math.max(120, Math.floor(Math.min(cw, (ch - bar) * 16 / 9)));
   const tiles = ids.map(id => MV.tiles[id]?.el).filter(Boolean);
   for (const el of tiles){ el.style.gridColumn = el.style.gridRow = ''; el.style.justifySelf = ''; }
@@ -4974,7 +5010,11 @@ function mvLayout(){
     return;
   }
   let best = {w: 0, c: 1};
-  for (let c = 1; c <= n; c++){
+  if (compact){   // phone upright: one column, as big as fits. On its side: two across (2x2 for four)
+    const c = land ? Math.min(n, 2) : 1, r = Math.ceil(n / c);
+    best = {c, w: fit((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r)};
+  }
+  else for (let c = 1; c <= n; c++){
     const r = Math.ceil(n / c), w = fit((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r);
     if (w > best.w) best = {w, c};
   }
@@ -5003,6 +5043,7 @@ document.addEventListener('click', e => {
 $('#mvclose').onclick = closeMulti;
 $('#mvbtn').onclick = openMulti;
 $('#mvscores').onclick = () => setSpoil(MV.scores);
+$('#mvgames').onclick = () => { MV.pickOpen = !MV.pickOpen; mvLayout(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#multi').hidden) closeMulti(); });
 
 function setSpoil(v){
