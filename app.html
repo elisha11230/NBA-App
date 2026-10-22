@@ -656,7 +656,11 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 #multi.compact.land .mvtools{flex-direction:column;align-items:stretch;gap:6px}
 #multi.compact.land .mvtools .pbtn,#multi.compact.land .mvtools .qx{padding:7px 2px;font-size:10.5px;text-align:center;justify-content:center;white-space:normal;line-height:1.15}
 #multi.compact.land #mvpick{flex:0 0 172px;flex-direction:column;overflow-x:hidden;overflow-y:auto;margin:0;padding:0 8px 0 0;border-bottom:0;border-right:1px solid var(--rule)}
-#multi.compact.land .mvc{width:100%}
+#multi.compact.land .mvc{width:100%;grid-template-columns:minmax(0,1fr);gap:3px;padding:8px 34px 8px 10px}
+#multi.compact.land .mvct b{margin-left:auto}
+#multi.compact.land .mvcs{grid-column:1;flex-wrap:wrap;white-space:normal}
+#multi.compact.land .mvct{width:100%}
+#multi.compact .mvclk{display:none}
 /* phone upright: every stream as wide as the screen, scroll for the rest */
 #multi.compact:not(.land) .mvt{align-self:start;flex-shrink:0}
 #multi.compact:not(.land) #mvgrid{overflow-y:auto;align-content:start;grid-auto-rows:max-content;-webkit-overflow-scrolling:touch;padding-bottom:4px}
