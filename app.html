@@ -4331,17 +4331,18 @@ function stream2Url(awayAb, homeAb, when, away){
   const path = S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : '');
   return withOpts(siteHost('s2Base') + (away ? path.replace(/\/$/, '') + '/away' : path), S.s2Opts);
 }
-let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : v === 1 || v === 2 || v === 4 ? v : 1; } catch (e){ return 1; } })();
+let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : v === 1 || v === 2 || v === 4 ? v : 2; } catch (e){ return 2; } })();
 // Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
 const feedUrl = (sl, side) => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}${side === 'away' ? '/away' : ''}`, D.site?.embedOpts) : null;
-// Stream 1: <s2Base>/embed/admin/ppv-{away}-vs-{home}/1
+// Alt stream: <s2Base>/embed/admin/ppv-{away}-vs-{home}/1
 // Home feed: <embedBase>/embed/nba/<date>/<away>-<home>, Away feed: the same with /away
 function streamSources(sl, awayAb, homeAb, when){
   const L = [];
-  const s1 = stream2Url(awayAb, homeAb, when); if (s1) L.push({n: 1, label: 'Stream 1', short: '1', src: s1, open: s1});
+  const s1 = stream2Url(awayAb, homeAb, when);
   if (sl){ const h = embedUrl(sl), a_ = feedUrl(sl, 'away');
     L.push({n: 2, label: 'Home feed', short: 'Home', title: `The ${homeAb} home broadcast`, src: h, open: streamUrl(sl) || h});
     L.push({n: 4, label: 'Away feed', short: 'Away', title: `The ${awayAb} away broadcast`, src: a_, open: a_}); }
+  if (s1) L.push({n: 1, label: 'Alt stream', short: 'Alt', title: 'Backup stream', src: s1, open: s1});
   return L;
 }
 // extra player options from site_config.py (EMBED_OPTIONS, STREAM2_OPTIONS), added to the address
@@ -7404,10 +7405,10 @@ function drawOpts(){
       ${optRow("Pick'em name", 'Your name on the shared leaderboard.', `<div class="optname"><input type="text" id="optme" maxlength="20" value="${esc(pkMe)}" placeholder="Your name" autocomplete="nickname"><button type="button" class="pbtn" id="optmesave">Save</button></div>`)}
     </section>
     <section class="optsec"><h3>Streams</h3>
-      ${optHostRow('s2Base', 'Stream 1 site', 'The player site for Stream 1: <code>/embed/admin/ppv-&lt;away&gt;-vs-&lt;home&gt;/1</code>. Paste just the site, like embedsite.st.')}
+      ${optHostRow('s2Base', 'Alt stream site', 'The player site for the alt stream: <code>/embed/admin/ppv-&lt;away&gt;-vs-&lt;home&gt;/1</code>. Paste just the site, like embedsite.st.')}
       ${optHostRow('embedBase', 'Home and away feed site', 'The home feed is <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>; the away feed is the same with <code>/away</code> on the end.')}
       ${optHostRow('streamBase', 'Open button site', 'Where Open takes you for the home feed: <code>/live/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>.')}
-      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[1, 'Stream 1'], [2, 'Home feed'], [4, 'Away feed']], streamPick), true)}
+      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[2, 'Home feed'], [4, 'Away feed'], [1, 'Alt stream']], streamPick), true)}
     </section>
     <section class="optsec"><h3>Look</h3>
       ${optRow('Theme', '"Match phone" follows your phone\'s light or dark setting.', optSeg('theme', [['auto', 'Match phone'], ['dark', 'Dark'], ['light', 'Light']], thm))}
