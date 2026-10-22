@@ -4325,20 +4325,20 @@ function fixtureSlug(when, awayAb, homeAb){
 const siteHost = k => (OPT.hosts && OPT.hosts[k]) || (D.site && D.site[k]) || '';
 const streamUrl = sl => sl ? `${siteHost('streamBase')}/live/nba/${sl}` : null;
 // Second stream: <s2Base><s2Path> with {home}, {away} and {date} filled in (site_config.py)
-function stream2Url(awayAb, homeAb, when){
+function stream2Url(awayAb, homeAb, when, away){
   const S = D.site || {}, N = S.names || {};
   if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
-  return withOpts(siteHost('s2Base') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : ''), S.s2Opts);
+  const path = S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : '');
+  return withOpts(siteHost('s2Base') + (away ? path.replace(/\/$/, '') + '/away' : path), S.s2Opts);
 }
-let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v >= 1 && v <= 4 ? v : 1; } catch (e){ return 1; } })();
+let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : v === 1 || v === 2 || v === 4 ? v : 1; } catch (e){ return 1; } })();
 // Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
 const feedUrl = (sl, side) => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}/${side === 'away' ? 'away' : ''}`, D.site?.embedOpts) : null;
 function streamSources(sl, awayAb, homeAb, when){
   const L = [{n: 1, label: 'Stream 1', short: '1', src: embedUrl(sl), open: streamUrl(sl)}];
-  const s2 = stream2Url(awayAb, homeAb, when); if (s2) L.push({n: 2, label: 'Stream 2', short: '2', src: s2, open: s2});
-  if (sl){ const h = feedUrl(sl, 'home'), a_ = feedUrl(sl, 'away');
-    L.push({n: 3, label: `${homeAb} feed`, short: homeAb, title: `Stream 3: the ${homeAb} home broadcast`, src: h, open: h});
-    L.push({n: 4, label: `${awayAb} feed`, short: awayAb, title: `Stream 4: the ${awayAb} away broadcast`, src: a_, open: a_}); }
+  const h = stream2Url(awayAb, homeAb, when), a_ = stream2Url(awayAb, homeAb, when, true);
+  if (h) L.push({n: 2, label: 'Home feed', short: 'Home', title: `The ${homeAb} home broadcast`, src: h, open: h});
+  if (a_) L.push({n: 4, label: 'Away feed', short: 'Away', title: `The ${awayAb} away broadcast`, src: a_, open: a_});
   return L;
 }
 // extra player options from site_config.py (EMBED_OPTIONS, STREAM2_OPTIONS), added to the address
@@ -4940,7 +4940,7 @@ function mvTile(id){
   const show = MV.scores && st.state !== 'pre';
   t.el.querySelector('.mvsc').innerHTML = cs.map((x, i) => `<span class="mvst${show && lead !== -1 && lead !== i ? ' lo' : ''}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">${esc(x.team.abbreviation)}${show ? ` <b>${esc(x.score)}</b>` : ''}</span>`).join('<span class="mvdash"></span>')
     + `<span class="mvclk${st.state === 'in' ? ' live' : ''}">${esc(MV.scores || st.state !== 'in' ? mvStatus(e) : 'Live')}</span>`;
-  t.el.querySelector('.mvbtns').innerHTML = `${srcs.length > 1 ? `<span class="pseg">${srcs.map(x => `<button class="pbtn" data-mvs="${x.n}" type="button" aria-pressed="${pick === x.n}" title="${esc(x.title || x.label)}">${esc(x.n <= 2 ? String(x.n) : x.short)}</button>`).join('')}</span>` : ''}
+  t.el.querySelector('.mvbtns').innerHTML = `${srcs.length > 1 ? `<span class="pseg">${srcs.map(x => `<button class="pbtn" data-mvs="${x.n}" type="button" aria-pressed="${pick === x.n}" title="${esc(x.title || x.label)}">${esc(x.short)}</button>`).join('')}</span>` : ''}
     <button class="pbtn" data-mvx="focus" type="button" title="${MV.focus === id ? 'Back to an even grid' : 'Make this one big'}">${MV.focus === id ? 'Grid' : 'Big'}</button>
     <button class="pbtn" data-mvx="game" type="button" title="Open the full game view">Game</button>
     <button class="pbtn mvrm" data-mvx="rm" type="button" aria-label="Remove ${esc(away)} at ${esc(home)}">×</button>`;
@@ -7401,10 +7401,10 @@ function drawOpts(){
       ${optRow("Pick'em name", 'Your name on the shared leaderboard.', `<div class="optname"><input type="text" id="optme" maxlength="20" value="${esc(pkMe)}" placeholder="Your name" autocomplete="nickname"><button type="button" class="pbtn" id="optmesave">Save</button></div>`)}
     </section>
     <section class="optsec"><h3>Streams</h3>
-      ${optHostRow('embedBase', 'Player site', 'Used for Stream 1 and the home and away feeds: <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>. Paste just the site, like embedsite.st.')}
-      ${optHostRow('s2Base', 'Stream 2 site', 'The site for Stream 2.')}
+      ${optHostRow('embedBase', 'Stream 1 site', 'The player site for Stream 1: <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>. Paste just the site, like embedsite.st.')}
+      ${optHostRow('s2Base', 'Home and away feed site', 'The site for the home feed, and the away feed (the same address with <code>/away</code> on the end).')}
       ${optHostRow('streamBase', 'Open button site', 'Where Open takes you for Stream 1: <code>/live/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>.')}
-      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[1, 'Stream 1'], [2, 'Stream 2'], [3, 'Home feed'], [4, 'Away feed']], streamPick), true)}
+      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[1, 'Stream 1'], [2, 'Home feed'], [4, 'Away feed']], streamPick), true)}
     </section>
     <section class="optsec"><h3>Look</h3>
       ${optRow('Theme', '"Match phone" follows your phone\'s light or dark setting.', optSeg('theme', [['auto', 'Match phone'], ['dark', 'Dark'], ['light', 'Light']], thm))}
