@@ -1988,6 +1988,8 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 .boxtabs button[aria-pressed="true"]{border-color:var(--tc)!important;box-shadow:inset 0 -2px 0 var(--tc)}
 .clipbelow{margin-top:16px}
 .wptip[hidden],.wpln[hidden]{display:none!important}
+.pseg .shl{display:none}
+@media (max-width:640px){.pbar .pseg .lgl{display:none}.pbar .pseg .shl{display:inline}}
 </style>
 </head>
 <body>
@@ -4324,7 +4326,17 @@ function stream2Url(awayAb, homeAb, when){
   if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
   return withOpts((S.s2Base || '') + S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : ''), S.s2Opts);
 }
-let streamPick = (() => { try { return localStorage.getItem('nba_stream') === '2' ? 2 : 1; } catch (e){ return 1; } })();
+let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v >= 1 && v <= 4 ? v : 1; } catch (e){ return 1; } })();
+// Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
+const feedUrl = (sl, side) => sl ? withOpts(`${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}/${side === 'away' ? 'away' : ''}`, D.site?.embedOpts) : null;
+function streamSources(sl, awayAb, homeAb, when){
+  const L = [{n: 1, label: 'Stream 1', short: '1', src: embedUrl(sl), open: streamUrl(sl)}];
+  const s2 = stream2Url(awayAb, homeAb, when); if (s2) L.push({n: 2, label: 'Stream 2', short: '2', src: s2, open: s2});
+  if (sl){ const h = feedUrl(sl, 'home'), a_ = feedUrl(sl, 'away');
+    L.push({n: 3, label: `${homeAb} feed`, short: homeAb, title: `Stream 3: the ${homeAb} home broadcast`, src: h, open: h});
+    L.push({n: 4, label: `${awayAb} feed`, short: awayAb, title: `Stream 4: the ${awayAb} away broadcast`, src: a_, open: a_}); }
+  return L;
+}
 // extra player options from site_config.py (EMBED_OPTIONS, STREAM2_OPTIONS), added to the address
 const withOpts = (u, q) => !u || !q ? u : u + (u.includes('?') ? '&' : '?') + q;
 const embedUrl = sl => sl ? withOpts(`${(D.site && D.site.embedBase) || ''}/embed/nba/${sl}`, D.site?.embedOpts) : null;
@@ -4350,7 +4362,8 @@ function dockEl(){
   return d;
 }
 function currentEmbed(sl){
-  return streamPick === 2 && STREAM.s2 ? STREAM.s2 : embedUrl(sl);
+  const L = STREAM.srcs || [], hit = L.find(x => x.n === streamPick) || L[0];
+  return hit ? hit.src : embedUrl(sl);
 }
 function setStream(sl, game, title){
   const d = dockEl(), fr = d.querySelector('.sdframe');
@@ -4448,9 +4461,10 @@ function updateReturnChip(){
 function gamePlayerEl(sl, title, awayAb, homeAb, when){
   const wrap = document.createElement('div'); wrap.className = 'pwrap'; wrap.id = 'gplayer'; wrap.dataset.slug = sl;
   STREAM.s2 = stream2Url(awayAb, homeAb, when);
-  if (!STREAM.s2) streamPick = 1;
-  const openHref = () => streamPick === 2 && STREAM.s2 ? STREAM.s2 : streamUrl(sl);
-  wrap.innerHTML = `<div class="pbar">${STREAM.s2 ? `<span class="pseg"><button class="pbtn" data-src="1" type="button" aria-pressed="${streamPick === 1}">Stream 1</button><button class="pbtn" data-src="2" type="button" aria-pressed="${streamPick === 2}">Stream 2</button></span>` : `<span class="plab">Stream</span>`}
+  STREAM.srcs = streamSources(sl, awayAb, homeAb, when);
+  if (!STREAM.srcs.some(x => x.n === streamPick)) streamPick = 1;
+  const openHref = () => (STREAM.srcs.find(x => x.n === streamPick) || STREAM.srcs[0]).open || streamUrl(sl);
+  wrap.innerHTML = `<div class="pbar">${STREAM.srcs.length > 1 ? `<span class="pseg">${STREAM.srcs.map(x => `<button class="pbtn" data-src="${x.n}" type="button" aria-pressed="${streamPick === x.n}"${x.title ? ` title="${esc(x.title)}"` : ''}><span class="lgl">${esc(x.label)}</span><span class="shl">${esc(x.short)}</span></button>`).join('')}</span>` : `<span class="plab">Stream</span>`}
     <span class="pspace"></span><button class="pbtn" data-pl="pop" type="button" title="Keep watching while you browse">Pop out</button><button class="pbtn" data-pl="hide" type="button">${playerOn ? 'Hide' : 'Show'}</button>
     <a class="pbtn" data-pl="open" href="${esc(openHref())}" target="_blank" rel="noopener noreferrer">Open</a></div><div class="pframe" data-slug="${esc(sl)}"${playerOn ? '' : ' hidden'}></div>${delayControls()}`;
   const spot = wrap.querySelector('.pframe');
@@ -4900,9 +4914,9 @@ function mvSync(){
 function mvTile(id){
   const t = MV.tiles[id], e = MV.events[id]; if (!t || !e) return;
   const {cs, st, away, home} = mvTeams(e);
-  const slug = fixtureSlug(e.date, away, home), s2 = stream2Url(away, home, e.date);
-  const pick = s2 && (MV.picks[id] ?? streamPick) === 2 ? 2 : 1;
-  const src = pick === 2 ? s2 : embedUrl(slug);
+  const slug = fixtureSlug(e.date, away, home), srcs = streamSources(slug, away, home, e.date);
+  const want = MV.picks[id] ?? streamPick, pickS = srcs.find(x => x.n === want) || srcs[0], pick = pickS ? pickS.n : 1;
+  const src = pickS ? pickS.src : embedUrl(slug);
   const f = t.el.querySelector('.mvf');
   const open = liveWindow(st.state, e.date);
   if (open && src){
@@ -4922,7 +4936,7 @@ function mvTile(id){
   const show = MV.scores && st.state !== 'pre';
   t.el.querySelector('.mvsc').innerHTML = cs.map((x, i) => `<span class="mvst${show && lead !== -1 && lead !== i ? ' lo' : ''}"><img src="${x.team.logo || logoOf(x.team.abbreviation)}" alt="">${esc(x.team.abbreviation)}${show ? ` <b>${esc(x.score)}</b>` : ''}</span>`).join('<span class="mvdash"></span>')
     + `<span class="mvclk${st.state === 'in' ? ' live' : ''}">${esc(MV.scores || st.state !== 'in' ? mvStatus(e) : 'Live')}</span>`;
-  t.el.querySelector('.mvbtns').innerHTML = `${s2 ? `<span class="pseg"><button class="pbtn" data-mvs="1" type="button" aria-pressed="${pick === 1}" title="Stream 1">1</button><button class="pbtn" data-mvs="2" type="button" aria-pressed="${pick === 2}" title="Stream 2">2</button></span>` : ''}
+  t.el.querySelector('.mvbtns').innerHTML = `${srcs.length > 1 ? `<span class="pseg">${srcs.map(x => `<button class="pbtn" data-mvs="${x.n}" type="button" aria-pressed="${pick === x.n}" title="${esc(x.title || x.label)}">${esc(x.n <= 2 ? String(x.n) : x.short)}</button>`).join('')}</span>` : ''}
     <button class="pbtn" data-mvx="focus" type="button" title="${MV.focus === id ? 'Back to an even grid' : 'Make this one big'}">${MV.focus === id ? 'Grid' : 'Big'}</button>
     <button class="pbtn" data-mvx="game" type="button" title="Open the full game view">Game</button>
     <button class="pbtn mvrm" data-mvx="rm" type="button" aria-label="Remove ${esc(away)} at ${esc(home)}">×</button>`;
