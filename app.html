@@ -515,7 +515,7 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
   #gamehead:has(.oncourt){display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);column-gap:14px;align-items:start;grid-auto-flow:dense}
   #gamehead:has(.oncourt) > *{grid-column:1}
   #gamehead:has(.oncourt) > .demobar,#gamehead:has(.oncourt) > .ghead2{grid-column:1 / -1}
-  #gamehead:has(.oncourt) > .oncourt{grid-column:2;margin-top:10px}
+  #gamehead:has(.oncourt) > .oncourt{grid-column:2;grid-row:2 / span 6;margin-top:10px}
   #gamehead .wp2{margin:10px 0 0}
 }
 
@@ -1967,6 +1967,27 @@ button.gh2n{background:none;border:0;padding:0;margin:0;text-align:inherit;color
 button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 .lsc2 .lt a{color:inherit;text-decoration:none}
 @media (min-width:641px){#scbody .gtabs button{min-width:0;padding:8px 6px;letter-spacing:.05em;white-space:nowrap}}
+
+/* win chance scrubber */
+.wpsc{position:relative;touch-action:pan-y;cursor:crosshair}
+.wpsc svg{display:block}
+.wpln{position:absolute;top:0;bottom:0;width:1.5px;margin-left:-.75px;background:var(--strong);opacity:.8;pointer-events:none}
+.wptip{position:absolute;bottom:calc(100% + 6px);transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;gap:2px;min-width:170px;max-width:250px;padding:7px 10px;border-radius:10px;
+  background:var(--bg1);border:1px solid var(--line);box-shadow:0 8px 22px rgba(0,0,0,.4);pointer-events:none;font-size:12.5px;color:var(--chalk)}
+.wptip.left{transform:translateX(-12px)}.wptip.right{transform:translateX(calc(-100% + 12px))}
+.wpt1{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.03em;color:var(--mute)}
+.wpt1 b{color:var(--strong);font-weight:700}.wpt1 > b:first-child{margin-right:8px;color:var(--brass)}
+.wpt2{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.wpt3{font-size:12px;color:var(--mute);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wphint{margin-top:4px;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.06em;color:var(--dim);text-align:center}
+@media (hover:hover){.wphint{display:none}}
+/* box score: one team at a time */
+.boxtabs{margin-bottom:8px}
+.boxtabs button{display:inline-flex;align-items:center;gap:6px}
+.boxtabs button img{width:18px;height:18px;object-fit:contain}
+.boxtabs button[aria-pressed="true"]{border-color:var(--tc)!important;box-shadow:inset 0 -2px 0 var(--tc)}
+.clipbelow{margin-top:16px}
+.wptip[hidden],.wpln[hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -3246,14 +3267,18 @@ function drawGame(s, quiet){
         return `<td class="${live && i === q - 1 ? 'now' : ''}${w ? ' w' : ''}">${esc(x.linescores?.[i]?.displayValue ?? '')}</td>`; }).join('')}<td class="tt${lead === k ? ' w' : ''}">${esc(x.score ?? '')}</td></tr>`).join('')}</table></div>`;
   }
   head += winChance(s, cs) + '</div>';
+  // wide screens: heat check right under the score, highlights under the play by play
+  const wideG = matchMedia('(min-width:1000px)').matches;
+  const heatH = live ? heatStrip(s, cs) : '', clipH = gameId !== 'demo' ? clipStrip(s, cs) : '';
+  if (wideG) head += heatH;
   if (live) head += floorView(s, cs);
-  if (gameId !== 'demo') head += clipStrip(s, cs);
-  if (live) head += heatStrip(s, cs);
+  if (!wideG) head += clipH + heatH;
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="avg" aria-pressed="${gameTab === 'avg'}">Vs average</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   const covered = noSpoil && !SPOIL_OK.has(String(gameId)) && st.state !== 'pre';
   if (covered && ['pbp', 'box', 'shots', 'avg'].includes(gameTab)) h += `<div class="spcover"><b>Scores are hidden</b><span>Play by play, the box score, the shot chart and tonight's numbers give the score away.</span><button class="pbtn" id="spreveal" type="button">Show this game</button></div>`;
   else h += gameTab === 'preview' ? whySection(s) + previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'avg' ? vsAvgView(s, cs) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
+  if (wideG && clipH) h += `<div class="clipbelow">${clipH}</div>`;
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
   const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
   if (s.__demo) head = `<div class="demobar"><b>Demo</b> A replay of the 2026 Finals, Game 4, fed in like a live game, one play every second and a half. <button class="pbtn" id="demorestart" type="button">Restart</button></div>` + head;
@@ -3301,10 +3326,10 @@ function winChance(s, cs){
     const area = `M0,${mid} L${pts} L${w},${mid} Z`;
     const lg = x => `<img src="${x.team.logos?.[0]?.href || logoOf(x.team.abbreviation)}" alt="">`;
     wp = `<div class="wp2"><div class="wp2h"><b class="${last < .5 ? '' : 'lo'}">${lg(away)}${Math.round((1 - last) * 100)}%</b><span>Win chance</span><b class="${last >= .5 ? '' : 'lo'}">${Math.round(last * 100)}%${lg(home)}</b></div>
-      <svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><defs><clipPath id="wpTop"><rect x="0" y="0" width="${w}" height="${mid}"/></clipPath><clipPath id="wpBot"><rect x="0" y="${mid}" width="${w}" height="${mid}"/></clipPath></defs>
+      <div class="wpsc">${wpScrubData(W, s, away, home)}<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><defs><clipPath id="wpTop"><rect x="0" y="0" width="${w}" height="${mid}"/></clipPath><clipPath id="wpBot"><rect x="0" y="${mid}" width="${w}" height="${mid}"/></clipPath></defs>
       <path d="${area}" clip-path="url(#wpTop)" style="fill:${hc};opacity:.55"/><path d="${area}" clip-path="url(#wpBot)" style="fill:${ac};opacity:.55"/>
       <line x1="0" y1="${mid}" x2="${w}" y2="${mid}" style="stroke:var(--line);stroke-dasharray:3 4;vector-effect:non-scaling-stroke"/>
-      <path d="M${pts}" style="fill:none;stroke:var(--strong);stroke-width:1.5;vector-effect:non-scaling-stroke"/></svg></div>`;
+      <path d="M${pts}" style="fill:none;stroke:var(--strong);stroke-width:1.5;vector-effect:non-scaling-stroke"/></svg>${wpTipHtml()}</div><div class="wphint">Drag or hover across the chart to step through the game</div></div>`;
   }  return wp;
 }
 
@@ -3529,7 +3554,10 @@ function boxView(s){
   const demoNote = s.boxscore?.__pbp ? `<p class="note" style="margin-bottom:8px">Built from the play by play${s.__delayed ? ', in step with your feed delay' : ' because ESPN\u2019s box score is blank for this game'}. Minutes are close, not exact.</p>`
     : s.__demo || (gameId === 'demo') ? `<p class="note" style="margin-bottom:8px">Demo: this is the finished game's box score. In a real live game it updates with every play.</p>` : '';
   if (!teams.length) return `<div class="empty">The box score fills in at tip off.</div>`;
-  return demoNote + teams.map(t => {
+  if (!teams.some(t => String(t.team?.id) === boxTeam)) boxTeam = String(teams[0].team?.id || '');
+  const btabs = `<div class="pfilt boxtabs">${teams.map(t => { const c = sideColor(t.team);
+    return `<button type="button" data-boxt="${esc(t.team.id)}" aria-pressed="${String(t.team.id) === boxTeam}" style="--tc:${c.c}"><img src="${t.team.logo || logoOf(t.team.abbreviation)}" alt="">${esc(t.team.shortDisplayName || t.team.abbreviation)}</button>`; }).join('')}</div>`;
+  return demoNote + btabs + teams.filter(t => String(t.team?.id) === boxTeam).map(t => {
     const st = t.statistics?.[0] || {}, names = st.names || st.labels || [];
     const col = n => names.indexOf(n);
     const want = ['MIN', 'PTS', 'REB', 'AST', 'FG', '3PT', 'FT', 'STL', 'BLK', 'TO', 'PF', '+/-'].filter(n => col(n) >= 0);
@@ -3545,6 +3573,8 @@ function boxView(s){
       ${tot.length ? `<tr class="tot"><td>Team</td>${want.map(n => `<td>${esc(tot[col(n)] ?? '')}</td>`).join('')}</tr>` : ''}</table></div></div>`;
   }).join('') + `<p class="gnote">Starters first, bench in gray. Tap a player on a current roster to open his card.</p>`;
 }
+let boxTeam = '';
+document.addEventListener('click', e => { const b = e.target.closest('[data-boxt]'); if (b && lastSummary){ boxTeam = b.dataset.boxt; drawGame(lastSummary, true); } });
 $('#scbtn').onclick = () => openScores();
 $('#scclose').onclick = closeScores;
 $('#scores').addEventListener('click', e => {
@@ -7482,6 +7512,32 @@ function linkPlayers(text, p, s){
   }
   return h;
 }
+
+/* ---------- win chance: slide along the chart to see the score, clock and play at each moment ---------- */
+let WPS = null, wpHoverF = null;
+function wpScrubData(W, s, away, home){
+  const byId = {}; for (const p of s.plays || []) byId[String(p.id)] = p;
+  let lastP = null;
+  const pts = W.map((w, i) => { const p = byId[String(w.playId)] || null; if (p) lastP = p; const q = lastP?.period?.number || 1;
+    return {f: W.length > 1 ? i / (W.length - 1) : 0, hp: +w.homeWinPercentage, q: q <= 4 ? `Q${q}` : `OT${q > 5 ? q - 4 : ''}`, clock: lastP?.clock?.displayValue || '', as: lastP?.awayScore ?? 0, hs: lastP?.homeScore ?? 0, txt: p?.text || ''}; });
+  WPS = {pts, a: away.team.abbreviation, h: home.team.abbreviation, ac: sideColor(away.team).c, hc: sideColor(home.team).c};
+  return '';
+}
+function wpTipHtml(){
+  if (!WPS || wpHoverF == null) return '<i class="wpln" hidden></i><div class="wptip" hidden></div>';
+  const i = Math.max(0, Math.min(WPS.pts.length - 1, Math.round(wpHoverF * (WPS.pts.length - 1)))), d = WPS.pts[i], hp = Math.round(d.hp * 100);
+  const lead = hp >= 50 ? [WPS.h, hp, WPS.hc] : [WPS.a, 100 - hp, WPS.ac];
+  const side = d.f > .62 ? 'right' : d.f < .38 ? 'left' : 'mid';
+  return `<i class="wpln" style="left:${(d.f * 100).toFixed(2)}%"></i><div class="wptip ${side}" style="left:${(d.f * 100).toFixed(2)}%">
+    <span class="wpt1"><b>${esc(d.q)} ${esc(d.clock)}</b>${esc(WPS.a)} <b>${d.as}</b> · ${esc(WPS.h)} <b>${d.hs}</b></span>
+    <span class="wpt2" style="color:${lead[2]}">${esc(lead[0])} ${lead[1]}% to win</span>${d.txt ? `<span class="wpt3">${esc(d.txt)}</span>` : ''}</div>`;
+}
+function wpMove(e, box){
+  const r = box.getBoundingClientRect(); wpHoverF = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  box.querySelectorAll('.wpln,.wptip').forEach(x => x.remove()); box.insertAdjacentHTML('beforeend', wpTipHtml());
+}
+document.addEventListener('pointermove', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null && e.pointerType === 'mouse'){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
+document.addEventListener('pointerdown', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
 if (!Object.keys(T).length){
