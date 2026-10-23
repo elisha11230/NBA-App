@@ -919,7 +919,7 @@ button.dsd:hover{background:var(--bg2)}
   padding:11px 14px;border-radius:14px;background:var(--bg1);border:1px solid var(--line);box-shadow:0 14px 34px rgba(0,0,0,.4);font-size:13.5px;color:var(--chalk);transition:transform .25s,opacity .25s;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
 #toast b{color:var(--strong)}
-/* ---------- My Teams ---------- */
+/* ---------- My Favorites ---------- */
 #mine{position:fixed;inset:0;z-index:66;background:var(--ink);display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(12px + env(safe-area-inset-bottom,0px))}
 #mine[hidden]{display:none}
 #mine .lhead h2{font-size:22px}
@@ -1617,6 +1617,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   #moremenu button span{font-size:11px;color:var(--team-accent);width:14px;text-align:center}
   #moremenu button:hover{background:var(--bg2);color:var(--strong)}
 }
+#menu #minebtn{white-space:nowrap}
 @media (min-width:641px) and (max-width:820px){#menu #minebtn{display:none}#moremenu [data-go="minebtn"]{display:flex!important}}
 /* ---------- pick'em and award race pages ---------- */
 #pickem,#awards{position:fixed;inset:0;z-index:66;background:var(--ink);display:flex;flex-direction:column;
@@ -2053,7 +2054,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 <div id="app">
   <nav id="rail" aria-label="Teams"></nav>
   <div id="moremenu" hidden role="menu">
-    <button type="button" role="menuitem" data-go="minebtn"><span aria-hidden="true">★</span>My Teams</button>
+    <button type="button" role="menuitem" data-go="minebtn"><span aria-hidden="true">★</span>My Favorites</button>
     <button type="button" role="menuitem" data-go="mvbtn"><span aria-hidden="true">▦</span>Multiview</button>
     <button type="button" role="menuitem" data-go="leadbtn"><span aria-hidden="true">▲</span>Leaders</button>
     <button type="button" role="menuitem" data-go="boardbtn"><span aria-hidden="true">◆</span>Draft</button>
@@ -2066,7 +2067,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
   </div>
   <nav id="menu" aria-label="Menu">
     <button id="scbtn"><span aria-hidden="true">●</span>Scores</button>
-    <button id="minebtn"><span aria-hidden="true">★</span>My Teams</button>
+    <button id="minebtn"><span aria-hidden="true">★</span>My Favorites</button>
     <button id="mvbtn"><span aria-hidden="true">▦</span>Multiview</button>
     <button id="stbtn"><span aria-hidden="true">■</span>Standings</button>
     <button id="leadbtn"><span aria-hidden="true">▲</span>Leaders</button>
@@ -2090,7 +2091,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
     <div id="hl">
       <img id="hlogo" alt="">
       <div>
-        <h1 id="tname" class="blk"></h1><button id="favteam" class="favstar" type="button" aria-label="Add to My Teams">☆</button>
+        <h1 id="tname" class="blk"></h1><button id="favteam" class="favstar" type="button" aria-label="Add to My Favorites">☆</button>
         <div id="trec"></div>
       </div>
     </div>
@@ -2144,8 +2145,8 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
   <div id="cmpbody"></div>
 </div>
 
-<div id="mine" hidden role="dialog" aria-modal="true" aria-label="My Teams">
-  <div class="lhead"><h2>My Teams</h2><button class="qx" id="mineclose">Close</button></div>
+<div id="mine" hidden role="dialog" aria-modal="true" aria-label="My Favorites">
+  <div class="lhead"><h2>My Favorites</h2><button class="qx" id="mineclose">Close</button></div>
   <div id="minebody"></div>
 </div>
 
@@ -2576,7 +2577,7 @@ function renderPlayer(){
   const sp_ = p.n.indexOf(' '), first = sp_ > 0 ? p.n.slice(0, sp_) : '', last = sp_ > 0 ? p.n.slice(sp_ + 1) : p.n;
   h += `<div class="phero">${p.j ? `<div class="phnum" aria-hidden="true">${esc(p.j)}</div>` : ''}<img class="phlogo" src="${t.logo}" alt="" aria-hidden="true">
     <div class="phface">${face(id)}</div>
-    <button class="favstar phfav" data-favp="${id}" type="button" aria-label="Add to My Teams">${isFav('players', id) ? '★' : '☆'}</button>
+    <button class="favstar phfav" data-favp="${id}" type="button" aria-label="Add to My Favorites">${isFav('players', id) ? '★' : '☆'}</button>
     <div class="phinfo"><div class="phfirst">${esc(first)}</div><div class="phlast blk">${esc(last)}</div>
       <div class="phmeta"><img src="${t.logo}" alt="">${esc(t.abbr)}${p.j ? ` · #${esc(p.j)}` : ''} · ${esc(p.posn || p.pos)}</div>${draftLine(id, p.n, (p.yr || [])[0]?.[0])}</div>
     ${s ? `<div class="phstats"><div><b>${f1(s.pts)}</b><span>PTS</span></div><div><b>${f1(s.reb)}</b><span>REB</span></div><div><b>${f1(s.ast)}</b><span>AST</span></div></div>` : ''}</div>`;
@@ -2858,7 +2859,7 @@ const WT_SVG = {
 const WT_META = {
   star: ['Star power', '#D9A23A'], matchup: ['Matchup', '#E0603A'], heavy: ['Heavyweights', '#9B7BE0'], close: ['Close game expected', '#2FA59A'],
   rookie: ['Rookie watch', '#5DAA55'], hot: ['Hot streak', '#F08A2A'], rival: ['Rivalry', '#D9578A'], tv: ['National TV', '#4A8FE0'],
-  milestone: ['Milestone watch', '#C08A4A'], mine: ['My Teams', '#E0505A'],
+  milestone: ['Milestone watch', '#C08A4A'], mine: ['My Favorites', '#E0505A'],
   clutch: ['Close late', '#E0402A'], comeback: ['Comeback', '#F08A2A'], bignight: ['Big night', '#C46BD6'],
   revenge: ['Revenge game', '#5FA8D3'], stakes: ['Playoff stakes', '#3DBB8F'], record: ['Record chase', '#D4A84B'], upset: ['Upset alert', '#E86F4E'],
   excite: ['Excitement', '#FF5D8F'], heat: ['Heat check', '#FF6A2B'], replay: ['Replay rating', '#E3962F'],
@@ -5243,7 +5244,7 @@ function closeMultiIfOpen(){ if (!$('#multi').hidden) closeMulti(); }
 startAlerts();
 
 /* =================================================================================
-   My Teams: favorite teams and players
+   My Favorites: favorite teams and players
    ================================================================================= */
 let FAV = (() => { try { const j = JSON.parse(localStorage.getItem('nba_favs') || '{}'); return {teams: j.teams || [], players: j.players || []}; } catch (e){ return {teams: [], players: []}; } })();
 function saveFav(){ try { localStorage.setItem('nba_favs', JSON.stringify(FAV)); } catch (e){} }
@@ -5253,12 +5254,12 @@ function toggleFav(kind, id){
   FAV[kind] = isFav(kind, id) ? FAV[kind].filter(x => x !== id) : [...FAV[kind], id];
   saveFav(); drawFavBtns();
   if (kind === 'players'){ FW.sbAt = 0; setTimeout(() => favTick(true), 50); }
-  toast(isFav(kind, id) ? 'Added to My Teams' : 'Removed from My Teams');
+  toast(isFav(kind, id) ? 'Added to My Favorites' : 'Removed from My Favorites');
   if (!$('#mine').hidden) drawMine();
 }
 function drawFavBtns(){
-  const b = $('#favteam'); if (b && cur){ const on = isFav('teams', cur); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.title = on ? 'In My Teams. Tap to remove.' : 'Add to My Teams'; }
-  for (const x of document.querySelectorAll('[data-favp]')){ const on = isFav('players', x.dataset.favp); x.textContent = on ? '★' : '☆'; x.setAttribute('aria-pressed', String(on)); x.title = on ? 'In My Teams. Tap to remove.' : 'Add to My Teams'; }
+  const b = $('#favteam'); if (b && cur){ const on = isFav('teams', cur); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.title = on ? 'In My Favorites. Tap to remove.' : 'Add to My Favorites'; }
+  for (const x of document.querySelectorAll('[data-favp]')){ const on = isFav('players', x.dataset.favp); x.textContent = on ? '★' : '☆'; x.setAttribute('aria-pressed', String(on)); x.title = on ? 'In My Favorites. Tap to remove.' : 'Add to My Favorites'; }
 }
 let mineSB = null, mineSBAt = 0;
 async function openMine(){
@@ -5298,7 +5299,7 @@ function drawMine(){
         : lastOld ? (noSpoil ? '' : `${lastOld[3] > lastOld[4] ? 'W' : 'L'} ${lastOld[3]}-${lastOld[4]} ${lastOld[2] ? '@' : 'vs'} ${esc(lastOld[1])} <small>(last season)</small>`) : '';
       return `<div class="mcard" style="--tc:${col}"><img class="mwm" src="${t.logo}" alt="">
         <div class="mtop"><button class="mteam" data-mteam="${id}"><img src="${t.logo}" alt=""><span><b>${esc(t.name)}</b><small>${esc(t.rec?.rec || '')}${t.rec?.seed ? ` · ${ord(t.rec.seed)} in the ${esc(t.conf)}` : ''}</small></span></button>
-          <button class="favstar on" data-favt="${id}" aria-label="Remove from My Teams">★</button></div>
+          <button class="favstar on" data-favt="${id}" aria-label="Remove from My Favorites">★</button></div>
         ${today}
         <div class="mrows">${next ? `<div><span>Next</span><b>${fmtD(next[1])} · ${next[3] ? '@' : 'vs'} ${esc(next[2])}</b><small>${fmtT(next[1])}${next[4] ? ' · ' + esc(next[4]) : ''}</small></div>` : ''}
           ${lastTxt ? `<div><span>Last</span><b>${lastTxt}</b></div>` : ''}</div>
@@ -5316,7 +5317,7 @@ function drawMine(){
       const strk = streakInfo(p);
       return `<div class="mcard pl" style="--tc:${col}"><img class="mwm" src="${t.logo || ''}" alt="">
         <div class="mtop"><button class="mteam" data-mp="${id}"><span class="mpf">${photo(id, p.n)}</span><span><b>${esc(p.n)}</b><small>${esc(t.abbr || '')} · ${esc(p.posn || p.pos || '')}${p.j ? ` · #${esc(p.j)}` : ''}</small></span></button>
-          <button class="favstar on" data-favpl="${id}" aria-label="Remove from My Teams">★</button></div>
+          <button class="favstar on" data-favpl="${id}" aria-label="Remove from My Favorites">★</button></div>
         ${favLiveRow(id)}
         ${inj ? `<div class="minj"><span class="injtag ${inj.out ? 'out' : 'dtd'}">${esc(inj.st)}</span> <small>${esc(inj.detail || '')}</small></div>` : ''}
         <div class="mrows">${s_ ? `<div><span>${esc(M.stats)}</span><b>${f1(s_.pts)} pts · ${f1(s_.reb)} reb · ${f1(s_.ast)} ast</b></div>` : ''}
@@ -5420,7 +5421,7 @@ function favEval(e, G){
 setInterval(() => favTick(), 5000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) favTick(); });
 setTimeout(() => favTick(), 2500);
-// one line for a player's card on My Teams
+// one line for a player's card on My Favorites
 function favLiveRow(id){
   const S = FW.status[id]; if (!S) return '';
   const L = S.line && !noSpoil ? `${S.line.pts ?? 0} pts · ${S.line.reb ?? 0} reb · ${S.line.ast ?? 0} ast · ${S.line.min} min` : '';
@@ -7583,7 +7584,7 @@ function drawOpts(){
   const cache = (() => { let n = 0; try { for (const k of ['nba_hl', 'nba_xi']) n += (localStorage.getItem(k) || '').length; } catch (e){} return n; })();
   $('#optbody').innerHTML = `
     <section class="optsec"><h3>When the app opens</h3>
-      ${optRow('Start on', 'What you see first each time you open the app, and after a long time away.', optSeg('launch', [['welcome', "Today's games"], ['scores', 'Scores'], ['team', 'Team page'], ['mine', 'My Teams'], ['pickem', "Pick'em"], ['multi', 'Multiview']]), true)}
+      ${optRow('Start on', 'What you see first each time you open the app, and after a long time away.', optSeg('launch', [['welcome', "Today's games"], ['scores', 'Scores'], ['team', 'Team page'], ['mine', 'My Favorites'], ['pickem', "Pick'em"], ['multi', 'Multiview']]), true)}
       ${optRow('Team', 'The team the app opens to. "Last viewed" picks up where you left off.', `<select class="optsel" id="optteam"><option value="">Last viewed</option>${teams.map(id => `<option value="${esc(T[id].abbr)}" ${OPT.team === T[id].abbr ? 'selected' : ''}>${esc(T[id].name)}</option>`).join('')}</select>`)}
     </section>
     <section class="optsec"><h3>Spoilers</h3>
@@ -7601,7 +7602,7 @@ function drawOpts(){
     </section>
     <section class="optsec"><h3>Favorite players</h3>
       ${optRow('Check in alerts', 'An alert when one of your players comes off the bench, while the app is open. It waits for your feed delay so it never beats the stream.' + ('Notification' in window && Notification.permission === 'denied' ? ' Notifications are blocked in your phone settings, so these show inside the app only.' : ''), optSeg('favAlerts', [['in', 'Check ins'], ['all', 'Check ins and starts'], ['off', 'Off']]), true)}
-      ${optRow('Your players', FAV.players.length ? 'They also show on My Teams with whether they are on the floor right now.' : 'None yet. Add some here or with the ☆ on any player.', `<div class="optfav">${FAV.players.filter(id => P[id]).map(id => `<span class="optfp">${esc(P[id].n)} <small>${esc(T[P[id].t]?.abbr || '')}</small><button type="button" data-favrm="${esc(id)}" aria-label="Remove ${esc(P[id].n)}">×</button></span>`).join('')}</div>
+      ${optRow('Your players', FAV.players.length ? 'They also show on My Favorites with whether they are on the floor right now.' : 'None yet. Add some here or with the ☆ on any player.', `<div class="optfav">${FAV.players.filter(id => P[id]).map(id => `<span class="optfp">${esc(P[id].n)} <small>${esc(T[P[id].t]?.abbr || '')}</small><button type="button" data-favrm="${esc(id)}" aria-label="Remove ${esc(P[id].n)}">×</button></span>`).join('')}</div>
         <div class="optfadd"><input type="search" id="optfavq" placeholder="Add a player" autocomplete="off" spellcheck="false"><div class="optfres" id="optfavres"></div></div>`, true)}
     </section>
     <section class="optsec"><h3>Streams</h3>
