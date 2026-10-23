@@ -945,6 +945,21 @@ button.dsd:hover{background:var(--bg2)}
 .mlive.on{border-color:#D06A6A;color:#F2B0B0;background:color-mix(in srgb,#E0402A 10%,transparent)}
 .mlive i{width:7px;height:7px;border-radius:50%;background:#E0402A;animation:pulse 1.4s infinite}
 .mrows{position:relative;display:grid;gap:6px;margin-top:10px}
+/* favorite players live: on the floor, on the bench, out */
+.mlive.bench{border-color:var(--line);color:var(--chalk);background:color-mix(in srgb,var(--ink) 30%,transparent)}
+.mlive.bench i{background:var(--dim);animation:none}
+.mlive.out{color:var(--dim)}
+.mlive small{margin-left:auto;font-weight:600;color:var(--dim);letter-spacing:.04em}
+.mlive.on small{color:#F2B0B0}
+:root[data-theme="light"] .mlive.on,:root[data-theme="light"] .mlive.on small{color:#B02E24}
+.mlvbar{display:flex;gap:8px;overflow-x:auto;margin:0 0 16px;padding-bottom:4px;scrollbar-width:thin}
+.mlvp{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--line);background:var(--panel);text-align:left}
+.mlvp.on{border-color:#D06A6A;background:color-mix(in srgb,#E0402A 10%,var(--panel))}
+.mlvp .mpf{flex-basis:34px;height:34px;border-width:2px}
+.mlvp b{display:block;font-size:13.5px;color:var(--strong);font-weight:700;white-space:nowrap}
+.mlvp small{display:flex;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.mlvp.on small{color:#E86A5C;font-weight:700}
+.mlvp.on small i{width:6px;height:6px;border-radius:50%;background:#E0402A;animation:pulse 1.4s infinite}
 .mrows div{display:grid;grid-template-columns:70px 1fr;gap:2px 8px;align-items:baseline}
 .mrows span{font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .mrows b{font-size:14px;color:var(--strong);font-weight:600}
@@ -1960,6 +1975,15 @@ button.cal.on{outline:2px solid var(--strong);outline-offset:1px}
 .optsel,.optname input{padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 40%,var(--panel));color:var(--strong);font-size:15px;max-width:200px}
 .optname{display:flex;gap:6px;align-items:center}
 .optname input{width:140px}
+.optfav{display:flex;flex-wrap:wrap;gap:6px}
+.optfp{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 30%,var(--panel));font-size:13.5px;color:var(--strong)}
+.optfp small{color:var(--dim);font-size:11.5px}
+.optfp button{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);color:var(--mute);line-height:1;font-size:14px}
+.optfadd{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.optfadd input{padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 40%,var(--panel));color:var(--strong);font-size:15px;max-width:320px}
+.optfres{display:flex;flex-wrap:wrap;gap:6px}
+.optfres button{padding:5px 10px;border-radius:999px;border:1px dashed var(--line);font-size:13px;color:var(--chalk)}
+.optfres button small{color:var(--dim);margin-left:4px}
 .optdelay{display:flex;align-items:center;gap:12px}
 .optdelay input{flex:1 1 auto;accent-color:var(--brass)}
 .optdelay b{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:16px;color:var(--strong);min-width:46px;text-align:right}
@@ -2180,7 +2204,7 @@ const isLight = () => document.documentElement.dataset.theme === 'light';
 // Scores always start hidden: every launch, and every return to the app after a while away.
 // Showing them (eye toggle, welcome screen, scores page) lasts only for that sitting.
 /* ---------- settings (the Settings page), read first so launch can follow them ---------- */
-const OPT_DEFAULT = {hosts: {}, launch: 'welcome', team: '', spoilLaunch: 'hide', awayMins: 30, awayReopen: true, liveTags: 'show', replay: 'show', textSize: 'normal', motion: 'auto'};
+const OPT_DEFAULT = {hosts: {}, launch: 'welcome', team: '', spoilLaunch: 'hide', awayMins: 30, awayReopen: true, liveTags: 'show', replay: 'show', textSize: 'normal', motion: 'auto', favAlerts: 'in'};
 const OPT = (() => { try { return {...OPT_DEFAULT, ...JSON.parse(localStorage.getItem('nba_opts') || '{}')}; } catch (e){ return {...OPT_DEFAULT}; } })();
 function saveOpts(){ try { localStorage.setItem('nba_opts', JSON.stringify(OPT)); } catch (e){} }
 function applyLook(){ const r = document.documentElement; r.classList.toggle('bigtext', OPT.textSize === 'large'); r.classList.toggle('lessmotion', OPT.motion === 'reduce'); }
@@ -5199,10 +5223,10 @@ function startAlerts(){
   };
   check(); alertTimer = setInterval(check, 45000);
 }
-function notify(title, body, eventId){
+function notify(title, body, eventId, tag){
   toast(`<b>${esc(title)}</b> ${esc(body)} <button class="pbtn" data-toastgame="${esc(eventId)}" type="button">Watch</button>`, 12000, true);
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const opts = {body, tag: 'clutch-' + eventId, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: {url: location.href.split('#')[0] + '#game=' + eventId}};
+  const opts = {body, tag: tag || 'clutch-' + eventId, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: {url: location.href.split('#')[0] + '#game=' + eventId}};
   try { if (swReg && swReg.showNotification) swReg.showNotification(title, opts); else new Notification(title, opts); } catch (e){}
 }
 function toast(html, ms = 4000, isHtml = false){
@@ -5227,6 +5251,7 @@ function toggleFav(kind, id){
   id = String(id);
   FAV[kind] = isFav(kind, id) ? FAV[kind].filter(x => x !== id) : [...FAV[kind], id];
   saveFav(); drawFavBtns();
+  if (kind === 'players'){ FW.sbAt = 0; setTimeout(() => favTick(true), 50); }
   toast(isFav(kind, id) ? 'Added to My Teams' : 'Removed from My Teams');
   if (!$('#mine').hidden) drawMine();
 }
@@ -5237,7 +5262,7 @@ function drawFavBtns(){
 let mineSB = null, mineSBAt = 0;
 async function openMine(){
   $('#mine').hidden = false; document.body.style.overflow = 'hidden';
-  drawMine(); loadInjuries().then(() => drawMine()).catch(() => {});
+  drawMine(); loadInjuries().then(() => drawMine()).catch(() => {}); favTick(true);
   if (!mineSB || Date.now() - mineSBAt > 60000){ try { mineSB = await espn('/scoreboard'); mineSBAt = Date.now(); drawMine(); } catch (e){} }
 }
 function closeMine(){ $('#mine').hidden = true; document.body.style.overflow = ''; }
@@ -5252,7 +5277,7 @@ function drawMine(){
     box.innerHTML = `<div class="mempty"><div class="mstar">☆</div><b>Nothing here yet</b><p>Tap the star next to a team's name or on a player's card, and they show up here with their next game, last result and injuries.</p></div>`;
     return;
   }
-  let h = '';
+  let h = favLiveBar();
   if (FAV.teams.length){
     h += `<h3 class="mh">Teams</h3><div class="mgrid">` + FAV.teams.filter(id => T[id]).map(id => {
       const t = T[id], col = sideColor({abbreviation: t.abbr, color: t.color, alternateColor: t.alt}).c;
@@ -5291,6 +5316,7 @@ function drawMine(){
       return `<div class="mcard pl" style="--tc:${col}"><img class="mwm" src="${t.logo || ''}" alt="">
         <div class="mtop"><button class="mteam" data-mp="${id}"><span class="mpf">${photo(id, p.n)}</span><span><b>${esc(p.n)}</b><small>${esc(t.abbr || '')} · ${esc(p.posn || p.pos || '')}${p.j ? ` · #${esc(p.j)}` : ''}</small></span></button>
           <button class="favstar on" data-favpl="${id}" aria-label="Remove from My Teams">★</button></div>
+        ${favLiveRow(id)}
         ${inj ? `<div class="minj"><span class="injtag ${inj.out ? 'out' : 'dtd'}">${esc(inj.st)}</span> <small>${esc(inj.detail || '')}</small></div>` : ''}
         <div class="mrows">${s_ ? `<div><span>${esc(M.stats)}</span><b>${f1(s_.pts)} pts · ${f1(s_.reb)} reb · ${f1(s_.ast)} ast</b></div>` : ''}
           ${g && !noSpoil ? `<div><span>Last game</span><b>${g[7]} pts · ${g[8]} reb · ${g[9]} ast</b><small>${esc(g[0].replace('-', '/'))} ${g[2] ? '@' : 'vs'} ${esc(g[1])}</small></div>` : ''}
@@ -5298,7 +5324,7 @@ function drawMine(){
         ${strk && strk.tag ? `<div class="mstreak ${strk.tag}">${strk.tag === 'hot' ? '🔥 Hot' : '🧊 Cold'}: ${f1(strk.l10)} pts over his last ${strk.n}, ${f1(strk.avg)} on the season</div>` : ''}</div>`;
     }).join('') + `</div>`;
   }
-  box.innerHTML = h + `<p class="note">Saved on this device. Tap ☆ on any team or player to add them.</p>`;
+  box.innerHTML = h + `<p class="note">Saved on this device. Tap ☆ on any team or player to add them.${FAV.players.length ? ` ${OPT.favAlerts === 'off' ? 'Check in alerts are off (Settings).' : `You get an alert when one of your players checks in${OPT.favAlerts === 'all' ? ' or starts' : ''}, while the app is open.`}` : ''}</p>`;
 }
 document.addEventListener('click', e => {
   if (e.target.closest('#favteam')){ toggleFav('teams', cur); return; }
@@ -5310,6 +5336,104 @@ document.addEventListener('click', e => {
   const mt = e.target.closest('[data-mteam]'); if (mt){ closeMine(); pastSeason = null; setTeam(mt.dataset.mteam); drawTimebar(); setView('team'); return; }
   const mp = e.target.closest('[data-mp]'); if (mp){ closeMine(); openPlayer(mp.dataset.mp); }
 });
+
+/* ---------- favorite players: live status and check in alerts ---------- */
+// While the app is open, games with one of your players are watched. When he comes off the
+// bench (or starts, if you asked for that) you get an alert. Everything runs off the delayed
+// view, so with a feed delay set nothing fires before your stream shows it.
+const FW = {games: {}, sb: null, sbAt: 0, busy: false, status: {}};
+const perLab = n => n <= 4 ? ['1st', '2nd', '3rd', '4th'][n - 1] || '' : n === 5 ? 'OT' : `${n - 4}OT`;
+function boxMap(s){
+  const m = {};
+  for (const t of (s?.boxscore?.players || [])){
+    const st = t.statistics?.[0] || {}, names = st.names || st.labels || [], ix = n => names.indexOf(n);
+    for (const a of (st.athletes || [])){
+      const id = String(a.athlete?.id || ''); if (!id) continue;
+      const S = a.stats || [];
+      m[id] = {pts: S[ix('PTS')], reb: S[ix('REB')], ast: S[ix('AST')], min: S[ix('MIN')], dnp: !!a.didNotPlay, why: a.reason || ''};
+    }
+  }
+  return m;
+}
+async function favTick(force){
+  if (FW.busy || (document.hidden && !force) || !FAV.players.length) return;
+  FW.busy = true;
+  try {
+    const tids = new Set(FAV.players.map(id => P[id] && String(P[id].t)).filter(Boolean));
+    const mine = () => (FW.sb?.events || []).filter(e => e.competitions[0].competitors.some(c => tids.has(String(c.team.id))));
+    // the scoreboard every 30s while one of your games is on or about to be, otherwise every 5 min
+    const busyNight = mine().some(e => e.status?.type?.state === 'in' || (e.status?.type?.state === 'pre' && Date.parse(e.date) - Date.now() < 20 * 60e3));
+    if (!FW.sb || Date.now() - FW.sbAt > (busyNight ? 30000 : 300000)){ try { FW.sb = await espn('/scoreboard'); FW.sbAt = Date.now(); } catch (e){} }
+    const seenP = new Set();
+    for (const e of mine()){
+      const st = e.status?.type?.state;
+      const G = FW.games[e.id] || (FW.games[e.id] = {on: {}, per: 0, fetched: 0, alerted: {}, sawPre: false});
+      if (st === 'pre'){ G.sawPre = true; continue; }
+      if ((st === 'in' && Date.now() - G.fetched > 12000) || (st === 'post' && !G.fetched)){
+        try { keepSnap(e.id, await espn('/summary?event=' + e.id)); G.fetched = Date.now(); } catch (err){}
+      }
+      for (const pid of favEval(e, G)) seenP.add(pid);
+    }
+    for (const pid in FW.status) if (!seenP.has(pid)) delete FW.status[pid];
+  } finally { FW.busy = false; }
+  if (!$('#mine').hidden) drawMine();
+}
+function favEval(e, G){
+  const v = delayedView(e.id); if (!v) return [];
+  const comp = v.header?.competitions?.[0], st = comp?.status?.type?.state;
+  const cs = comp?.competitors || [], plays = v.plays || [], last = plays[plays.length - 1], per = last?.period?.number || 0;
+  const oc = st === 'in' ? onCourt(v, e.id) : null, box = boxMap(v), mode = OPT.favAlerts || 'in', out = [];
+  const clock = last ? `${perLab(per)} ${last.clock?.displayValue || ''}`.trim() : '';
+  for (const pid of FAV.players){
+    const p = P[pid]; if (!p) continue;
+    const tid = String(p.t), me = cs.find(c => String(c.team.id) === tid); if (!me) continue;
+    const op = cs.find(c => c !== me), B = box[pid];
+    let now;
+    if (st === 'post') now = 'final';
+    else if (B && B.dnp && /inactive|injur|illness|not with|suspend|rest/i.test(B.why)) now = 'out';
+    else if (!oc || !oc.R[tid]) now = 'live';
+    else if (!oc.R[tid].ath[pid]) now = 'out';
+    else now = oc.lineup[tid].has(pid) ? 'on' : 'off';
+    const prev = G.on[pid], name = p.n, where = `${me.team.abbreviation} ${me.homeAway === 'home' ? 'vs' : 'at'} ${op?.team?.abbreviation || ''}`;
+    if (mode !== 'off' && st === 'in'){
+      if (prev === undefined && now === 'on' && mode === 'all' && per <= 1 && (G.sawPre || plays.length <= 8)){
+        notify(`${name} is starting`, `${where} just tipped off.`, e.id, `fav-${pid}-${e.id}-start`);
+      } else if (prev === 'off' && now === 'on'){
+        const ent = oc.entered[pid] || 0;
+        if (ent > (G.alerted[pid] || 0) || per !== G.per){
+          G.alerted[pid] = ent || Date.now();
+          const sp = [...plays].reverse().find(x => String(x.participants?.[0]?.athlete?.id || '') === pid && / enters the game for /i.test(x.text || ''));
+          const forWho = sp ? (/ enters the game for (.+?)\.?$/i.exec(sp.text) || [])[1] : '';
+          const when = sp ? `${perLab(sp.period?.number || per)} ${sp.clock?.displayValue || ''}`.trim() : per !== G.per ? `start of the ${perLab(per)}` : clock;
+          notify(`${name} checks in`, `${where} · ${when}${forWho ? `, for ${forWho}` : ''}`, e.id, `fav-${pid}-${e.id}-${G.alerted[pid]}`);
+        }
+      }
+    }
+    if (now !== 'live') G.on[pid] = now;   // only known states count, so a start is not missed while the box fills in
+    FW.status[pid] = {eid: e.id, state: now, where, clock: st === 'in' ? (comp.status?.type?.shortDetail || clock) : '', line: B && B.min && B.min !== '0' ? B : null};
+    out.push(pid);
+  }
+  if (st === 'in' && oc) G.per = per;
+  return out;
+}
+setInterval(() => favTick(), 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) favTick(); });
+setTimeout(() => favTick(), 2500);
+// one line for a player's card on My Teams
+function favLiveRow(id){
+  const S = FW.status[id]; if (!S) return '';
+  const L = S.line && !noSpoil ? `${S.line.pts ?? 0} pts · ${S.line.reb ?? 0} reb · ${S.line.ast ?? 0} ast · ${S.line.min} min` : '';
+  const lab = {on: 'On the floor', off: 'On the bench', out: 'Not playing tonight', live: 'Playing now', final: 'Played tonight'}[S.state] || '';
+  const cls = S.state === 'on' || S.state === 'live' ? 'on' : S.state === 'off' ? 'bench' : 'out';
+  return `<button class="mlive ${cls}" data-mgame="${esc(S.eid)}">${S.state === 'on' || S.state === 'off' || S.state === 'live' ? '<i></i>' : ''}${lab} · ${esc(S.where)}<small>${esc(S.state === 'final' ? (noSpoil ? '' : 'Final') : S.clock)}</small></button>${L ? `<div class="mfline note" style="margin:6px 2px 0">${esc(L)}</div>` : ''}`;
+}
+function favLiveBar(){
+  const live = FAV.players.filter(id => P[id] && FW.status[id] && ['on', 'off', 'live'].includes(FW.status[id].state));
+  if (!live.length) return '';
+  live.sort((x, y) => (FW.status[x].state === 'on' ? 0 : 1) - (FW.status[y].state === 'on' ? 0 : 1));
+  return `<h3 class="mh">Your players live</h3><div class="mlvbar">` + live.map(id => { const S = FW.status[id], t = T[P[id].t] || {};
+    return `<button class="mlvp ${S.state === 'off' ? '' : 'on'}" data-mgame="${esc(S.eid)}" style="--tc:${sideColor({abbreviation: t.abbr, color: t.color, alternateColor: t.alt}).c}"><span class="mpf">${photo(id, P[id].n)}</span><span><b>${esc(P[id].n)}</b><small>${S.state === 'off' ? 'On the bench' : '<i></i>On the floor'} · ${esc(S.clock)}</small></span></button>`; }).join('') + `</div>`;
+}
 
 /* =================================================================================
    Head to head (game preview)
@@ -7474,6 +7598,11 @@ function drawOpts(){
       ${optRow('Close game alerts', 'A notification when a game is close late.' + ('Notification' in window && Notification.permission === 'denied' ? ' Notifications are blocked in your phone settings.' : ''), optSwitch('alerts', alertsOn))}
       ${optRow("Pick'em name", 'Your name on the shared leaderboard.', `<div class="optname"><input type="text" id="optme" maxlength="20" value="${esc(pkMe)}" placeholder="Your name" autocomplete="nickname"><button type="button" class="pbtn" id="optmesave">Save</button></div>`)}
     </section>
+    <section class="optsec"><h3>Favorite players</h3>
+      ${optRow('Check in alerts', 'An alert when one of your players comes off the bench, while the app is open. It waits for your feed delay so it never beats the stream.' + ('Notification' in window && Notification.permission === 'denied' ? ' Notifications are blocked in your phone settings, so these show inside the app only.' : ''), optSeg('favAlerts', [['in', 'Check ins'], ['all', 'Check ins and starts'], ['off', 'Off']]), true)}
+      ${optRow('Your players', FAV.players.length ? 'They also show on My Teams with whether they are on the floor right now.' : 'None yet. Add some here or with the ☆ on any player.', `<div class="optfav">${FAV.players.filter(id => P[id]).map(id => `<span class="optfp">${esc(P[id].n)} <small>${esc(T[P[id].t]?.abbr || '')}</small><button type="button" data-favrm="${esc(id)}" aria-label="Remove ${esc(P[id].n)}">×</button></span>`).join('')}</div>
+        <div class="optfadd"><input type="search" id="optfavq" placeholder="Add a player" autocomplete="off" spellcheck="false"><div class="optfres" id="optfavres"></div></div>`, true)}
+    </section>
     <section class="optsec"><h3>Streams</h3>
       ${optHostRow('s2Base', 'Alt stream site', 'The player site for the alt stream: <code>/embed/admin/ppv-&lt;away&gt;-vs-&lt;home&gt;/1</code>. Paste just the site, like embedsite.st.')}
       ${optHostRow('embedBase', 'Home and away feed site', 'The home feed is <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>; the away feed is the same with <code>/away</code> on the end.')}
@@ -7510,6 +7639,7 @@ function setOpt(key, v){
   }
   if (key === 'wsort'){ wtSort = v; try { localStorage.setItem('nba_wsort', v); } catch (e){} drawOpts(); return; }
   if (key === 'awayMins') v = +v;
+  if (key === 'favAlerts' && v !== 'off' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   OPT[key] = v; saveOpts(); applyLook();
   if (key === 'spoilLaunch' && v === 'remember') try { localStorage.setItem('nba_spoil', noSpoil ? 'hidden' : 'shown'); } catch (e){}
   if (key === 'liveTags' || key === 'replay'){ for (const k in WT_CACHE) delete WT_CACHE[k]; }
@@ -7523,6 +7653,8 @@ $('#opts').addEventListener('click', e => {
     OPT.hosts = {...(OPT.hosts || {})}; if (!v || v === D.site?.[k]) delete OPT.hosts[k]; else OPT.hosts[k] = v; saveOpts();
     toast(`Saved. ${v ? v.replace(/^https?:\/\//, '') : 'Default site'} is used from the next game you open.`); drawOpts(); return; }
   const hr = e.target.closest('[data-hostreset]'); if (hr){ OPT.hosts = {...(OPT.hosts || {})}; delete OPT.hosts[hr.dataset.hostreset]; saveOpts(); toast('Back to the default site.'); drawOpts(); return; }
+  const fr = e.target.closest('[data-favrm]'); if (fr){ toggleFav('players', fr.dataset.favrm); drawOpts(); return; }
+  const fa = e.target.closest('[data-favadd]'); if (fa){ if (!isFav('players', fa.dataset.favadd)) toggleFav('players', fa.dataset.favadd); drawOpts(); setTimeout(() => $('#optfavq')?.focus(), 0); return; }
   const w = e.target.closest('[data-optsw]');
   if (w){ const k = w.dataset.optsw;
     if (k === 'alerts'){ setAlerts(!alertsOn).then(() => drawOpts()); return; }
@@ -7536,6 +7668,14 @@ $('#opts').addEventListener('click', e => {
 $('#opts').addEventListener('keydown', e => { const k = e.target.dataset?.host; if (k && e.key === 'Enter') $(`#optbody [data-hostsave="${k}"]`)?.click(); });
 $('#opts').addEventListener('change', e => {
   if (e.target.id === 'optteam'){ OPT.team = e.target.value; saveOpts(); if (OPT.team && byAbbr[OPT.team]){ pastSeason = null; setTeam(byAbbr[OPT.team]); drawTimebar(); drawHeaderPast(); renderFloor(); renderBench(); setView('team'); } }
+});
+$('#opts').addEventListener('input', e => {
+  if (e.target.id === 'optfavq'){
+    const q = normName(e.target.value), box = $('#optfavres'); if (!box) return;
+    box.innerHTML = q.length < 2 ? '' : Object.keys(P).filter(id => !isFav('players', id) && normName(P[id].n).includes(q))
+      .sort((x, y) => (normName(P[x].n).startsWith(q) ? 0 : 1) - (normName(P[y].n).startsWith(q) ? 0 : 1) || (P[y].s?.pts || 0) - (P[x].s?.pts || 0)).slice(0, 8)
+      .map(id => `<button type="button" data-favadd="${esc(id)}">+ ${esc(P[id].n)}<small>${esc(T[P[id].t]?.abbr || '')}</small></button>`).join('') || '<span class="note">No player by that name.</span>';
+  }
 });
 $('#opts').addEventListener('input', e => { if (e.target.id === 'optdelay'){ setDelay(+e.target.value); const v = $('#optdelayv'); if (v) v.textContent = `${liveDelay}s`; } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#opts').hidden) closeOpts(); });
