@@ -7788,7 +7788,7 @@ function wpTipHtml(){
   const side = d.f > .62 ? 'right' : d.f < .38 ? 'left' : 'mid';
   return `<i class="wpln" style="left:${(d.f * 100).toFixed(2)}%"></i><div class="wptip ${side}" style="left:${(d.f * 100).toFixed(2)}%">
     <span class="wpt1"><b>${esc(d.q)} ${esc(d.clock)}</b>${esc(WPS.a)} <b>${d.as}</b> · ${esc(WPS.h)} <b>${d.hs}</b></span>
-    <span class="wpt2" style="color:${lead[2]}">${esc(lead[0])} ${lead[1]}% to win</span>${d.txt ? `<span class="wpt3">${esc(d.txt)}</span>` : ''}</div>`;
+    <span class="wpt2" style="color:${lead[2]}">${esc(lead[0])} ${lead[1]}% to win</span></div>`;
 }
 function wpMove(e, box){
   const r = box.getBoundingClientRect(); wpHoverF = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
