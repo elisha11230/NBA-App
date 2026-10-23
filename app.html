@@ -1114,7 +1114,10 @@ a.ocp:hover .ocf{box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 45%,transparen
 .pline.live b{color:var(--strong)}
 .livedot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#E0402A;margin-right:4px;vertical-align:1px;animation:pulse 1.4s infinite}
 .cmpbtn{margin-top:8px}
-.psw{margin:10px 0 2px}.psw .lseg{display:inline-flex}.psw .note{margin:6px 2px 0}
+.seasl .seasr{width:100%;margin:6px 0 2px;accent-color:var(--team-accent)}
+.seasl h3 .seaslab{font-family:'Archivo Black',sans-serif;font-size:15px;letter-spacing:0;color:var(--strong);text-transform:none}
+.seast{display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;color:var(--dim)}
+.seasl .note{margin-top:6px}
 /* ---------- time slider ---------- */
 #timebar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
 #timebar.past{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 8%,var(--panel))}
@@ -6562,7 +6565,7 @@ function tabifyPanel(d, kind){
   const first = kids.findIndex(c => c.classList.contains('sect'));
   if (first < 0) return;
   const rest = kids.slice(first);
-  const tabOf = (node, prev) => { const t = panelTitle(node); if (!t) return prev; const hit = defs.find(([, , re]) => re.test(t)); return hit ? hit[0] : (node.classList.contains('sect') ? prev : prev); };
+  const tabOf = (node, prev) => { if (node.dataset?.ptabfix) return node.dataset.ptabfix; const t = panelTitle(node); if (!t) return prev; const hit = defs.find(([, , re]) => re.test(t)); return hit ? hit[0] : (node.classList.contains('sect') ? prev : prev); };
   let prev = defs[0][0];
   const used = new Set();
   rest.forEach(n => { prev = tabOf(n, prev); n.dataset.ptab = prev; used.add(prev); const t_ = panelTitle(n); n.classList.toggle('half', !!(t_ && HALF[kind].test(t_))); });
@@ -7817,6 +7820,7 @@ function loadLast(){
 }
 const lastHas = id => !!(LAST && LAST.players[id]);
 const lastWanted = id => lastHas(id) && (pSeasonPick ? pSeasonPick === 'last' : !P[id].s || P[id].s.gp < 10);
+let pPickFor = null;
 function swapIn(){
   if (SWAP++) return;
   SWAPSAVE = {P: {}, M: {...M}, style: D.style, pct: PCT_POOL, skill: SKILL_POOL};
@@ -7835,27 +7839,150 @@ const inLast = fn => function(){
   if (!(curP && P[curP] && LASTP && lastWanted(curP) && view === 'player' && !pastSeason)) return fn.apply(this, arguments);
   swapIn(); try { return fn.apply(this, arguments); } finally { swapOut(); }
 };
-function seasonSwitch(){
-  const id = curP; if (!lastHas(id)) return '';
-  const on = lastWanted(id), s = P[id].s, ls = LAST.players[id].s;
-  return `<div class="psw"><div class="lseg" role="group" aria-label="Season"><button type="button" class="lseason" data-psw="now" aria-pressed="${!on}">${esc(M.stats)}${s ? ` · ${s.gp} game${s.gp === 1 ? '' : 's'}` : ''}</button><button type="button" class="lseason" data-psw="last" aria-pressed="${on}">${esc(LAST.meta.stats)} · ${ls.gp} games</button></div>
-    <p class="note">${on ? `Showing his full ${esc(LAST.meta.stats)} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}.` : `Showing ${esc(M.stats)} so far. Tap ${esc(LAST.meta.stats)} for his full season.`}</p></div>`;
-}
 {
   const _rp = renderPlayer;
   renderPlayer = function(){
     if (P[curP] && !LAST) loadLast();
+    if (curP !== pPickFor){ pSeasonPick = null; pPickFor = curP; }
     const r = inLast(_rp).apply(this, arguments);
-    const at = P[curP] && $('#detail #cmpopen');
-    if (at && lastHas(curP)) at.insertAdjacentHTML('beforebegin', seasonSwitch());
+    try { if (P[curP] && !pastSeason) pSeasonDecorate(); } catch (e){ console.warn('season slider', e); }
     return r;
   };
   panelHero = inLast(panelHero);
   calendarSection = inLast(calendarSection);
 }
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-psw]'); if (!b) return;
-  pSeasonPick = b.dataset.psw; const y = scrollY; renderPlayer(); scrollTo(0, y);
+/* ---------- season sliders at the top of the Stats tabs ---------- */
+// Player: every season of his career. This season and last season have every section;
+// older ones have his yearly line. Team: every season since 2002-03 from the box scores.
+const fullSeason = k => { const a = String(k).slice(0, 2); return String(k).length > 5 ? String(k) : `${+a > 40 ? '19' : '20'}${k}`; };
+function pSeasonList(id){
+  const p = P[id], L = [];
+  for (const r of (p.yr || [])){ const lab = fullSeason(r[0]); if (lab === M.stats) continue;
+    L.push({lab, key: LAST && lab === LAST.meta.stats && lastHas(id) ? 'last' : 'old:' + r[0], row: r}); }
+  if (lastHas(id) && !L.some(x => x.key === 'last')) L.push({lab: LAST.meta.stats, key: 'last'});
+  if (p.s) L.push({lab: M.stats, key: 'now'});
+  return L;
+}
+function pSeasonNow(id){
+  if (pSeasonPick && pSeasonPick.startsWith('old:') && (P[id].yr || []).some(r => 'old:' + r[0] === pSeasonPick)) return pSeasonPick;
+  return lastWanted(id) ? 'last' : 'now';
+}
+const oldRow = id => { const k = pSeasonNow(id); return k.startsWith('old:') ? (P[id].yr || []).find(r => 'old:' + r[0] === k) : null; };
+function seasonSlider(L, i, kind, note){
+  return `<section class="sect seasl" data-seasl="${kind}" data-ptab="stats" data-ptabfix="stats"><h3>Season<span class="seaslab">${esc(L[i].lab)}</span></h3>
+    <input type="range" class="seasr" data-seasr="${kind}" min="0" max="${L.length - 1}" step="1" value="${i}" aria-label="Season" aria-valuetext="${esc(L[i].lab)}">
+    <div class="seast"><span>${esc(L[0].lab)}</span><span>${esc(L[L.length - 1].lab)}</span></div>${note ? `<p class="note">${note}</p>` : ''}</section>`;
+}
+function oldSeasonSections(p, r){
+  const Y = p.yr || [], gp = Y.reduce((a, x) => a + x[2], 0);
+  const car = i => { let s = 0, n = 0; for (const x of Y) if (x[i] != null){ s += x[i] * x[2]; n += x[2]; } return n ? s / n : null; };
+  const row = (l, i, fmt = f1) => r[i] == null ? '' : `<div class="stat"><span class="l">${l}<small>Career ${car(i) == null ? '—' : fmt(car(i))}</small></span><span class="v">${fmt(r[i])}</span><span class="r"></span></div>`;
+  const pc = v => v == null ? '—' : (+v).toFixed(1) + '%';
+  return `<section class="sect k-stat"><h3>${esc(fullSeason(r[0]))} averages<span>${esc(r[1])} · ${r[2]} games, ${r[3]} starts</span></h3>
+      <div class="big3"><div><b>${f1(r[5])}</b><span>Points</span></div><div><b>${f1(r[6])}</b><span>Rebounds</span></div><div><b>${f1(r[7])}</b><span>Assists</span></div></div>
+      ${row('Points', 5)}${row('Rebounds', 6)}${row('Assists', 7)}${row('Minutes', 4)}${row('Steals', 8)}${row('Blocks', 9)}${row('Turnovers', 10)}${row('Threes made', 11)}
+      <p class="note">Seasons before ${esc(LAST ? LAST.meta.stats : M.stats)} keep his yearly averages only. Career is weighted by games, ${gp} in all.</p></section>
+    <section class="sect k-stat"><h3>Shooting<span>${esc(fullSeason(r[0]))}</span></h3>${row('Field goals', 12, pc)}${row('Threes', 13, pc)}${row('Free throws', 14, pc)}</section>`;
+}
+function swapStatsTab(html){
+  const d = $('#detail'), st = [...d.querySelectorAll(':scope > [data-ptab="stats"]')];
+  const t = document.createElement('template'); t.innerHTML = html;
+  const anchor = st[0] || d.querySelector(':scope > [data-ptab="adv"]') || null;
+  const nodes = [...t.content.children]; nodes.forEach(n => { n.dataset.ptab = n.dataset.ptabfix = 'stats'; });
+  if (anchor) nodes.forEach(n => anchor.before(n)); else nodes.forEach(n => d.appendChild(n));
+  st.forEach(n => n.remove());
+}
+function addSlider(html){
+  const d = $('#detail'), first = d.querySelector(':scope > [data-ptab="stats"]') || d.querySelector(':scope > [data-ptab="adv"]');
+  if (first) first.insertAdjacentHTML('beforebegin', html); else d.insertAdjacentHTML('beforeend', html);
+}
+// the slider sits above the Stats tab's headline numbers, since they follow it
+function sliderOnTop(){
+  const d = $('#detail'), sl = d.querySelector(':scope > .seasl'), th = d.querySelector(':scope > .thero[data-ptab="stats"]');
+  if (sl && th) th.before(sl);
+}
+function pSeasonDecorate(){
+  const id = curP, p = P[id], L = pSeasonList(id); if (L.length < 2) return;
+  const k = pSeasonNow(id), i = Math.max(0, L.findIndex(x => x.key === k)), r = oldRow(id);
+  if (r) swapStatsTab(oldSeasonSections(p, r));
+  const s = p.s;
+  const note = k === 'last' && !pSeasonPick ? `Showing his full ${esc(LAST.meta.stats)} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}. Slide to change.`
+    : k === 'last' ? `${esc(LAST.meta.stats)}: every section, Advanced included, is from that season.` : r ? 'Advanced and Career tabs stay on the latest numbers.' : '';
+  addSlider(seasonSlider(L, i, 'p', note));
+  tabifyPanel($('#detail'), 'player'); sliderOnTop();
+}
+// team
+let tSeasonPick = null, tPickFor = null;
+function tSeasonList(t){
+  const L = (t.hist || []).filter(h => h.ts && h.s !== M.stats).map(h => ({lab: h.s, key: h.s, h}));
+  L.push({lab: M.stats, key: 'now'});
+  return L;
+}
+function tSeasonNow(t){
+  const L = tSeasonList(t);
+  if (tSeasonPick && L.some(x => x.key === tSeasonPick)) return tSeasonPick;
+  const prev = L.length > 1 ? L[L.length - 2] : null;
+  return prev && teamSeasonGp(t).gp < 10 ? prev.key : 'now';
+}
+const TSK = () => M.tsKeys || [];
+function tsGet(h){ const o = {}; TSK().forEach((k, i) => { o[k] = [h.ts.v[i], h.ts.r[i]]; }); return o; }
+function teamOldSections(h){
+  const st = tsGet(h), sg = v => (v > 0 ? '+' : '') + f1(v), ok = k => st[k] && st[k][0] != null;
+  const R = (l, k, sub, fmt) => ok(k) ? srow(l, st[k][0], st[k][1], sub, fmt) : '';
+  const ff = (l, o, d) => ok(o) && ok(d) ? `<div class="l">${l}</div><div class="v">${pct(st[o][0])}<span class="${rkClass(st[o][1], 30)}">${ord(st[o][1])}</span></div><div class="v">${pct(st[d][0])}<span class="${rkClass(st[d][1], 30)}">${ord(st[d][1])}</span></div>` : '';
+  return `<section class="sect k-stat"><h3>Scoring<span>${esc(h.s)} · ${h.w}-${h.l}</span></h3>
+      ${R('Points', 'ppg')}${R('Points allowed', 'opp')}${R('Margin', 'diff', null, sg)}${R('In the paint', 'paint')}${R('Fast break', 'fb')}
+      ${R('Net rating', 'net', 'Points per 100 possessions, scored minus allowed', sg)}${R('Offensive rating', 'ortg')}${R('Defensive rating', 'drtg')}${R('Pace', 'pace', 'Possessions per game, 1st is fastest')}</section>
+    <section class="sect k-stat"><h3>Four factors<span>${esc(h.s)}</span></h3>
+      <div class="ff"><div class="h">Factor</div><div class="h" style="text-align:right">Offense</div><div class="h" style="text-align:right">Defense</div>
+      ${ff('Shooting (eFG%)', 'efg', 'oefg')}${ff('Turnovers', 'tovp', 'otovp')}${ff('Rebounding', 'orbp', 'drbp')}${ff('Free throws', 'ftr', 'oftr')}</div></section>
+    <section class="sect k-stat"><h3>Shooting<span>${esc(h.s)}</span></h3>
+      ${R('Field goal %', 'fgp', null, pct)}${R('Three point %', 'tpp', null, pct)}${R('Threes attempted', 'tpa', ok('tpm') ? `${f1(st.tpm[0])} made a game` : null)}${R('Free throw %', 'ftp', null, pct)}${R('Free throws attempted', 'fta')}</section>
+    <section class="sect k-stat"><h3>Everything else<span>per game, ${esc(h.s)}</span></h3>
+      ${R('Rebounds', 'reb')}${R('Offensive rebounds', 'oreb')}${R('Assists', 'ast')}${R('Steals', 'stl')}${R('Blocks', 'blk')}${R('Turnovers', 'tov', '1st is fewest')}
+      <p class="note">Ranks are against the league that season. Ratings and pace are estimated from box scores, so they can differ a little from other sites.</p></section>`;
+}
+function tSeasonDecorate(){
+  const t = T[cur]; if (!t) return;
+  const L = tSeasonList(t); if (L.length < 2) return;
+  const k = tSeasonNow(t), i = Math.max(0, L.findIndex(x => x.key === k)), hit = L[i];
+  if (hit.h) swapStatsTab(teamOldSections(hit.h));
+  const note = hit.h && !tSeasonPick && k === L[L.length - 2].key ? `Showing ${esc(hit.lab)}, since ${esc(M.stats)} is only ${teamSeasonGp(t).gp} game${teamSeasonGp(t).gp === 1 ? '' : 's'} old. Slide to change.` : '';
+  addSlider(seasonSlider(L, i, 't', note));
+  tabifyPanel($('#detail'), 'team'); sliderOnTop();
+}
+{
+  const _rt = renderTeam;
+  renderTeam = function(){
+    if (cur !== tPickFor){ tSeasonPick = null; tPickFor = cur; }
+    const r = _rt.apply(this, arguments);
+    try { if (!pastSeason) tSeasonDecorate(); } catch (e){ console.warn('team season slider', e); }
+    return r;
+  };
+  const _ph = panelHero;
+  panelHero = function(kind, tab){
+    if (tab === 'stats' && !pastSeason){
+      if (kind === 'player' && P[curP]){ const o = oldRow(curP);
+        if (o) return [heroCell(f1(o[5]), 'Points'), heroCell(f1(o[6]), 'Rebounds'), heroCell(f1(o[7]), 'Assists'), heroCell(f1(o[4]), 'Minutes'), heroCell(o[2], 'Games', null, 30, `${o[3]} starts`)].join(''); }
+      if (kind === 'team' && T[cur]){ const k = tSeasonNow(T[cur]), h = (T[cur].hist || []).find(x => x.s === k && x.ts);
+        if (h){ const st = tsGet(h), c = (k_, l, f = x => x) => st[k_] && st[k_][0] != null ? heroCell(f(st[k_][0]), l, st[k_][1]) : '';
+          return [heroCell(`${h.w}-${h.l}`, `${esc(h.s)} record`), c('ppg', 'Points'), c('opp', 'Allowed'), c('diff', 'Margin', v => (v > 0 ? '+' : '') + v), c('tpp', '3 point %')].join(''); } }
+    }
+    return _ph.apply(this, arguments);
+  };
+}
+document.addEventListener('input', e => {
+  const r = e.target.closest?.('[data-seasr]'); if (!r) return;
+  const L = r.dataset.seasr === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
+  const lab = r.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab;
+});
+document.addEventListener('change', e => {
+  const r = e.target.closest?.('[data-seasr]'); if (!r) return;
+  const kind = r.dataset.seasr, L = kind === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
+  const y = scrollY, d = $('#detail'), dy = d.scrollTop;
+  if (kind === 'p'){ pSeasonPick = x.key; renderPlayer(); } else { tSeasonPick = x.key; renderTeam(); }
+  scrollTo(0, y); d.scrollTop = dy;
+  $('#detail [data-seasr]')?.focus({preventScroll: true});
 });
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }

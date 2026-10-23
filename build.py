@@ -1133,6 +1133,64 @@ if sch is not None and not sch.empty:
                 int(r.season_type), r.venue_full_name if isinstance(r.venue_full_name, str) else ""])
     print(f"sched {len(sch)} games for {len(schedule)} teams")
 
+# ---------------------------------------------------------------- team season stats
+# One line of per game numbers, ratings and four factors per team per season (with league
+# ranks), so the team Stats tab can slide back through past seasons.
+TS_KEYS = ["ppg", "opp", "diff", "fgp", "tpp", "tpm", "tpa", "ftp", "fta", "reb", "oreb", "dreb", "ast", "stl", "blk", "tov",
+           "pace", "ortg", "drtg", "net", "efg", "tovp", "orbp", "ftr", "oefg", "paint", "fb", "otovp", "drbp", "oftr"]
+TS_LOW = {"opp", "tov", "drtg", "tovp", "oefg", "oftr"}
+def team_season_stats(tb_):
+    """Per game averages, ratings and four factors for every team in one season, with league ranks."""
+    g = tb_[tb_.season_type == 2].copy()
+    if g.empty:
+        return {}
+    num = ["team_score", "opponent_team_score", "field_goals_made", "field_goals_attempted", "three_point_field_goals_made",
+           "three_point_field_goals_attempted", "free_throws_made", "free_throws_attempted", "offensive_rebounds",
+           "defensive_rebounds", "total_rebounds", "assists", "steals", "blocks", "points_in_paint", "fast_break_points"]
+    for c in num:
+        g[c] = pd.to_numeric(g[c], errors="coerce") if c in g else 0
+    tovc = "total_turnovers" if "total_turnovers" in g else "turnovers"
+    g["tov_"] = pd.to_numeric(g[tovc], errors="coerce")
+    g = g.dropna(subset=["team_score", "opponent_team_score", "field_goals_attempted"])
+    o = g[["game_id", "team_id", "field_goals_made", "field_goals_attempted", "three_point_field_goals_made",
+           "free_throws_attempted", "offensive_rebounds", "defensive_rebounds", "tov_"]].rename(
+        columns=lambda c: c if c in ("game_id",) else "o_" + c)
+    g = g.merge(o, left_on=["game_id", "opponent_team_id"], right_on=["game_id", "o_team_id"], how="inner")
+    out = {}
+    for tid, t in g.groupby("team_id"):
+        n = t.game_id.nunique()
+        if n < 5:
+            continue
+        S = t.sum(numeric_only=True)
+        poss = S.field_goals_attempted - S.offensive_rebounds + S.tov_ + .44 * S.free_throws_attempted
+        oposs = S.o_field_goals_attempted - S.o_offensive_rebounds + S.o_tov_ + .44 * S.o_free_throws_attempted
+        P_ = (poss + oposs) / 2 or 1
+        pct = lambda a, b: 100 * a / b if b else None
+        v = {"ppg": S.team_score / n, "opp": S.opponent_team_score / n, "diff": (S.team_score - S.opponent_team_score) / n,
+             "fgp": pct(S.field_goals_made, S.field_goals_attempted), "tpp": pct(S.three_point_field_goals_made, S.three_point_field_goals_attempted),
+             "tpm": S.three_point_field_goals_made / n, "tpa": S.three_point_field_goals_attempted / n,
+             "ftp": pct(S.free_throws_made, S.free_throws_attempted), "fta": S.free_throws_attempted / n,
+             "reb": S.total_rebounds / n, "oreb": S.offensive_rebounds / n, "dreb": S.defensive_rebounds / n, "ast": S.assists / n,
+             "stl": S.steals / n, "blk": S.blocks / n, "tov": S.tov_ / n, "pace": P_ / n,
+             "ortg": 100 * S.team_score / P_, "drtg": 100 * S.opponent_team_score / P_,
+             "efg": pct(S.field_goals_made + .5 * S.three_point_field_goals_made, S.field_goals_attempted),
+             "tovp": pct(S.tov_, poss), "orbp": pct(S.offensive_rebounds, S.offensive_rebounds + S.o_defensive_rebounds),
+             "ftr": pct(S.free_throws_attempted, S.field_goals_attempted),
+             "oefg": pct(S.o_field_goals_made + .5 * S.o_three_point_field_goals_made, S.o_field_goals_attempted),
+             "paint": S.points_in_paint / n if S.points_in_paint else None, "fb": S.fast_break_points / n if S.fast_break_points else None}
+        v["net"] = v["ortg"] - v["drtg"]
+        v["otovp"] = pct(S.o_tov_, oposs)
+        v["drbp"] = pct(S.defensive_rebounds, S.defensive_rebounds + S.o_offensive_rebounds)
+        v["oftr"] = pct(S.o_free_throws_attempted, S.o_field_goals_attempted)
+        out[int(tid)] = {"v": v, "gp": int(n)}
+    for k in TS_KEYS:
+        vals = sorted([x["v"][k] for x in out.values() if x["v"].get(k) is not None], reverse=k not in TS_LOW)
+        for x in out.values():
+            val = x["v"].get(k)
+            x.setdefault("r", {})[k] = (vals.index(val) + 1) if val is not None else None
+    return {tid: {"gp": x["gp"], "v": [None if x["v"].get(k) is None else round(float(x["v"][k]), 1) for k in TS_KEYS],
+                  "r": [x["r"][k] for k in TS_KEYS]} for tid, x in out.items()}
+
 # ---------------------------------------------------------------- team history
 # Ten seasons of record, seed and playoff run from ESPN standings and box scores.
 history = {}
@@ -1152,6 +1210,10 @@ for yr in range(2002, stats_season + 1):
             print("h2h", yr, "skipped:", e)
     if st_ is None:
         continue
+    try:
+        ts_ = team_season_stats(tb_) if tb_ is not None and not tb_.empty else {}
+    except Exception as e:
+        print("team season stats", yr, "skipped:", e); ts_ = {}
     po_ = {}
     if tb_ is not None and not tb_.empty:
         p3 = tb_[tb_.season_type == 3].copy()
@@ -1182,7 +1244,8 @@ for yr in range(2002, stats_season + 1):
             "top": top_scorer.get(int(tid_), {}).get(yr),
             "conf": "East" if "East" in str(g_.group_name.iloc[0]) else "West",
             "gb": d_.get("gamesBehind"), "l10": d_.get("Last Ten Games"), "strk": d_.get("streak"),
-            "home": d_.get("Home"), "road": d_.get("Road"), "diff": d_.get("differential"), "cl": d_.get("clincher")})
+            "home": d_.get("Home"), "road": d_.get("Road"), "diff": d_.get("differential"), "cl": d_.get("clincher"),
+            "ts": ts_.get(int(tid_))})
 print(f"hist {len(history)} teams, {sum(len(v) for v in history.values())} team seasons")
 
 # ---------------------------------------------------------------- head to head
@@ -2823,7 +2886,7 @@ data = {
         "stats": season_label(stats_season), "roster": season_label(roster_season),
         "mode": lineup_mode, "qualN": QUAL_N, "gpMin": GP_MIN,
         "lg": {k: num(v, 1) for k, v in LEAGUE_AVG.items()},
-        "lz": league_zones, "zones": ZONES, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"), "picksDate": (picks or {}).get("fetched"),
+        "lz": league_zones, "zones": ZONES, "tsKeys": TS_KEYS, "hexR": HEX_R, "k2": twok_meta, "cap": cap_meta, "coachDate": (coaches or {}).get("fetched"), "picksDate": (picks or {}).get("fetched"),
     },
     "divs": DIVS, "teams": teams, "players": players, "leaders": leaders,
     "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
