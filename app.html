@@ -2462,12 +2462,18 @@ function setView(v){
 $('#vteam').onclick = () => setView('team');
 $('#vplayer').onclick = () => curP && setView('player');
 
+// jump to the player panel on a phone. Done again after the page settles: closing an overlay
+// (a live game, search) and redrawing the team can undo a single scroll on iPhone.
+function scrollToDetail(){
+  const go = () => { const d = $('#detail'); if (!d) return; scrollTo({top: Math.max(0, d.getBoundingClientRect().top + scrollY), behavior: 'auto'}); };
+  go(); requestAnimationFrame(go); setTimeout(go, 120); setTimeout(go, 400);
+}
 function openPlayer(id){
   const p = P[id];
-  if (!p){ if (!D.people?.[id]) return; curP = id; setView('player'); if (matchMedia('(max-width:1100px)').matches) $('#detail').scrollIntoView({behavior:'smooth', block:'start'}); else $('#detail').scrollTop = 0; return; }
+  if (!p){ if (!D.people?.[id]) return; curP = id; setView('player'); if (matchMedia('(max-width:1100px)').matches) scrollToDetail(); else $('#detail').scrollTop = 0; return; }
   if (String(p.t) !== String(cur) && !pastSeason){ curP = id; setTeam(String(p.t), true); }
   curP = id; logOpen = false; setView('player');
-  if (matchMedia('(max-width:1100px)').matches) $('#detail').scrollIntoView({behavior:'smooth', block:'start'});
+  if (matchMedia('(max-width:1100px)').matches) scrollToDetail();
   else $('#detail').scrollTop = 0;
 }
 
@@ -6475,7 +6481,7 @@ const PANEL_TABS = {
     ['money', 'Money', /^(Payroll|Future draft picks|Contracts?)/i],
   ],
 };
-const PANEL_TAB = {player: 'overview', team: 'overview'};
+const PANEL_TAB = {player: 'overview', team: 'overview'}, PANEL_WANT = {player: null, team: null};
 function panelTitle(node){
   if (/news/i.test(node.id || '')) return 'News';
   const h = node.querySelector(':scope > h3');
@@ -6576,7 +6582,9 @@ function tabifyPanel(d, kind){
   rest.forEach(n => { prev = tabOf(n, prev); n.dataset.ptab = prev; used.add(prev); const t_ = panelTitle(n); n.classList.toggle('half', !!(t_ && HALF[kind].test(t_))); });
   const tabs = defs.filter(([k]) => used.has(k));
   if (tabs.length < 2){ rest.forEach(n => { delete n.dataset.ptab; n.classList.remove('ptoff'); }); return; }
-  if (!used.has(PANEL_TAB[kind])) PANEL_TAB[kind] = tabs[0][0];
+  // the tab you picked stays picked, even through a redraw that briefly lacks it
+  const want = PANEL_WANT[kind] || PANEL_TAB[kind];
+  PANEL_TAB[kind] = used.has(want) ? want : tabs[0][0];
   d.dataset.kind = kind;
   if (kind === 'player' && !pastSeason && P[curP]) for (const sec of rest){ if (/averages$/i.test(panelTitle(sec) || '')) sec.querySelector(':scope > .big3')?.remove(); }
   // runs of stat rows become a grid of tiles
@@ -6587,7 +6595,7 @@ function tabifyPanel(d, kind){
     flush();
   }
   const bar = document.createElement('div'); bar.className = 'ptabs'; bar.setAttribute('role', 'tablist');
-  for (const [k, label] of tabs){ const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.pt = k; b.onclick = () => { PANEL_TAB[kind] = k; show(); keepBarInView(); }; bar.appendChild(b); }
+  for (const [k, label] of tabs){ const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.pt = k; b.onclick = () => { PANEL_TAB[kind] = PANEL_WANT[kind] = k; show(); keepBarInView(); }; bar.appendChild(b); }
   const mark = document.createElement('div'); mark.className = 'ptabmark';
   d.insertBefore(mark, rest[0]); d.insertBefore(bar, rest[0]);
   for (const [k] of tabs){ let h = ''; try { h = panelHero(kind, k); } catch (e){ console.warn('hero', e); }
@@ -6595,20 +6603,23 @@ function tabifyPanel(d, kind){
   function show(){
     const on = PANEL_TAB[kind];
     bar.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pt === on)));
-    [...d.children].forEach(n => { if (n.dataset.ptab) n.classList.toggle('ptoff', n.dataset.ptab !== on); });
+    [...(bar.parentElement || d).children].forEach(n => { if (n.dataset.ptab) n.classList.toggle('ptoff', n.dataset.ptab !== on); });
     const c = bar.querySelector('[aria-pressed="true"]');
     if (c && bar.scrollWidth > bar.clientWidth){ const l = c.offsetLeft - bar.offsetLeft, r = l + c.offsetWidth;
       if (l < bar.scrollLeft) bar.scrollLeft = Math.max(0, l - 20); else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = r - bar.clientWidth + 20; }
   }
   // a new tab opens at its start (the panel scrolls itself beside the court; on a phone the page does)
   function keepBarInView(){
-    const sc = (el => { while (el && el !== document.body){ const o = getComputedStyle(el).overflowY; if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight + 1) return el; el = el.parentElement; } return null; })(d);
+    const host = bar.parentElement || d;
+    const sc = (el => { while (el && el !== document.body){ const o = getComputedStyle(el).overflowY; if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight + 1) return el; el = el.parentElement; } return null; })(host);
     const top = mark.getBoundingClientRect().top;
     if (sc){ const off = top - sc.getBoundingClientRect().top; if (off < 0) sc.scrollTop += off; }
     else if (top < 0) scrollBy(0, top);
   }
   show();
   // sections that arrive later (news, injuries) join their own tab, or the one before them
+  const arm = d => {
+  if (d._tabObs) d._tabObs.disconnect();
   d._tabObs = new MutationObserver(muts => {
     for (const m of muts){
       for (const n of m.addedNodes){
@@ -6622,6 +6633,8 @@ function tabifyPanel(d, kind){
     }
   });
   d._tabObs.observe(d, {childList: true, subtree: true});
+  };
+  arm(d); bar._arm = arm;
 }
 // draw as before, then sort the finished panel into tabs
 const withTabs = (fn, kind) => function(){ const r = fn.apply(this, arguments); try { tabifyPanel($('#detail'), kind); } catch (e){ console.warn('tabs', e); } return r; };
@@ -7826,7 +7839,7 @@ function loadSeason(lab){
     if (!j || !j.players || j.meta?.stats === M.stats) return null;
     prepSeason(j); SEAS[j.meta.stats] = j;
     if (url === 'last_season.json') LAST = j;
-    if (curP && P[curP] && view === 'player' && !SWAP && pSeasonNow(curP) === j.meta.stats) renderPlayer();
+    if (curP && P[curP] && view === 'player' && !SWAP && pSeasonNow(curP) === j.meta.stats) requestAnimationFrame(() => seasonRedraw('p'));
     return j;
   }).catch(() => null);
 }
@@ -8028,19 +8041,63 @@ function tSeasonDecorate(){
     return _ph.apply(this, arguments);
   };
 }
+// Redraw the page for the season under the slider while you drag it, like the shot chart:
+// the page is drawn off screen, then everything except the sliders moves into place, so the
+// slider under your finger is never replaced.
+function seasonRedraw(kind){
+  const live = $('#detail'); if (!live) return;
+  const sliders = [...live.querySelectorAll(':scope > .seasl')];
+  if (!sliders.length){ kind === 't' ? renderTeam() : renderPlayer(); return; }
+  if (live._tabObs){ live._tabObs.disconnect(); live._tabObs = null; }
+  const tmp = document.createElement('div'); tmp.className = live.className;
+  tmp.style.cssText = `position:absolute;left:-99999px;top:0;width:${live.clientWidth}px;visibility:hidden`;
+  live.id = 'detail_live'; tmp.id = 'detail'; document.body.appendChild(tmp);
+  try { kind === 't' ? renderTeam() : renderPlayer(); }
+  catch (err){ console.warn('season redraw', err); }
+  finally { tmp.id = ''; live.id = 'detail'; }
+  const nodes = [...tmp.children];
+  [...live.children].forEach(n => { if (!sliders.includes(n)) n.remove(); });
+  let last = null;
+  for (const n of nodes){
+    if (n.classList.contains('seasl')){
+      const s = sliders.find(x => x.dataset.ptab === n.dataset.ptab);
+      if (s){ const nn = n.querySelector('.note'), on = s.querySelector('.note');
+        if (nn && on) on.innerHTML = nn.innerHTML; else if (nn) s.appendChild(nn); else if (on) on.remove();
+        s.classList.toggle('ptoff', n.classList.contains('ptoff')); last = s; continue; }
+    }
+    if (last) last.after(n); else live.prepend(n);
+    last = n;
+  }
+  tmp.remove();
+  const bar = live.querySelector(':scope > .ptabs'); if (bar && bar._arm) bar._arm(live);
+  live.dataset.kind = tmp.dataset.kind || live.dataset.kind;
+}
+let seasRaf = 0;
+function seasonPick(r){
+  const kind = r.dataset.seasr, L = kind === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return null;
+  document.querySelectorAll(`#detail [data-seasr="${kind}"]`).forEach(o => { if (o !== r) o.value = r.value; const lab = o.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab; });
+  const lab = r.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab;
+  if (kind === 'p'){
+    // fetch the seasons either side too, so the next step is ready
+    const i = +r.value; for (const j of [i, i - 1, i + 1]){ const k = L[j]?.key; if (k && k !== 'now' && !k.startsWith('old:')) loadSeason(k); }
+  }
+  return {kind, x};
+}
 document.addEventListener('input', e => {
   const r = e.target.closest?.('[data-seasr]'); if (!r) return;
-  const L = r.dataset.seasr === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
-  document.querySelectorAll(`#detail [data-seasr="${r.dataset.seasr}"]`).forEach(o => { if (o !== r) o.value = r.value; const lab = o.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab; });
-  const lab = r.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab;
+  const got = seasonPick(r); if (!got) return;
+  const {kind, x} = got;
+  if ((kind === 'p' ? pSeasonPick : tSeasonPick) === x.key) return;
+  if (kind === 'p') pSeasonPick = x.key; else tSeasonPick = x.key;
+  cancelAnimationFrame(seasRaf); seasRaf = requestAnimationFrame(() => seasonRedraw(kind));
 });
 document.addEventListener('change', e => {
   const r = e.target.closest?.('[data-seasr]'); if (!r) return;
-  const kind = r.dataset.seasr, L = kind === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
-  const y = scrollY, d = $('#detail'), dy = d.scrollTop;
-  if (kind === 'p'){ pSeasonPick = x.key; renderPlayer(); } else { tSeasonPick = x.key; renderTeam(); }
-  scrollTo(0, y); d.scrollTop = dy;
-  $(`#detail .seasl:not(.ptoff) [data-seasr]`)?.focus({preventScroll: true});
+  const got = seasonPick(r); if (!got) return;
+  const {kind, x} = got;
+  if ((kind === 'p' ? pSeasonPick : tSeasonPick) === x.key) return;
+  if (kind === 'p') pSeasonPick = x.key; else tSeasonPick = x.key;
+  seasonRedraw(kind);
 });
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
