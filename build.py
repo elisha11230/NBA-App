@@ -2866,6 +2866,24 @@ import hashlib as _hl
 _ver = _hl.sha1(new.encode("utf-8")).hexdigest()[:12]
 new = new.replace("'__BUILD__'", f"'{_ver}'", 1)
 _os.makedirs("data", exist_ok=True); open("data/version.txt", "w").write(_ver + "\n")
+# When the stats season flips (opening night), keep the finished season's player numbers in
+# last_season.json. Player pages load it while the new season is young, so they are not thin.
+try:
+    _old = open("index.html", encoding="utf-8").read() if _os.path.exists("index.html") else ""
+    _m = re.search(r"<script id=\"nba-data\" type=\"application/json\">(.*?)</script>", _old, re.S)
+    _od = json.loads(_m.group(1).replace("<\\/", "</")) if _m else None
+    if _od and _od.get("meta", {}).get("stats") and _od["meta"]["stats"] != season_label(stats_season):
+        _F = ["s", "sp", "log", "sh", "pie", "pq", "adv", "oo", "ps", "cl", "po", "rapm"]
+        _pl = {}
+        for _i, _p in (_od.get("players") or {}).items():
+            _d = {k: _p[k] for k in _F if _p.get(k) not in (None, [], {})}
+            if _d.get("s"): _pl[_i] = _d
+        _om = _od["meta"]
+        _last = {"meta": {k: _om[k] for k in ("stats", "qualN", "gpMin", "hexR") if k in _om}, "style": _od.get("style"), "players": _pl}
+        open("last_season.json", "w", encoding="utf-8").write(json.dumps(_last, separators=(",", ":"), ensure_ascii=False))
+        print(f"saved {_om['stats']} player numbers to last_season.json ({len(_pl)} players)")
+except Exception as _e:
+    print("last season snapshot skipped:", _e)
 open("index.html", "w", encoding="utf-8").write(new)
 print(f"built {len(teams)} teams, {len(players)} players, stats {season_label(stats_season)}, "
       f"lineups {lineup_mode}, {len(blob)//1024} KB")

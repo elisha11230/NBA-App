@@ -1114,6 +1114,7 @@ a.ocp:hover .ocf{box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 45%,transparen
 .pline.live b{color:var(--strong)}
 .livedot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#E0402A;margin-right:4px;vertical-align:1px;animation:pulse 1.4s infinite}
 .cmpbtn{margin-top:8px}
+.psw{margin:10px 0 2px}.psw .lseg{display:inline-flex}.psw .note{margin:6px 2px 0}
 /* ---------- time slider ---------- */
 #timebar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
 #timebar.past{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 8%,var(--panel))}
@@ -7794,6 +7795,67 @@ function wpMove(e, box){
 }
 document.addEventListener('pointermove', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null && e.pointerType === 'mouse'){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
 document.addEventListener('pointerdown', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
+
+/* ---------- player pages early in a season: last season's full numbers ---------- */
+// For the first weeks of a season a player has a game or two, so most sections are empty.
+// last_season.json holds the finished season's numbers. While he has under 10 games the page
+// shows that season (with a switch to this one); the swap only lasts while his page draws.
+let LAST = null, LASTP = null, lastLoading = null, pSeasonPick = null, SWAP = 0, SWAPSAVE = null;
+const LAST_F = ['s', 'sp', 'log', 'sh', 'pie', 'pq', 'adv', 'oo', 'ps', 'cl', 'po', 'rapm'];
+function loadLast(){
+  if (LAST || lastLoading) return lastLoading;
+  lastLoading = fetch('last_season.json').then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.players || j.meta?.stats === M.stats) return;
+    LAST = j; LASTP = {};
+    const blank = Object.fromEntries(LAST_F.map(k => [k, null]));
+    for (const id in P) LASTP[id] = {...P[id], ...blank, ...(j.players[id] || {})};
+    LAST.pct = null; LAST.skill = null;
+    if (curP && P[curP] && lastWanted(curP) && view === 'player') renderPlayer();
+  }).catch(() => {});
+  return lastLoading;
+}
+const lastHas = id => !!(LAST && LAST.players[id]);
+const lastWanted = id => lastHas(id) && (pSeasonPick ? pSeasonPick === 'last' : !P[id].s || P[id].s.gp < 10);
+function swapIn(){
+  if (SWAP++) return;
+  SWAPSAVE = {P: {}, M: {...M}, style: D.style, pct: PCT_POOL, skill: SKILL_POOL};
+  for (const id in P){ SWAPSAVE.P[id] = P[id]; P[id] = LASTP[id] || P[id]; }
+  Object.assign(M, LAST.meta); D.style = LAST.style || D.style; PCT_POOL = LAST.pct; SKILL_POOL = LAST.skill;
+}
+function swapOut(){
+  if (--SWAP) return;
+  LAST.pct = PCT_POOL; LAST.skill = SKILL_POOL;
+  for (const id in SWAPSAVE.P) P[id] = SWAPSAVE.P[id];
+  for (const k of Object.keys(M)) if (!(k in SWAPSAVE.M)) delete M[k];
+  Object.assign(M, SWAPSAVE.M); D.style = SWAPSAVE.style; PCT_POOL = SWAPSAVE.pct; SKILL_POOL = SWAPSAVE.skill; SWAPSAVE = null;
+}
+// run fn with last season swapped in when the open player page is showing it
+const inLast = fn => function(){
+  if (!(curP && P[curP] && LASTP && lastWanted(curP) && view === 'player' && !pastSeason)) return fn.apply(this, arguments);
+  swapIn(); try { return fn.apply(this, arguments); } finally { swapOut(); }
+};
+function seasonSwitch(){
+  const id = curP; if (!lastHas(id)) return '';
+  const on = lastWanted(id), s = P[id].s, ls = LAST.players[id].s;
+  return `<div class="psw"><div class="lseg" role="group" aria-label="Season"><button type="button" class="lseason" data-psw="now" aria-pressed="${!on}">${esc(M.stats)}${s ? ` · ${s.gp} game${s.gp === 1 ? '' : 's'}` : ''}</button><button type="button" class="lseason" data-psw="last" aria-pressed="${on}">${esc(LAST.meta.stats)} · ${ls.gp} games</button></div>
+    <p class="note">${on ? `Showing his full ${esc(LAST.meta.stats)} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}.` : `Showing ${esc(M.stats)} so far. Tap ${esc(LAST.meta.stats)} for his full season.`}</p></div>`;
+}
+{
+  const _rp = renderPlayer;
+  renderPlayer = function(){
+    if (P[curP] && !LAST) loadLast();
+    const r = inLast(_rp).apply(this, arguments);
+    const at = P[curP] && $('#detail #cmpopen');
+    if (at && lastHas(curP)) at.insertAdjacentHTML('beforebegin', seasonSwitch());
+    return r;
+  };
+  panelHero = inLast(panelHero);
+  calendarSection = inLast(calendarSection);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-psw]'); if (!b) return;
+  pSeasonPick = b.dataset.psw; const y = scrollY; renderPlayer(); scrollTo(0, y);
+});
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
 if (!Object.keys(T).length){
