@@ -8101,19 +8101,67 @@ function teamOldSections(h){
       ${R('Rebounds', 'reb')}${R('Offensive rebounds', 'oreb')}${R('Assists', 'ast')}${R('Steals', 'stl')}${R('Blocks', 'blk')}${R('Turnovers', 'tov', '1st is fewest')}
       <p class="note">Ranks are against the league that season. Ratings and pace are estimated from box scores, so they can differ a little from other sites.</p></section>`;
 }
+// one card of a past team season
+function teamOldCard(key, h){
+  const st = tsGet(h), sg = v => (v > 0 ? '+' : '') + f1(v), ok = k => st[k] && st[k][0] != null;
+  const R = (l, k, sub, fmt) => ok(k) ? srow(l, st[k][0], st[k][1], sub, fmt) : '';
+  const ff = (l, o, d) => ok(o) && ok(d) ? `<div class="l">${l}</div><div class="v">${pct(st[o][0])}<span class="${rkClass(st[o][1], 30)}">${ord(st[o][1])}</span></div><div class="v">${pct(st[d][0])}<span class="${rkClass(st[d][1], 30)}">${ord(st[d][1])}</span></div>` : '';
+  const C = {
+    'scoring': `<h3>Scoring<span>${esc(h.s)} · ${h.w}-${h.l}</span></h3>${R('Points', 'ppg')}${R('Points allowed', 'opp')}${R('Margin', 'diff', null, sg)}${R('In the paint', 'paint')}${R('Fast break', 'fb')}`,
+    'four factors': `<h3>Four factors<span>${esc(h.s)}</span></h3><div class="ff"><div class="h">Factor</div><div class="h" style="text-align:right">Offense</div><div class="h" style="text-align:right">Defense</div>
+      ${ff('Shooting (eFG%)', 'efg', 'oefg')}${ff('Turnovers', 'tovp', 'otovp')}${ff('Rebounding', 'orbp', 'drbp')}${ff('Free throws', 'ftr', 'oftr')}</div>`,
+    'shooting': `<h3>Shooting<span>${esc(h.s)}</span></h3>${R('Field goal %', 'fgp', null, pct)}${R('Three point %', 'tpp', null, pct)}${R('Threes attempted', 'tpa', ok('tpm') ? `${f1(st.tpm[0])} made a game` : null)}${R('Free throw %', 'ftp', null, pct)}${R('Free throws attempted', 'fta')}`,
+    'everything else': `<h3>Everything else<span>per game, ${esc(h.s)}</span></h3>${R('Rebounds', 'reb')}${R('Offensive rebounds', 'oreb')}${R('Assists', 'ast')}${R('Steals', 'stl')}${R('Blocks', 'blk')}${R('Turnovers', 'tov', '1st is fewest')}`,
+    'ratings': `<h3>Ratings<span>${esc(h.s)}, league rank of 30</span></h3>${R('Net rating', 'net', 'Points per 100 possessions, scored minus allowed', sg)}${R('Offensive rating', 'ortg', 'Points scored per 100 possessions')}${R('Defensive rating', 'drtg', 'Points allowed per 100 possessions')}${R('Pace', 'pace', 'Possessions per game, 1st is fastest')}
+      <p class="note">Estimated from that season's box scores, so it can differ a little from other sites.</p>`,
+  };
+  return C[key] || '';
+}
+const T_HIST_KEYS = ['scoring', 'four factors', 'shooting', 'everything else', 'ratings'];
+let TSECPICK = {}, TNOW = {};
+const tKey = sec => (panelTitle(sec) || '').trim().toLowerCase();
+// fill a team card with a season, keeping its slider; the stat rows become tiles like the rest
+function tFill(sec, key, k){
+  const sl = sec.querySelector(':scope > .secslide'), t = T[cur], h = k === 'now' ? null : (t.hist || []).find(x => x.s === k && x.ts);
+  const html = h ? teamOldCard(key, h) : TNOW[key];
+  if (html == null) return;
+  const tpl = document.createElement('template'); tpl.innerHTML = html;
+  const kids = [...tpl.content.childNodes].filter(n => !(n.nodeType === 1 && n.classList.contains('secslide')));
+  // tile runs of stat rows the way the tabs do
+  let run = []; const out = [];
+  const flush = () => { if (run.length > 1){ const g = document.createElement('div'); g.className = 'stgrid'; run.forEach(x => g.appendChild(x)); out.push(g); } else out.push(...run); run = []; };
+  for (const n of kids){ if (n.nodeType === 1 && n.classList.contains('stat')) run.push(n); else { flush(); out.push(n); } }
+  flush();
+  [...sec.childNodes].forEach(n => { if (n !== sl) n.remove(); });
+  const h3 = out.find(n => n.nodeType === 1 && n.tagName === 'H3');
+  if (h3) sl ? sl.before(h3) : sec.appendChild(h3);
+  for (const n of out) if (n !== h3) sec.appendChild(n);
+  if (sl){ sl.classList.toggle('past', k !== 'now'); }
+}
 function tSeasonDecorate(){
   const t = T[cur]; if (!t) return;
   const L = tSeasonList(t); if (L.length < 2) return;
-  const k = tSeasonNow(t), i = Math.max(0, L.findIndex(x => x.key === k)), hit = L[i];
-  if (hit.h) swapStatsTab(teamOldSections(hit.h));
-  const note = hit.h && !tSeasonPick && k === L[L.length - 2].key ? `Showing ${esc(hit.lab)}, since ${esc(M.stats)} is only ${teamSeasonGp(t).gp} game${teamSeasonGp(t).gp === 1 ? '' : 's'} old. Slide to change.` : '';
-  addSlider(seasonSlider(L, i, 't', note));
-  tabifyPanel($('#detail'), 'team'); sliderOnTop();
+  const def = tSeasonNow(t), d = $('#detail');
+  const secs = [...d.querySelectorAll(':scope > .sect')].filter(sec => ['stats', 'adv'].includes(sec.dataset.ptab) && T_HIST_KEYS.includes(tKey(sec)));
+  TNOW = {};
+  for (const sec of secs){
+    const key = tKey(sec); TNOW[key] = sec.innerHTML;
+    const k = TSECPICK[key] && L.some(x => x.key === TSECPICK[key]) ? TSECPICK[key] : def, i = Math.max(0, L.findIndex(x => x.key === k));
+    sec.querySelector(':scope > h3')?.insertAdjacentHTML('afterend', secSlider(L, i, key).replace('data-secs=', 'data-tsecs='));
+    if (k !== 'now') tFill(sec, key, k);
+  }
 }
+document.addEventListener('input', e => {
+  const r = e.target.closest?.('[data-tsecs]'); if (!r || !T[cur]) return;
+  const L = tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
+  const box = r.closest('.secslide'); box.querySelector('b').textContent = x.lab; box.classList.toggle('past', x.key !== 'now');
+  const key = r.dataset.tsecs; if (TSECPICK[key] === x.key) return;
+  TSECPICK[key] = x.key; tFill(r.closest('.sect'), key, x.key);
+});
 {
   const _rt = renderTeam;
   renderTeam = function(){
-    if (cur !== tPickFor){ tSeasonPick = null; tPickFor = cur; }
+    if (cur !== tPickFor){ tSeasonPick = null; tPickFor = cur; TSECPICK = {}; }
     const r = _rt.apply(this, arguments);
     try { if (!pastSeason) tSeasonDecorate(); } catch (e){ console.warn('team season slider', e); }
     return r;
