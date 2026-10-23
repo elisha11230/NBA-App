@@ -1368,6 +1368,93 @@ except Exception as e:
 # from ESPN box scores: the five who started the most games, then everyone else
 # by minutes. A player traded midseason appears on each team he played for.
 PAST_FROM = 2002
+# ---------------------------------------------------------------- past season files
+# data/seasons/<season>.json: a finished season's full player numbers, written once, so the
+# player page season slider has every section for every year of a career.
+SEASONS_DIR = "data/seasons"
+
+
+def season_detail(pb_raw, yr, keep_ids):
+    """Everything the player page needs for one finished season: the season line with league
+    ranks, splits, playoffs and game log for current players, plus a light pool of every
+    regular so percentiles and skills compare against that season's league."""
+    b = pb_raw[pb_raw.season_type.isin([2, 3])].copy()
+    b["athlete_id"] = pd.to_numeric(b.athlete_id, errors="coerce")
+    b = b.dropna(subset=["athlete_id"])
+    b["athlete_id"] = b.athlete_id.astype(int)
+    for c in ["minutes", "points", "rebounds", "offensive_rebounds", "defensive_rebounds", "assists", "steals", "blocks",
+              "turnovers", "fouls", "field_goals_made", "field_goals_attempted", "three_point_field_goals_made",
+              "three_point_field_goals_attempted", "free_throws_made", "free_throws_attempted", "team_score", "opponent_team_score"]:
+        b[c] = pd.to_numeric(b[c], errors="coerce").fillna(0)
+    b = b[(b.did_not_play != True) & (b.minutes > 0)]
+    b["pm"] = pd.to_numeric(b.plus_minus.astype(str).str.replace("+", "", regex=False), errors="coerce")
+    rg = b[b.season_type == 2]
+    if rg.empty:
+        return None
+    ag = rg.groupby("athlete_id").agg(gp=("game_id", "nunique"), gs=("starter", "sum"), pm=("pm", "sum"),
+                                      **{c: (c, "sum") for c in SUM})
+    ag["dd"] = rg.assign(c=(rg[["points", "rebounds", "assists", "steals", "blocks"]] >= 10).sum(axis=1)).groupby("athlete_id").c.apply(lambda s: int((s >= 2).sum()))
+    line = {int(i): per_game(r) for i, r in ag.iterrows()}
+    gmin = 20
+    q = [i for i, s in line.items() if s["gp"] >= gmin and (s["min"] or 0) >= 10]
+    for k, d in RANK_KEYS.items():
+        vals = sorted(((line[i][k] or 0) for i in q), reverse=d > 0)
+        for i in q:
+            line[i].setdefault("rk", {})[k] = vals.index(line[i][k] or 0) + 1
+    names = rg.groupby("athlete_id").athlete_display_name.last().to_dict()
+    posm = rg.groupby("athlete_id").athlete_position_abbreviation.last().to_dict()
+    pg = lambda p: "G" if p in ("PG", "SG", "G") else "C" if p == "C" else "F"
+    players, pool = {}, {}
+    for i in q:
+        if i not in keep_ids:
+            pool[str(i)] = {"n": names.get(i, ""), "pos": pg(posm.get(i)), "s": {k: v for k, v in line[i].items() if k != "rk"}}
+    for i, g in rg.sort_values("game_date").groupby("athlete_id"):
+        i = int(i)
+        if i not in keep_ids:
+            continue
+        sp = {"Home": split_line(g[g.home_away == "home"]), "Road": split_line(g[g.home_away == "away"]),
+              "As starter": split_line(g[g.starter == True]), "Off the bench": split_line(g[g.starter != True]),
+              "Wins": split_line(g[g.team_winner == True]), "Losses": split_line(g[g.team_winner != True]), "Last 10": split_line(g.tail(10))}
+        players[str(i)] = {"s": line[i], "sp": sp, "log": []}
+    for r in b.sort_values("game_date").itertuples():
+        i = int(r.athlete_id)
+        if str(i) not in players:
+            continue
+        players[str(i)]["log"].append([
+            str(r.game_date)[5:], r.opponent_team_abbreviation, "@" if r.home_away == "away" else "",
+            "W" if r.team_winner else "L", int(r.team_score), int(r.opponent_team_score),
+            int(r.minutes or 0), int(r.points or 0), int(r.rebounds or 0), int(r.assists or 0),
+            int(r.steals or 0), int(r.blocks or 0), int(r.turnovers or 0),
+            int(r.field_goals_made or 0), int(r.field_goals_attempted or 0),
+            int(r.three_point_field_goals_made or 0), int(r.three_point_field_goals_attempted or 0),
+            int(r.free_throws_made or 0), int(r.free_throws_attempted or 0),
+            None if pd.isna(r.pm) else int(r.pm), 1 if r.starter else 0,
+            1 if r.season_type == 3 else 0, r.team_abbreviation])
+    for i, g in b[b.season_type == 3].groupby("athlete_id"):
+        if str(int(i)) not in players:
+            continue
+        n = g.game_id.nunique()
+        players[str(int(i))]["po"] = {"gp": n, "pts": num(g.points.sum() / n), "reb": num(g.rebounds.sum() / n),
+                                       "ast": num(g.assists.sum() / n), "min": num(g.minutes.sum() / n),
+                                       "fgp": num(100 * g.field_goals_made.sum() / g.field_goals_attempted.sum()) if g.field_goals_attempted.sum() else None}
+    return {"meta": {"stats": season_label(yr), "qualN": len(q), "gpMin": gmin}, "players": players, "pool": pool,
+            "names": {str(k): v for k, v in names.items()}}
+
+
+def _clean_nan(o):
+    if isinstance(o, float):
+        return None if o != o or o in (float("inf"), float("-inf")) else o
+    if isinstance(o, dict):
+        return {k: _clean_nan(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean_nan(v) for v in o]
+    if hasattr(o, "item"):
+        return _clean_nan(o.item())
+    return o
+
+
+SEASON_PENDING = {}
+
 past = {}          # team id -> {season label: {...}}
 past_people = {}   # athlete id -> [name, position]
 reg_games_by_year = {}
@@ -1395,6 +1482,28 @@ for yr in range(PAST_FROM, stats_season + 1):
                                             "po": build_leaders(pb[pb.season_type == 3], playoffs=True, top=15)}
         except Exception as e:
             print(f"lead {season_label(yr)} skipped: {e.__class__.__name__}")
+    if yr <= stats_season - 2:
+        import os as _os2
+        _sf = _os2.path.join(SEASONS_DIR, f"{season_label(yr)}.json")
+        _redo = not _os2.path.exists(_sf)
+        if not _redo:
+            try:
+                _m0 = json.load(open(_sf)).get("meta", {})
+                _redo = not _m0.get("adv") and _m0.get("advTried", 0) < 3
+            except Exception:
+                _redo = True
+        if _redo:
+            try:
+                _sd = season_detail(pb, yr, players_all)
+                if _sd:
+                    if _os2.path.exists(_sf):
+                        try:
+                            _sd["meta"]["advTried"] = json.load(open(_sf)).get("meta", {}).get("advTried", 0)
+                        except Exception:
+                            pass
+                    SEASON_PENDING[yr] = _sd
+            except Exception as e:
+                print("season file", season_label(yr), "skipped:", e)
     pb = pb[(pb.season_type == 2) & (pb.did_not_play != True) & (pb.minutes.fillna(0) > 0)].copy()
     reg_games_by_year[yr] = set(pb.game_id.astype(str))
     pb["athlete_id"] = pd.to_numeric(pb.athlete_id, errors="coerce")
@@ -1847,6 +1956,50 @@ try:
     print(f"adv   {len(advanced)} players with advanced stats")
 except Exception as e:
     print(f"adv   failed: {e.__class__.__name__} {e}")
+
+# advanced numbers for any past season files being written, then write them
+for yr_, sd_ in sorted(SEASON_PENDING.items()):
+    got_ = 0
+    try:
+        html_ = bbr_page(f"/leagues/NBA_{yr_}_advanced.html")
+        time.sleep(3.5)
+        nm2id_ = {}
+        for k_, v_ in sd_.get("names", {}).items():
+            nm2id_.setdefault(norm_name(v_), set()).add(k_)
+        if html_:
+            _, tables_ = bbr_tables(html_)
+            for tbl in tables_:
+                for tr in tbl.find_all("tr"):
+                    nm_ = cell(tr, "name_display", "player")
+                    if nm_ is None or not nm_.get_text(strip=True) or nm_.name == "th" and not tr.find("td"):
+                        continue
+                    team_ = (cell(tr, "team_name_abbr", "team_id") or nm_).get_text(strip=True)
+                    ids_ = nm2id_.get(norm_name(nm_.get_text(strip=True)))
+                    if not ids_ or len(ids_) != 1:
+                        continue
+                    pid_ = next(iter(ids_))
+                    tgt_ = sd_["players"].get(pid_) or sd_["pool"].get(pid_)
+                    if tgt_ is None:
+                        continue
+                    row = {"per": fval(tr, "per"), "ws": fval(tr, "ws"), "ws48": fval(tr, "ws_per_48"), "bpm": fval(tr, "bpm"),
+                           "vorp": fval(tr, "vorp"), "usg": fval(tr, "usg_pct"), "obpm": fval(tr, "obpm"), "dbpm": fval(tr, "dbpm"),
+                           "g": fval(tr, "games", "g")}
+                    if "adv" not in tgt_ or re.match(r"\d?TM|TOT", team_):
+                        if "adv" not in tgt_:
+                            got_ += 1
+                        tgt_["adv"] = row
+    except Exception as e:
+        print(f"season adv {yr_} failed: {e.__class__.__name__} {e}")
+    sd_["meta"]["adv"] = got_ > 0
+    sd_["meta"]["advTried"] = sd_["meta"].get("advTried", 0) + 1
+    sd_.pop("names", None)
+    try:
+        os.makedirs(SEASONS_DIR, exist_ok=True)
+        open(os.path.join(SEASONS_DIR, f"{season_label(yr_)}.json"), "w", encoding="utf-8").write(
+            json.dumps(_clean_nan(sd_), separators=(",", ":"), ensure_ascii=False))
+        print(f"season file {season_label(yr_)}: {len(sd_['players'])} players, {len(sd_['pool'])} in the pool, advanced for {got_}")
+    except Exception as e:
+        print(f"season file {yr_} not written: {e}")
 
 bbr = {}
 try:
@@ -2892,6 +3045,7 @@ data = {
     "leadersBy": {k: leaders_by[k] for k in sorted(leaders_by)},
     "people": {**{str(k): v + ([awards[str(k)]] if str(k) in awards else []) for k, v in past_people.items() if k not in players},
                **{k: v + ([awards[k]] if k in awards else []) for k, v in bbr_people.items()}},
+    "seasonFiles": sorted(f[:-5] for f in __import__("os").listdir(SEASONS_DIR) if f.endswith(".json")) if __import__("os").path.isdir(SEASONS_DIR) else [],
     "prospects": prospects, "lzs": league_zone_by, "photos": photos, "nbaGames": nba_games, "drafts": drafts, "shotSeasons": shot_file_seasons,
     "style": {"styles": style_now.get("styles"), "league": style_now.get("league")} if style_now else None,
     "site": site_settings,

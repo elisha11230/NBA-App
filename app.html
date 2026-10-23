@@ -1118,6 +1118,11 @@ a.ocp:hover .ocf{box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 45%,transparen
 .seasl h3 .seaslab{font-family:'Archivo Black',sans-serif;font-size:15px;letter-spacing:0;color:var(--strong);text-transform:none}
 .seast{display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;color:var(--dim)}
 .seasl .note{margin-top:6px}
+.cmpl{color:var(--dim)}
+.cmpd{margin-left:6px;font-weight:700;font-size:11.5px}
+.cmpd.up{color:#3FA66B}.cmpd.dn{color:#D0574A}
+.thcmp{display:block;margin-top:4px;font-size:11.5px;letter-spacing:.02em;text-transform:none;white-space:nowrap;font-family:'Barlow',sans-serif}
+.thc .thcmp b.cmpd{display:inline;font-size:11.5px;line-height:1;font-family:inherit;margin-left:5px}
 /* ---------- time slider ---------- */
 #timebar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
 #timebar.past{border-color:var(--brass);background:color-mix(in srgb,var(--brass) 8%,var(--panel))}
@@ -5825,7 +5830,7 @@ document.addEventListener('click', e => {
 let SKILL_POOL = null;
 const SKILLS = [
   ['Scoring', s => s.p36], ['Efficiency', s => s.ts], ['Playmaking', s => s.a36],
-  ['Rebounding', s => s.r36], ['Defense', s => s.min ? (((s.stl || 0) + (s.blk || 0)) / s.min) * 36 : null], ['Impact', (s, p) => p.pie && p.pie[0]]];
+  ['Rebounding', s => s.r36], ['Defense', s => s.min ? (((s.stl || 0) + (s.blk || 0)) / s.min) * 36 : null], ['Impact', (s, p) => p.pie && p.pie[0] != null ? p.pie[0] : (typeof SWAP !== 'undefined' && SWAP && M.stats !== LAST_LAB() && p.adv?.bpm != null ? p.adv.bpm : null)]];
 function skillPool(){
   if (SKILL_POOL) return SKILL_POOL;
   const min = M.gpMin || 20, q = Object.values(P).filter(p => p.s && p.s.gp >= min && (p.s.min || 0) >= 10);
@@ -7800,50 +7805,110 @@ function wpMove(e, box){
 document.addEventListener('pointermove', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null && e.pointerType === 'mouse'){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
 document.addEventListener('pointerdown', e => { const box = e.target.closest?.('.wpsc'); if (box) wpMove(e, box); else if (wpHoverF != null){ wpHoverF = null; document.querySelectorAll('.wpsc .wpln,.wpsc .wptip').forEach(x => x.hidden = true); } });
 
-/* ---------- player pages early in a season: last season's full numbers ---------- */
-// For the first weeks of a season a player has a game or two, so most sections are empty.
-// last_season.json holds the finished season's numbers. While he has under 10 games the page
-// shows that season (with a switch to this one); the swap only lasts while his page draws.
-let LAST = null, LASTP = null, lastLoading = null, pSeasonPick = null, SWAP = 0, SWAPSAVE = null;
-const LAST_F = ['s', 'sp', 'log', 'sh', 'pie', 'pq', 'adv', 'oo', 'ps', 'cl', 'po', 'rapm'];
-function loadLast(){
-  if (LAST || lastLoading) return lastLoading;
-  lastLoading = fetch('last_season.json').then(r => r.ok ? r.json() : null).then(j => {
-    if (!j || !j.players || j.meta?.stats === M.stats) return;
-    LAST = j; LASTP = {};
-    const blank = Object.fromEntries(LAST_F.map(k => [k, null]));
-    for (const id in P) LASTP[id] = {...P[id], ...blank, ...(j.players[id] || {})};
-    LAST.pct = null; LAST.skill = null;
-    if (curP && P[curP] && lastWanted(curP) && view === 'player') renderPlayer();
-  }).catch(() => {});
-  return lastLoading;
+/* ---------- player season slider: every season of his career ---------- */
+// last_season.json has the finished season with every section; data/seasons/<season>.json
+// has each older season (season line with ranks, splits, game log, playoffs, Basketball
+// Reference advanced numbers, and a pool of that season's regulars for percentiles). While
+// his page draws, that season is swapped in for every player, then swapped straight back.
+const SEAS = {}, SEAS_LOAD = {};
+let LAST = null, pSeasonPick = null, pPickFor = null, SWAP = 0, SWAPSAVE = null;
+const SEAS_F = ['s', 'sp', 'log', 'sh', 'pie', 'pq', 'adv', 'oo', 'ps', 'cl', 'po', 'rapm'];
+function prepSeason(j){
+  const blank = Object.fromEntries(SEAS_F.map(k => [k, null]));
+  j.P = {}; for (const id in P) j.P[id] = {...P[id], ...blank, ...(j.players[id] || {})};
+  j.pct = null; j.skill = null; return j;
 }
+function loadSeason(lab){
+  if (SEAS[lab]) return Promise.resolve(SEAS[lab]);
+  if (SEAS_LOAD[lab]) return SEAS_LOAD[lab];
+  const url = LAST_LAB() === lab || lab === 'last' ? 'last_season.json' : `data/seasons/${lab}.json`;
+  return SEAS_LOAD[lab] = fetch(url).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.players || j.meta?.stats === M.stats) return null;
+    prepSeason(j); SEAS[j.meta.stats] = j;
+    if (url === 'last_season.json') LAST = j;
+    if (curP && P[curP] && view === 'player' && !SWAP && pSeasonNow(curP) === j.meta.stats) renderPlayer();
+    return j;
+  }).catch(() => null);
+}
+const LAST_LAB = () => LAST ? LAST.meta.stats : null;
+const loadLast = () => loadSeason('last');
 const lastHas = id => !!(LAST && LAST.players[id]);
-const lastWanted = id => lastHas(id) && (pSeasonPick ? pSeasonPick === 'last' : !P[id].s || P[id].s.gp < 10);
-let pPickFor = null;
-function swapIn(){
+const fileSeasons = () => new Set(D.seasonFiles || []);
+function swapIn(SO){
   if (SWAP++) return;
-  SWAPSAVE = {P: {}, M: {...M}, style: D.style, pct: PCT_POOL, skill: SKILL_POOL};
-  for (const id in P){ SWAPSAVE.P[id] = P[id]; P[id] = LASTP[id] || P[id]; }
-  Object.assign(M, LAST.meta); D.style = LAST.style || D.style; PCT_POOL = LAST.pct; SKILL_POOL = LAST.skill;
+  SWAPSAVE = {P: {}, M: {...M}, style: D.style, pct: PCT_POOL, skill: SKILL_POOL, SO, ghosts: []};
+  for (const id in P){ SWAPSAVE.P[id] = P[id]; P[id] = SO.P[id] || P[id]; }
+  for (const g in (SO.pool || {})) if (!P[g]){ const x = SO.pool[g]; P[g] = {n: x.n, pos: x.pos, s: x.s, adv: x.adv || null, t: null, ghost: 1}; SWAPSAVE.ghosts.push(g); }
+  Object.assign(M, SO.meta); D.style = SO.style || null; PCT_POOL = SO.pct; SKILL_POOL = SO.skill;
 }
 function swapOut(){
   if (--SWAP) return;
-  LAST.pct = PCT_POOL; LAST.skill = SKILL_POOL;
+  const SO = SWAPSAVE.SO; SO.pct = PCT_POOL; SO.skill = SKILL_POOL;
+  for (const g of SWAPSAVE.ghosts) delete P[g];
   for (const id in SWAPSAVE.P) P[id] = SWAPSAVE.P[id];
   for (const k of Object.keys(M)) if (!(k in SWAPSAVE.M)) delete M[k];
   Object.assign(M, SWAPSAVE.M); D.style = SWAPSAVE.style; PCT_POOL = SWAPSAVE.pct; SKILL_POOL = SWAPSAVE.skill; SWAPSAVE = null;
 }
-// run fn with last season swapped in when the open player page is showing it
+const fullSeason = k => { const a = String(k).slice(0, 2); return String(k).length > 5 ? String(k) : `${+a > 40 ? '19' : '20'}${k}`; };
+// the seasons on his slider: key is 'now', a season label with full numbers, or 'old:yy-yy' (yearly line only)
+function pSeasonList(id){
+  const p = P[id], L = [], F = fileSeasons();
+  for (const r of (p.yr || [])){ const lab = fullSeason(r[0]); if (lab === M.stats) continue;
+    const full = lab === LAST_LAB() ? lastHas(id) : F.has(lab);
+    L.push({lab, key: full ? lab : 'old:' + r[0], row: r}); }
+  if (lastHas(id) && !L.some(x => x.lab === LAST_LAB())) L.push({lab: LAST_LAB(), key: LAST_LAB()});
+  if (p.s) L.push({lab: M.stats, key: 'now'});
+  return L;
+}
+// which season his page shows: what you slid to, or last season while he has under 10 games
+function pSeasonNow(id){
+  const L = pSeasonList(id);
+  if (pSeasonPick && L.some(x => x.key === pSeasonPick)) return pSeasonPick;
+  return lastHas(id) && (!P[id].s || P[id].s.gp < 10) ? LAST_LAB() : 'now';
+}
+const lastWanted = id => pSeasonNow(id) === LAST_LAB();
+const seasonObj = id => { const k = pSeasonNow(id); return k === 'now' || k.startsWith('old:') ? null : SEAS[k] || null; };
+// yearly line fallback: a season with no file, or one still loading
+const oldRow = id => { const k = pSeasonNow(id); if (k === 'now' || SEAS[k]) return null; const short = k.startsWith('old:') ? k.slice(4) : null;
+  return (P[id].yr || []).find(r => short ? r[0] === short : fullSeason(r[0]) === k) || null; };
 const inLast = fn => function(){
-  if (!(curP && P[curP] && LASTP && lastWanted(curP) && view === 'player' && !pastSeason)) return fn.apply(this, arguments);
-  swapIn(); try { return fn.apply(this, arguments); } finally { swapOut(); }
+  const SO = curP && P[curP] && view === 'player' && !pastSeason && !SWAP ? seasonObj(curP) : null;
+  if (!SO) return fn.apply(this, arguments);
+  swapIn(SO); try { return fn.apply(this, arguments); } finally { swapOut(); }
 };
+// this season against last season, while his page shows this season
+function cmpS(s){ if (SWAP || !LAST || !curP || !P[curP] || s !== P[curP].s) return null; return LAST.players[curP]?.s || null; }
+function cmpTxt(v, c, k, fmt){
+  if (v == null || c == null || isNaN(v) || isNaN(c)) return '';
+  const d = +v - +c, low = k === 'tov', good = low ? d < 0 : d > 0, same = Math.abs(d) < .05;
+  return `<span class="cmpl">${esc(LAST_LAB().slice(2))}: ${fmt ? fmt(c) : f1(c)}</span>${same ? '' : `<b class="cmpd ${good ? 'up' : 'dn'}">${d > 0 ? '▲' : '▼'} ${f1(Math.abs(d))}</b>`}`;
+}
+{
+  const _prow = prow;
+  prow = function(label, v, k, s, fmt, sub){
+    const c = cmpS(s); if (c && c[k] != null) sub = (sub ? sub + '<br>' : '') + cmpTxt(v, c[k], k, fmt);
+    return _prow(label, v, k, s, fmt, sub);
+  };
+  const _adv = advancedSection;
+  advancedSection = function(p){
+    const h = _adv.apply(this, arguments), c = !SWAP && LAST && curP && p === P[curP] ? LAST.players[curP]?.adv : null;
+    if (!h || !c) return h;
+    const map = {'PER': ['per', v => v.toFixed(1)], 'Win shares': ['ws', v => v.toFixed(1)], 'Win shares per 48': ['ws48', v => v.toFixed(3).replace(/^0/, '')],
+      'Box plus minus': ['bpm', v => (v > 0 ? '+' : '') + v.toFixed(1)], 'VORP': ['vorp', v => v.toFixed(1)], 'Usage': ['usg', v => v.toFixed(1) + '%']};
+    const t = document.createElement('template'); t.innerHTML = h;
+    t.content.querySelectorAll('.stat').forEach(row => { const l = row.querySelector('.l'), lab = l?.firstChild?.textContent.trim(), m = map[lab];
+      if (!m || p.adv[m[0]] == null || c[m[0]] == null) return;
+      l.querySelector('small')?.insertAdjacentHTML('beforeend', '<br>' + cmpTxt(p.adv[m[0]], c[m[0]], m[0], m[1])); });
+    return t.innerHTML;
+  };
+}
 {
   const _rp = renderPlayer;
   renderPlayer = function(){
     if (P[curP] && !LAST) loadLast();
     if (curP !== pPickFor){ pSeasonPick = null; pPickFor = curP; }
+    if (P[curP]){ const k = pSeasonNow(curP); if (k !== 'now' && !k.startsWith('old:') && !SEAS[k]) loadSeason(k);
+      const lab = k === 'now' ? M.stats : k.startsWith('old:') ? fullSeason(k.slice(4)) : k; if (typeof shotPick !== 'undefined' && pSeasonPick) shotPick[curP] = lab; }
     const r = inLast(_rp).apply(this, arguments);
     try { if (P[curP] && !pastSeason) pSeasonDecorate(); } catch (e){ console.warn('season slider', e); }
     return r;
@@ -7851,29 +7916,14 @@ const inLast = fn => function(){
   panelHero = inLast(panelHero);
   calendarSection = inLast(calendarSection);
 }
+
 /* ---------- season sliders at the top of the Stats tabs ---------- */
-// Player: every season of his career. This season and last season have every section;
-// older ones have his yearly line. Team: every season since 2002-03 from the box scores.
-const fullSeason = k => { const a = String(k).slice(0, 2); return String(k).length > 5 ? String(k) : `${+a > 40 ? '19' : '20'}${k}`; };
-function pSeasonList(id){
-  const p = P[id], L = [];
-  for (const r of (p.yr || [])){ const lab = fullSeason(r[0]); if (lab === M.stats) continue;
-    L.push({lab, key: LAST && lab === LAST.meta.stats && lastHas(id) ? 'last' : 'old:' + r[0], row: r}); }
-  if (lastHas(id) && !L.some(x => x.key === 'last')) L.push({lab: LAST.meta.stats, key: 'last'});
-  if (p.s) L.push({lab: M.stats, key: 'now'});
-  return L;
-}
-function pSeasonNow(id){
-  if (pSeasonPick && pSeasonPick.startsWith('old:') && (P[id].yr || []).some(r => 'old:' + r[0] === pSeasonPick)) return pSeasonPick;
-  return lastWanted(id) ? 'last' : 'now';
-}
-const oldRow = id => { const k = pSeasonNow(id); return k.startsWith('old:') ? (P[id].yr || []).find(r => 'old:' + r[0] === k) : null; };
-function seasonSlider(L, i, kind, note){
-  return `<section class="sect seasl" data-seasl="${kind}" data-ptab="stats" data-ptabfix="stats"><h3>Season<span class="seaslab">${esc(L[i].lab)}</span></h3>
+function seasonSlider(L, i, kind, note, tab = 'stats'){
+  return `<section class="sect seasl" data-seasl="${kind}" data-ptab="${tab}" data-ptabfix="${tab}"><h3>Season<span class="seaslab">${esc(L[i].lab)}</span></h3>
     <input type="range" class="seasr" data-seasr="${kind}" min="0" max="${L.length - 1}" step="1" value="${i}" aria-label="Season" aria-valuetext="${esc(L[i].lab)}">
     <div class="seast"><span>${esc(L[0].lab)}</span><span>${esc(L[L.length - 1].lab)}</span></div>${note ? `<p class="note">${note}</p>` : ''}</section>`;
 }
-function oldSeasonSections(p, r){
+function oldSeasonSections(p, r, loading){
   const Y = p.yr || [], gp = Y.reduce((a, x) => a + x[2], 0);
   const car = i => { let s = 0, n = 0; for (const x of Y) if (x[i] != null){ s += x[i] * x[2]; n += x[2]; } return n ? s / n : null; };
   const row = (l, i, fmt = f1) => r[i] == null ? '' : `<div class="stat"><span class="l">${l}<small>Career ${car(i) == null ? '—' : fmt(car(i))}</small></span><span class="v">${fmt(r[i])}</span><span class="r"></span></div>`;
@@ -7881,34 +7931,37 @@ function oldSeasonSections(p, r){
   return `<section class="sect k-stat"><h3>${esc(fullSeason(r[0]))} averages<span>${esc(r[1])} · ${r[2]} games, ${r[3]} starts</span></h3>
       <div class="big3"><div><b>${f1(r[5])}</b><span>Points</span></div><div><b>${f1(r[6])}</b><span>Rebounds</span></div><div><b>${f1(r[7])}</b><span>Assists</span></div></div>
       ${row('Points', 5)}${row('Rebounds', 6)}${row('Assists', 7)}${row('Minutes', 4)}${row('Steals', 8)}${row('Blocks', 9)}${row('Turnovers', 10)}${row('Threes made', 11)}
-      <p class="note">Seasons before ${esc(LAST ? LAST.meta.stats : M.stats)} keep his yearly averages only. Career is weighted by games, ${gp} in all.</p></section>
+      <p class="note">${loading ? 'Loading the full season…' : 'Only his yearly averages are kept for this season.'} Career is weighted by games, ${gp} in all.</p></section>
     <section class="sect k-stat"><h3>Shooting<span>${esc(fullSeason(r[0]))}</span></h3>${row('Field goals', 12, pc)}${row('Threes', 13, pc)}${row('Free throws', 14, pc)}</section>`;
 }
-function swapStatsTab(html){
-  const d = $('#detail'), st = [...d.querySelectorAll(':scope > [data-ptab="stats"]')];
+function swapTab(html, tab){
+  const d = $('#detail'), st = [...d.querySelectorAll(`:scope > [data-ptab="${tab}"]`)].filter(n => !n.classList.contains('seasl') && !n.classList.contains('thero'));
   const t = document.createElement('template'); t.innerHTML = html;
-  const anchor = st[0] || d.querySelector(':scope > [data-ptab="adv"]') || null;
-  const nodes = [...t.content.children]; nodes.forEach(n => { n.dataset.ptab = n.dataset.ptabfix = 'stats'; });
+  const nodes = [...t.content.children]; nodes.forEach(n => { n.dataset.ptab = n.dataset.ptabfix = tab; });
+  const anchor = st[0] || null;
   if (anchor) nodes.forEach(n => anchor.before(n)); else nodes.forEach(n => d.appendChild(n));
   st.forEach(n => n.remove());
 }
-function addSlider(html){
-  const d = $('#detail'), first = d.querySelector(':scope > [data-ptab="stats"]') || d.querySelector(':scope > [data-ptab="adv"]');
+const swapStatsTab = html => swapTab(html, 'stats');
+function addSlider(html, tab = 'stats'){
+  const d = $('#detail'), first = d.querySelector(`:scope > [data-ptab="${tab}"]`);
   if (first) first.insertAdjacentHTML('beforebegin', html); else d.insertAdjacentHTML('beforeend', html);
 }
-// the slider sits above the Stats tab's headline numbers, since they follow it
+// each slider sits above its tab's headline numbers, since they follow it
 function sliderOnTop(){
-  const d = $('#detail'), sl = d.querySelector(':scope > .seasl'), th = d.querySelector(':scope > .thero[data-ptab="stats"]');
-  if (sl && th) th.before(sl);
+  const d = $('#detail');
+  d.querySelectorAll(':scope > .seasl').forEach(sl => { const th = d.querySelector(`:scope > .thero[data-ptab="${sl.dataset.ptab}"]`); if (th) th.before(sl); });
 }
 function pSeasonDecorate(){
   const id = curP, p = P[id], L = pSeasonList(id); if (L.length < 2) return;
-  const k = pSeasonNow(id), i = Math.max(0, L.findIndex(x => x.key === k)), r = oldRow(id);
-  if (r) swapStatsTab(oldSeasonSections(p, r));
-  const s = p.s;
-  const note = k === 'last' && !pSeasonPick ? `Showing his full ${esc(LAST.meta.stats)} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}. Slide to change.`
-    : k === 'last' ? `${esc(LAST.meta.stats)}: every section, Advanced included, is from that season.` : r ? 'Advanced and Career tabs stay on the latest numbers.' : '';
-  addSlider(seasonSlider(L, i, 'p', note));
+  const k = pSeasonNow(id), i = Math.max(0, L.findIndex(x => x.key === k)), r = oldRow(id), lab = L[i].lab;
+  if (r){ swapStatsTab(oldSeasonSections(p, r, !k.startsWith('old:')));
+    swapTab(`<section class="sect k-rating"><h3>Advanced<span>${esc(lab)}</span></h3><p class="note" style="margin-top:0">${k.startsWith('old:') ? 'Advanced numbers are not kept for this season.' : 'Loading…'}</p></section>`, 'adv'); }
+  const s = p.s, autoLast = k === LAST_LAB() && !pSeasonPick;
+  const note = autoLast ? `Showing his full ${esc(LAST_LAB())} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}. Slide to change.`
+    : k === 'now' && lastHas(id) ? `${esc(M.stats)} so far, with ${esc(LAST_LAB())} under each number.` : '';
+  addSlider(seasonSlider(L, i, 'p', note, 'stats'), 'stats');
+  addSlider(seasonSlider(L, i, 'p', '', 'adv'), 'adv');
   tabifyPanel($('#detail'), 'player'); sliderOnTop();
 }
 // team
@@ -7961,9 +8014,13 @@ function tSeasonDecorate(){
   };
   const _ph = panelHero;
   panelHero = function(kind, tab){
+    if (tab === 'adv' && kind === 'player' && !pastSeason && P[curP] && oldRow(curP)) return '';
     if (tab === 'stats' && !pastSeason){
       if (kind === 'player' && P[curP]){ const o = oldRow(curP);
-        if (o) return [heroCell(f1(o[5]), 'Points'), heroCell(f1(o[6]), 'Rebounds'), heroCell(f1(o[7]), 'Assists'), heroCell(f1(o[4]), 'Minutes'), heroCell(o[2], 'Games', null, 30, `${o[3]} starts`)].join(''); }
+        if (o) return [heroCell(f1(o[5]), 'Points'), heroCell(f1(o[6]), 'Rebounds'), heroCell(f1(o[7]), 'Assists'), heroCell(f1(o[4]), 'Minutes'), heroCell(o[2], 'Games', null, 30, `${o[3]} starts`)].join('');
+        const s_ = P[curP].s, c = pSeasonNow(curP) === 'now' ? cmpS(s_) : null;
+        if (c && !SWAP){ const rk = s_.rk || {}, cell = (k, l, f = f1) => s_[k] == null ? '' : heroCell(f(s_[k]), l, rk[k] != null && rk[k] <= 60 ? rk[k] : null, 450).replace(/<\/div>$/, `<small class="thcmp">${cmpTxt(s_[k], c[k], k, f)}</small></div>`);
+          return [cell('pts', 'Points'), cell('reb', 'Rebounds'), cell('ast', 'Assists'), cell('ts', 'True shooting'), cell('min', 'Minutes'), heroCell(s_.gp, 'Games', null, 30, `${s_.gs || 0} starts`)].join(''); } }
       if (kind === 'team' && T[cur]){ const k = tSeasonNow(T[cur]), h = (T[cur].hist || []).find(x => x.s === k && x.ts);
         if (h){ const st = tsGet(h), c = (k_, l, f = x => x) => st[k_] && st[k_][0] != null ? heroCell(f(st[k_][0]), l, st[k_][1]) : '';
           return [heroCell(`${h.w}-${h.l}`, `${esc(h.s)} record`), c('ppg', 'Points'), c('opp', 'Allowed'), c('diff', 'Margin', v => (v > 0 ? '+' : '') + v), c('tpp', '3 point %')].join(''); } }
@@ -7974,6 +8031,7 @@ function tSeasonDecorate(){
 document.addEventListener('input', e => {
   const r = e.target.closest?.('[data-seasr]'); if (!r) return;
   const L = r.dataset.seasr === 'p' ? pSeasonList(curP) : tSeasonList(T[cur]), x = L[+r.value]; if (!x) return;
+  document.querySelectorAll(`#detail [data-seasr="${r.dataset.seasr}"]`).forEach(o => { if (o !== r) o.value = r.value; const lab = o.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab; });
   const lab = r.closest('.seasl')?.querySelector('.seaslab'); if (lab) lab.textContent = x.lab;
 });
 document.addEventListener('change', e => {
@@ -7982,7 +8040,7 @@ document.addEventListener('change', e => {
   const y = scrollY, d = $('#detail'), dy = d.scrollTop;
   if (kind === 'p'){ pSeasonPick = x.key; renderPlayer(); } else { tSeasonPick = x.key; renderTeam(); }
   scrollTo(0, y); d.scrollTop = dy;
-  $('#detail [data-seasr]')?.focus({preventScroll: true});
+  $(`#detail .seasl:not(.ptoff) [data-seasr]`)?.focus({preventScroll: true});
 });
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
