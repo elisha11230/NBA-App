@@ -6586,7 +6586,8 @@ function tabifyPanel(d, kind){
   const want = PANEL_WANT[kind] || PANEL_TAB[kind];
   PANEL_TAB[kind] = used.has(want) ? want : tabs[0][0];
   d.dataset.kind = kind;
-  if (kind === 'player' && !pastSeason && P[curP]) for (const sec of rest){ if (/averages$/i.test(panelTitle(sec) || '')) sec.querySelector(':scope > .big3')?.remove(); }
+  // the headline numbers already show the averages, except in a card set to another season
+  if (kind === 'player' && !pastSeason && P[curP] && !(typeof FORCE_SEASON !== 'undefined' && FORCE_SEASON)) for (const sec of rest){ if (/averages$/i.test(panelTitle(sec) || '')) sec.querySelector(':scope > .big3')?.remove(); }
   // runs of stat rows become a grid of tiles
   for (const sec of rest) if (sec.classList.contains('sect')){
     let run = [];
@@ -7839,7 +7840,10 @@ function loadSeason(lab){
     if (!j || !j.players || j.meta?.stats === M.stats) return null;
     prepSeason(j); SEAS[j.meta.stats] = j;
     if (url === 'last_season.json') LAST = j;
-    if (curP && P[curP] && view === 'player' && !SWAP && pSeasonNow(curP) === j.meta.stats) requestAnimationFrame(() => seasonRedraw('p'));
+    if (curP && P[curP] && view === 'player' && !SWAP && !FORCE_SEASON){
+      if (pSeasonNow(curP) === j.meta.stats) requestAnimationFrame(() => renderPlayer());
+      else document.querySelectorAll('#detail [data-secs]').forEach(r => { if (SECPICK[r.dataset.secs] === j.meta.stats) secUpdate(r); });
+    }
     return j;
   }).catch(() => null);
 }
@@ -7874,7 +7878,9 @@ function pSeasonList(id){
   return L;
 }
 // which season his page shows: what you slid to, or last season while he has under 10 games
+let FORCE_SEASON = null;
 function pSeasonNow(id){
+  if (FORCE_SEASON) return FORCE_SEASON;
   const L = pSeasonList(id);
   if (pSeasonPick && L.some(x => x.key === pSeasonPick)) return pSeasonPick;
   return lastHas(id) && (!P[id].s || P[id].s.gp < 10) ? LAST_LAB() : 'now';
@@ -7919,7 +7925,7 @@ function cmpTxt(v, c, k, fmt){
   const _rp = renderPlayer;
   renderPlayer = function(){
     if (P[curP] && !LAST) loadLast();
-    if (curP !== pPickFor){ pSeasonPick = null; pPickFor = curP; }
+    if (curP !== pPickFor){ pSeasonPick = null; pPickFor = curP; SECPICK = {}; }
     if (P[curP]){ const k = pSeasonNow(curP); if (k !== 'now' && !k.startsWith('old:') && !SEAS[k]) loadSeason(k);
       const lab = k === 'now' ? M.stats : k.startsWith('old:') ? fullSeason(k.slice(4)) : k; if (typeof shotPick !== 'undefined' && pSeasonPick) shotPick[curP] = lab; }
     const r = inLast(_rp).apply(this, arguments);
@@ -7927,7 +7933,19 @@ function cmpTxt(v, c, k, fmt){
     return r;
   };
   panelHero = inLast(panelHero);
+  const _calOrig = calendarSection;
   calendarSection = inLast(calendarSection);
+  const _cal = calendarSection;
+  // a calendar card set to its own season redraws in that season when you tap a day
+  calendarSection = function(p, id){
+    const k = !FORCE_SEASON && !SWAP && curP ? SECPICK['season calendar'] : null;
+    if (k && k !== pSeasonNow(curP)){
+      FORCE_SEASON = k; const SO = seasonObj(curP);
+      try { if (SO) swapIn(SO); try { return _calOrig.call(this, P[curP], id); } finally { if (SO) swapOut(); } }
+      finally { FORCE_SEASON = null; }
+    }
+    return _cal.apply(this, arguments);
+  };
 }
 
 /* ---------- season sliders at the top of the Stats tabs ---------- */
@@ -7970,13 +7988,88 @@ function pSeasonDecorate(){
   const k = pSeasonNow(id), i = Math.max(0, L.findIndex(x => x.key === k)), r = oldRow(id), lab = L[i].lab;
   if (r){ swapStatsTab(oldSeasonSections(p, r, !k.startsWith('old:')));
     swapTab(`<section class="sect k-rating"><h3>Advanced<span>${esc(lab)}</span></h3><p class="note" style="margin-top:0">${k.startsWith('old:') ? 'Advanced numbers are not kept for this season.' : 'Loading…'}</p></section>`, 'adv'); }
-  const s = p.s, autoLast = k === LAST_LAB() && !pSeasonPick;
-  const note = autoLast ? `Showing his full ${esc(LAST_LAB())} season${s ? `, since he has only ${s.gp} game${s.gp === 1 ? '' : 's'} so far this season` : ', since he has not played this season yet'}. Slide to change.`
-    : k === 'now' && lastHas(id) ? `${esc(M.stats)} so far, with ${esc(LAST_LAB())} under each number.` : '';
-  addSlider(seasonSlider(L, i, 'p', note, 'stats'), 'stats');
-  addSlider(seasonSlider(L, i, 'p', '', 'adv'), 'adv');
-  tabifyPanel($('#detail'), 'player'); sliderOnTop();
+  if (r) tabifyPanel($('#detail'), 'player');
+  if (!FORCE_SEASON) secSliders();
 }
+/* ---------- a small season slider in each Stats and Advanced card, like the shot chart ---------- */
+// Each card keeps its own season. Moving one draws the page for that season off screen and
+// moves just that card's insides across; the slider itself stays put under your finger.
+let SECPICK = {}, secRaf = 0;
+const secKey = sec => { const t = panelTitle(sec) || ''; return t.replace(/^\d{4}-\d{2}\s*/, '').replace(/\s+vs\s+\w+$/i, '').trim().toLowerCase(); };
+const secOk = sec => sec.classList.contains('sect') && !sec.classList.contains('seasl') && sec.id !== 'pshots' && ['stats', 'adv'].includes(sec.dataset.ptab) && secKey(sec);
+function secSlider(L, i, key){
+  return `<div class="lslide shotslide secslide${L[i].key !== 'now' ? ' past' : ''}"><b>${esc(L[i].lab)}</b>
+    <input type="range" min="0" max="${L.length - 1}" step="1" value="${i}" data-secs="${esc(key)}" aria-label="Season">
+    <span class="hint" style="white-space:nowrap">${L.length} seasons</span></div>`;
+}
+// draw the whole page for one season off screen and hand back that copy
+function offscreenSeason(k){
+  const live = $('#detail'), tmp = document.createElement('div'); tmp.className = live.className;
+  tmp.style.cssText = `position:absolute;left:-99999px;top:0;width:${live.clientWidth}px;visibility:hidden`;
+  const obs = live._tabObs; if (obs) obs.disconnect();
+  live.id = 'detail_live'; tmp.id = 'detail'; document.body.appendChild(tmp);
+  const keep = {...PANEL_TAB};
+  FORCE_SEASON = k;
+  try { renderPlayer(); } catch (e){ console.warn('season card', e); }
+  finally { FORCE_SEASON = null; tmp.id = ''; live.id = 'detail'; Object.assign(PANEL_TAB, keep); tmp._tabObs?.disconnect(); if (obs) obs.observe(live, {childList: true, subtree: true}); tmp.remove(); }
+  return tmp;
+}
+// put a season's version of one card into the live card, keeping its slider
+function fillSec(live, src, lab){
+  const sl = live.querySelector(':scope > .secslide');
+  [...live.children].forEach(n => { if (n !== sl) n.remove(); });
+  if (src){
+    const kids = [...src.children].filter(n => !n.classList.contains('secslide'));
+    const h3 = kids.find(n => n.tagName === 'H3');
+    if (h3) sl ? sl.before(h3) : live.appendChild(h3);
+    for (const n of kids) if (n !== h3) live.appendChild(n);
+    live.classList.toggle('half', src.classList.contains('half'));
+  } else {
+    const old = live.dataset.sectitle || '';
+    const h3 = `<h3>${esc(old)}<span>${esc(lab)}</span></h3>`;
+    if (sl) sl.insertAdjacentHTML('beforebegin', h3); else live.insertAdjacentHTML('afterbegin', h3);
+    live.insertAdjacentHTML('beforeend', `<p class="note" style="margin-top:0">Not kept for ${esc(lab)}.</p>`);
+  }
+}
+function secSliders(){
+  const d = $('#detail'), id = curP, L = pSeasonList(id); if (L.length < 2) return;
+  const def = pSeasonNow(id), secs = [...d.querySelectorAll(':scope > .sect')].filter(secOk);
+  // cards set to another season get that season's version first
+  const want = {};
+  for (const sec of secs){ const k = SECPICK[secKey(sec)]; if (k && k !== def && L.some(x => x.key === k)) (want[k] = want[k] || []).push(sec); }
+  for (const k in want){
+    const tmp = offscreenSeason(k), lab = L.find(x => x.key === k)?.lab || k;
+    for (const sec of want[k]){ const key = secKey(sec), src = [...tmp.querySelectorAll(':scope > .sect')].find(n => secKey(n) === key);
+      sec.dataset.sectitle = (panelTitle(sec) || '').replace(/^\d{4}-\d{2}\s*/, ''); fillSec(sec, src, lab); }
+  }
+  for (const sec of secs){
+    if (sec.querySelector(':scope > .secslide')) continue;
+    const key = secKey(sec), k = SECPICK[key] && L.some(x => x.key === SECPICK[key]) ? SECPICK[key] : def, i = Math.max(0, L.findIndex(x => x.key === k));
+    sec.dataset.sectitle = sec.dataset.sectitle || (panelTitle(sec) || '').replace(/^\d{4}-\d{2}\s*/, '');
+    const h3 = sec.querySelector(':scope > h3');
+    if (h3) h3.insertAdjacentHTML('afterend', secSlider(L, i, key)); else sec.insertAdjacentHTML('afterbegin', secSlider(L, i, key));
+  }
+}
+function secUpdate(input){
+  const key = input.dataset.secs, L = pSeasonList(curP), x = L[+input.value]; if (!x) return;
+  const live = input.closest('.sect'); if (!live) return;
+  if (x.key !== 'now' && !x.key.startsWith('old:') && !SEAS[x.key]) loadSeason(x.key).then(() => { if (SECPICK[key] === x.key) secUpdate(input); });
+  const tmp = offscreenSeason(x.key), src = [...tmp.querySelectorAll(':scope > .sect')].find(n => secKey(n) === key);
+  fillSec(live, src, x.lab);
+}
+document.addEventListener('input', e => {
+  const r = e.target.closest?.('[data-secs]'); if (!r) return;
+  const L = pSeasonList(curP), x = L[+r.value]; if (!x) return;
+  const box = r.closest('.secslide'); box.querySelector('b').textContent = x.lab; box.classList.toggle('past', x.key !== 'now');
+  if (SECPICK[r.dataset.secs] === x.key) return;
+  SECPICK[r.dataset.secs] = x.key;
+  const i = +r.value; for (const j of [i - 1, i + 1]){ const k = L[j]?.key; if (k && k !== 'now' && !k.startsWith('old:')) loadSeason(k); }
+  cancelAnimationFrame(secRaf); secRaf = requestAnimationFrame(() => secUpdate(r));
+});
+// the season calendar redraws itself when you tap a day; give it its slider back
+document.addEventListener('click', e => { if (e.target.closest('[data-cal]')) setTimeout(() => { const c = $('#calsect'); if (c && !c.querySelector('.secslide') && P[curP]){
+  const L = pSeasonList(curP), key = secKey(c), k = SECPICK[key] || pSeasonNow(curP), i = Math.max(0, L.findIndex(x => x.key === k));
+  c.querySelector(':scope > h3')?.insertAdjacentHTML('afterend', secSlider(L, i, key)); } }); });
 // team
 let tSeasonPick = null, tPickFor = null;
 function tSeasonList(t){
