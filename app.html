@@ -461,6 +461,41 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .inj.out{background:#C2412D} .inj.dtd{background:#B7822A}
 .injtag{font-family:'Barlow Condensed',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:0 4px;border-radius:2px;margin-left:4px;color:#fff}
 .injtag.out{background:#C2412D} .injtag.dtd{background:#B7822A}
+.ijseg{margin-bottom:12px}
+.ijgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
+.ijt{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--tc,var(--brass));border-radius:14px;padding:10px 14px 6px;margin-bottom:12px}
+.ijgrid .ijt{margin-bottom:0}
+.ijt.mine{--tc:var(--brass)}
+.ijh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+.ijteam{display:flex;align-items:center;gap:8px;text-align:left;min-width:0}
+.ijteam img{width:26px;height:26px;object-fit:contain}
+.ijteam b,.ijmh{font-family:'Archivo Black',sans-serif;font-weight:400;font-size:15px;color:var(--strong)}
+.ijfav{color:var(--brass)}
+.ijgame{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+.ijgame.on{color:#E86A5C;border-color:color-mix(in srgb,#C25B5B 50%,var(--line))}
+.ijgame i{width:6px;height:6px;border-radius:50%;background:#E0402A;animation:pulse 1.4s infinite}
+.ijr{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 50%,transparent)}
+.ijr:last-child{border-bottom:0}
+.ijr .injtag{flex:0 0 auto;margin:2px 0 0;min-width:30px;text-align:center}
+.ijn{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 7px;min-width:0;flex:1 1 auto}
+.ijn b{font-size:14.5px;color:var(--strong);font-weight:600}
+.ijr.key .ijn b{font-weight:800}
+.ijn i{font-style:normal;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;color:var(--dim)}
+.ijn em{font-style:normal;font-size:12px;color:var(--mute)}
+.ijn small{flex:1 1 100%;font-size:12.5px;color:var(--chalk)}
+.ijc{flex:1 1 100%;font-size:12px;color:var(--dim);line-height:1.4}
+.ginj{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;width:100%;margin:10px 0 0;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);text-align:left;font-size:13px;color:var(--chalk)}
+.ginj .injtag{margin:0}
+.ginj b{font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;color:var(--strong)}
+.ginj em,.gcinj em{font-style:normal;font-size:11px;color:#B7822A;font-weight:700}
+.ginj i{margin-left:auto;font-style:normal;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.ginjt + .ginjt{margin-top:10px}
+.ginjh{display:flex;align-items:center;gap:8px;padding:4px 0}
+.ginjh img{width:22px;height:22px;object-fit:contain}
+.ginjh b{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--strong)}
+.gcinj{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;margin-top:6px;font-size:11.5px;color:var(--chalk);text-align:left}
+.gcinj .injtag{margin:0;font-size:9.5px}
+.gcinj b{font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;color:var(--strong)}
 .irow{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--rule);width:100%;text-align:left}
 .irow:last-child{border-bottom:0}
 .irow .in{font-size:13.5px;color:var(--chalk);flex:1 1 auto}
@@ -1816,11 +1851,11 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
   #moremenu button:hover{background:var(--bg2);color:var(--strong)}
   #moremenu [data-go="minebtn"],#moremenu [data-go="mvbtn"],#moremenu [data-go="leadbtn"],#moremenu [data-go="boardbtn"],#moremenu [data-go="pkbtn"],#moremenu [data-go="awbtn"]{display:none}
 }
-#deals,#cup,#trends{position:fixed;inset:0;z-index:66;background:var(--ink);display:flex;flex-direction:column;
+#deals,#cup,#trends,#injuries{position:fixed;inset:0;z-index:66;background:var(--ink);display:flex;flex-direction:column;
   padding:calc(16px + env(safe-area-inset-top,0px)) 18px calc(12px + env(safe-area-inset-bottom,0px))}
-#deals[hidden],#cup[hidden],#trends[hidden]{display:none}
-#deals .lhead h2,#cup .lhead h2,#trends .lhead h2{font-size:22px}
-#dlbody,#cupbody,#trbody{flex:1 1 auto;overflow-y:auto;max-width:940px;width:100%;margin:0 auto;padding:2px 2px 20px}
+#deals[hidden],#cup[hidden],#trends[hidden],#injuries[hidden]{display:none}
+#deals .lhead h2,#cup .lhead h2,#trends .lhead h2,#injuries .lhead h2{font-size:22px}
+#dlbody,#cupbody,#trbody,#injbody{flex:1 1 auto;overflow-y:auto;max-width:940px;width:100%;margin:0 auto;padding:2px 2px 20px}
 /* percentiles */
 .pcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 18px}
 .pcr,.fpr{display:grid;grid-template-columns:minmax(0,1fr) 38% 30px;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
@@ -2092,6 +2127,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
     <button type="button" role="menuitem" data-go="dlbtn"><span aria-hidden="true">$</span>Contracts</button>
     <button type="button" role="menuitem" data-go="cupbtn"><span aria-hidden="true">◇</span>NBA Cup</button>
     <button type="button" role="menuitem" data-go="trbtn"><span aria-hidden="true">∿</span>League trends</button>
+    <button type="button" role="menuitem" data-go="injbtn"><span aria-hidden="true">✚</span>Injuries</button>
     <button type="button" role="menuitem" data-go="optbtn"><span aria-hidden="true">⚙</span>Settings</button>
   </div>
   <nav id="menu" aria-label="Menu">
@@ -2106,6 +2142,7 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
     <button id="dlbtn" class="mhid"><span aria-hidden="true">$</span>Contracts</button>
     <button id="cupbtn" class="mhid"><span aria-hidden="true">◇</span>NBA Cup</button>
     <button id="trbtn" class="mhid"><span aria-hidden="true">∿</span>Trends</button>
+    <button id="injbtn" class="mhid"><span aria-hidden="true">✚</span>Injuries</button>
     <button id="optbtn" class="mhid"><span aria-hidden="true">⚙</span>Settings</button>
     <button id="morebtn" type="button" aria-haspopup="true" aria-expanded="false"><span aria-hidden="true">▾</span>More</button>
     <button id="spbtn" aria-label="Hide or show scores"></button>
@@ -2210,6 +2247,10 @@ button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 <div id="trends" hidden role="dialog" aria-modal="true" aria-label="League trends">
   <div class="lhead"><h2>League trends</h2><button class="qx" id="trclose">Close</button></div>
   <div id="trbody"></div>
+</div>
+<div id="injuries" hidden role="dialog" aria-modal="true" aria-label="Injuries">
+  <div class="lhead"><h2>Injuries</h2><button class="qx" id="injclose">Close</button></div>
+  <div id="injbody"></div>
 </div>
 <div id="opts" hidden role="dialog" aria-modal="true" aria-label="Settings">
   <div class="lhead"><h2>Settings</h2><button class="qx" id="optclose">Done</button></div>
@@ -3304,6 +3345,13 @@ function wtSafe(e, noLive){
   if (!wtRecent(e.date)){ const x = XI[e.id]; if (e.status.type.state !== 'post' || !x?.final) return null;
     return WT_CACHE[String(e.id)] = {tags: [], score: 0, label: 'skip', replay: noSpoil && OPT.replay === 'hide' ? null : xiReplay(x)}; }
   try { return wtTags(wtFromEvent(e), {noLive}); } catch (err){ console.warn('watch tags', err); return null; } }
+// key players out or doubtful for a game card
+function cardInj(cs){
+  if (!INJ_LIST.length) return '';
+  const bits = cs.map(x => { const L = teamInj(String(x.team.id)).filter(i => injKey(i.id)).slice(0, 3);
+    return L.length ? `<span><b>${esc(x.team.abbreviation)}</b> ${L.map(i => `${esc(lastName(i.n))}${i.out ? '' : ` <em>${esc(injShort(i))}</em>`}`).join(', ')}</span>` : ''; }).filter(Boolean);
+  return bits.length ? `<div class="gcinj"><span class="injtag out">INJ</span>${bits.join('')}</div>` : '';
+}
 function gameCard(e){
   const c = e.competitions[0], st = e.status.type;
   const cs = [...c.competitors].sort((a, b) => (a.homeAway === 'away' ? -1 : 1));
@@ -3325,6 +3373,7 @@ function gameCard(e){
       <span class="gs">${st.state === 'pre' ? '' : hideLive ? '•' : esc(x.score)}</span></div>`).join('')}
     ${wtRow(wt, e.id)}
     ${leadTxt && !hideLive ? `<div class="glead">Top scorer: ${leadTxt}</div>` : ''}
+    ${!fin ? cardInj(cs) : ''}
     ${fin ? `<span class="ghl">▶ Highlights</span>` : ''}
     ${live ? (() => { const sl = fixtureSlug(e.date, cs[0].team.abbreviation, cs[1].team.abbreviation); return sl ? `<a class="gstream" href="${esc(streamUrl(sl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">▶ Stream</a>` : ''; })() : ''}</button>`;
 }
@@ -3381,6 +3430,7 @@ function drawGame(s, quiet){
   if (live) head += floorView(s, cs);
   if (!wideG) head += clipH + heatH;
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
+  if (st.state !== 'post') h += gameInjuries(cs, true);
   h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="tstats" aria-pressed="${gameTab === 'tstats'}">Team stats</button><button data-gt="avg" aria-pressed="${gameTab === 'avg'}">Vs average</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   const covered = noSpoil && !SPOIL_OK.has(String(gameId)) && st.state !== 'pre';
   if (covered && ['pbp', 'box', 'tstats', 'shots', 'avg'].includes(gameTab)) h += `<div class="spcover"><b>Scores are hidden</b><span>Play by play, the box score, team stats, the shot chart and tonight's numbers give the score away.</span><button class="pbtn" id="spreveal" type="button">Show this game</button></div>`;
@@ -3730,25 +3780,44 @@ function shotsView(s, cs){
 document.addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b && lastSummary){ shotTeam = b.dataset.st; drawGame(lastSummary); } });
 
 /* ---------- injuries (ESPN, read in the browser like scores) ---------- */
-let INJ = {}, injAt = 0;
-async function loadInjuries(){
-  if (Date.now() - injAt < 600000) return;
+let INJ = {}, injAt = 0, INJ_LIST = [], INJ_STAMP = '';
+async function loadInjuries(force){
+  if (!force && Date.now() - injAt < 600000) return;
   injAt = Date.now();
   try {
     const j = await espn('/injuries');
-    const map = {};
+    const map = {}, list = [];
     for (const team of (j.injuries || [])) for (const it of (team.injuries || [])){
       const a = it.athlete || {};
       let id = a.id;
       if (!id) for (const l of (a.links || [])){ const m = /\/id\/(\d+)/.exec(l.href || ''); if (m){ id = m[1]; break; } }
       if (!id) continue;
-      const st = (it.status || it.type?.description || '').trim();
-      map[id] = {st, out: /out/i.test(st), cm: it.shortComment || it.longComment || '', detail: [it.details?.type, it.details?.location, it.details?.detail].filter(Boolean).join(', '),
-        ret: it.details?.returnDate || '', date: it.date || ''};
+      const st = (it.status || it.type?.description || '').trim(), dt = it.details || {};
+      map[id] = {st, out: /out/i.test(st), cm: it.shortComment || it.longComment || '', detail: [dt.type, dt.location, dt.detail].filter(Boolean).join(', '),
+        ret: dt.returnDate || '', date: it.date || ''};
+      list.push({id: String(id), tid: String(a.team?.id || team.id || ''), n: a.displayName || '', pos: a.position?.abbreviation || '', ...map[id],
+        part: [dt.side && dt.side !== 'Not Specified' ? dt.side : '', dt.type].filter(Boolean).join(' '), what: dt.detail || '', long: it.longComment || ''});
     }
-    INJ = map;
+    INJ = map; INJ_LIST = list; INJ_STAMP = j.timestamp || new Date().toISOString();
+    if (!$('#injuries').hidden) drawInjuries();
+    if (!$('#scores').hidden && !gameId) loadDay(true);
     if (cur){ renderFloor(); renderBench(); if (view === 'team') renderTeam(); else if (curP) renderPlayer(); }
   } catch (e){ /* injury feed unavailable: the app carries on without it */ }
+}
+// how much a player matters to his team right now: his points a game, this season or last
+const injWeight = id => { const p = P[id]; if (!p) return 0; const s = p.s && p.s.gp >= 3 ? p.s.pts : (lastPlayed(p)?.[5] ?? p.s?.pts ?? 0); return (+s || 0) + (T[p.t]?.five?.includes(+id) ? 8 : 0); };
+const injKey = id => { const p = P[id]; return !!p && (T[p.t]?.five?.includes(+id) || injWeight(id) >= 12); };
+const lastName = n => { const parts = String(n || '').split(' '); return parts.length > 1 && /^(jr\.?|sr\.?|ii|iii|iv)$/i.test(parts[parts.length - 1]) ? parts[parts.length - 2] : parts[parts.length - 1]; };
+// the injured players on one team, most important first
+function teamInj(tid){ return INJ_LIST.filter(x => x.tid === String(tid)).sort((a, b) => (b.out - a.out) || injWeight(b.id) - injWeight(a.id)); }
+const injDate = d => { const x = new Date(d.length <= 10 ? d + 'T12:00:00' : d); return isNaN(x) ? '' : x.toLocaleDateString([], {month: 'short', day: 'numeric'}); };
+function injRow(x, opts = {}){
+  const onApp = !!P[x.id], ret = x.ret ? `Expected back ${injDate(x.ret)}` : '';
+  const what = [x.part, x.what].filter(Boolean).join(', ');
+  return `<${onApp ? `button type="button" data-injp="${esc(x.id)}"` : 'div'} class="ijr${injKey(x.id) ? ' key' : ''}">
+    <span class="injtag ${x.out ? 'out' : 'dtd'}">${esc(x.out ? 'OUT' : injShort(x))}</span>
+    <span class="ijn"><b>${esc(x.n)}</b>${x.pos ? `<i>${esc(x.pos)}</i>` : ''}${onApp && P[x.id].s ? `<em>${f1(P[x.id].s.pts)} ppg</em>` : ''}<small>${esc(what || x.st)}${ret ? ` · ${esc(ret)}` : ''}</small>
+      ${opts.notes && x.cm ? `<span class="ijc">${esc(x.cm)}</span>` : ''}</span></${onApp ? 'button' : 'div'}>`;
 }
 const injShort = i => i.out ? 'OUT' : /day|question|doubt|prob/i.test(i.st) ? 'DTD' : i.st.slice(0, 3).toUpperCase();
 function injurySection(t){
@@ -4157,6 +4226,9 @@ document.addEventListener('click', e => {
 
 /* ---------- game info: arena, crowd, officials, odds, prediction, highlights (ESPN summary) ---------- */
 function infoView(s, cs){
+  return gameInjuries(cs) + infoView0(s, cs);
+}
+function infoView0(s, cs){
   const gi = s.gameInfo || {}, v = gi.venue || {};
   const off = (gi.officials || []).map(o => o.displayName || o.fullName).filter(Boolean);
   const pc = (s.pickcenter || [])[0], pr = s.predictor;
@@ -6765,6 +6837,7 @@ function navLayers(){
     [() => !$('#deals').hidden, closeDeals],
     [() => !$('#cup').hidden, closeCup],
     [() => !$('#trends').hidden, closeTrends],
+    [() => !$('#injuries').hidden, closeInjuries],
     [() => !$('#opts').hidden, closeOpts],
     [() => view === 'player', () => setView('team')],
   ];
@@ -7573,7 +7646,7 @@ $('#trends').addEventListener('click', e => {
   if (e.target.closest('#trclose')) closeTrends();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#trends').hidden) closeTrends(); });
-$('#dlbtn').onclick = openDeals; $('#cupbtn').onclick = openCup; $('#trbtn').onclick = openTrends;
+$('#dlbtn').onclick = openDeals; $('#cupbtn').onclick = openCup; $('#trbtn').onclick = openTrends; $('#injbtn').onclick = openInjuries;
 
 /* ---------- live games: lineup plus minus tonight ---------- */
 function lineupLine(oc, tid){
@@ -8355,6 +8428,69 @@ document.addEventListener('change', e => {
   if (kind === 'p') pSeasonPick = x.key; else tSeasonPick = x.key;
   seasonRedraw(kind);
 });
+
+
+/* ---------- league injury report ---------- */
+let injFilter = 'all', injSB = null, injSBAt = 0;
+function openInjuries(){ $('#injuries').hidden = false; document.body.style.overflow = 'hidden'; drawInjuries(); loadInjuries(Date.now() - injAt > 120000);
+  if (!injSB || Date.now() - injSBAt > 300000) espn('/scoreboard').then(j => { injSB = j; injSBAt = Date.now(); if (!$('#injuries').hidden) drawInjuries(); }).catch(() => {}); }
+function closeInjuries(){ $('#injuries').hidden = true; document.body.style.overflow = ''; }
+function drawInjuries(){
+  const box = $('#injbody'); if (!box) return;
+  if (!INJ_LIST.length){ box.innerHTML = `<div class="empty">${injAt ? 'No injuries listed right now.' : 'Loading the injury report…'}</div>`; return; }
+  // games today: who each team plays and when
+  const today = {};
+  for (const e of (injSB?.events || [])){ const cs = e.competitions[0].competitors;
+    for (const c of cs){ const o = cs.find(x => x !== c); today[String(c.team.id)] = {e, at: c.homeAway === 'home' ? 'vs' : '@', opp: o.team.abbreviation}; } }
+  const favT = new Set(FAV.teams.map(String)), favP = new Set(FAV.players.map(String));
+  const pass = x => injFilter === 'all' || (injFilter === 'out' ? x.out : injFilter === 'dtd' ? !x.out : injFilter === 'key' ? injKey(x.id) : true);
+  const teams = [...new Set(INJ_LIST.map(x => x.tid))].filter(tid => T[tid]);
+  const rank = tid => (favT.has(tid) || INJ_LIST.some(x => x.tid === tid && favP.has(x.id)) ? 0 : 2) + (today[tid] ? 0 : 1);
+  teams.sort((a, b) => rank(a) - rank(b) || T[a].name.localeCompare(T[b].name));
+  const mine = INJ_LIST.filter(x => favP.has(x.id));
+  const nOut = INJ_LIST.filter(x => x.out).length;
+  const seg = [['all', `All ${INJ_LIST.length}`], ['out', `Out ${nOut}`], ['dtd', `Day to day ${INJ_LIST.length - nOut}`], ['key', 'Key players']]
+    .map(([k, l]) => `<button class="lseason" type="button" data-injf="${k}" aria-pressed="${injFilter === k}">${l}</button>`).join('');
+  const card = tid => {
+    const t = T[tid], L = teamInj(tid).filter(pass); if (!L.length) return '';
+    const g = today[tid], st = g?.e?.status?.type;
+    const when = g ? (st.state === 'pre' ? `${g.at} ${g.opp} · ${new Date(g.e.date).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}` : st.state === 'in' ? `${g.at} ${g.opp} · Live` : `${g.at} ${g.opp} · Final`) : '';
+    return `<section class="ijt" style="--tc:${sideColor({abbreviation: t.abbr, color: t.color, alternateColor: t.alt}).c}">
+      <div class="ijh"><button type="button" class="ijteam" data-injt="${esc(tid)}"><img src="${t.logo}" alt=""><b>${esc(t.name)}</b>${favT.has(tid) ? '<span class="ijfav">★</span>' : ''}</button>
+        ${g ? `<button type="button" class="ijgame${st.state === 'in' ? ' on' : ''}" data-injg="${esc(g.e.id)}">${st.state === 'in' ? '<i></i>' : ''}${esc(when)}</button>` : ''}</div>
+      ${L.map(x => injRow(x, {notes: true})).join('')}</section>`;
+  };
+  box.innerHTML = `<div class="lseg ijseg">${seg}</div>
+    ${mine.length && injFilter === 'all' ? `<section class="ijt mine"><div class="ijh"><b class="ijmh">★ Your players</b></div>${mine.map(x => injRow(x, {notes: true})).join('')}</section>` : ''}
+    <div class="ijgrid">${teams.map(card).join('') || '<div class="empty">Nobody on this list right now.</div>'}</div>
+    <p class="note">From ESPN's injury report, updated ${esc(new Date(INJ_STAMP).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}))}. Teams playing today and your teams come first. Key players are starters or anyone scoring 12 or more a game.</p>`;
+}
+document.addEventListener('click', e => {
+  const ip = e.target.closest('[data-injp]');
+  if (ip && P[ip.dataset.injp]){ e.preventDefault(); if (!$('#injuries').hidden) closeInjuries(); if (!$('#scores').hidden) closeScores(); openPlayer(ip.dataset.injp); return; }
+  if ($('#injuries').hidden) return;
+  if (e.target.closest('#injclose')){ closeInjuries(); return; }
+  const f = e.target.closest('[data-injf]'); if (f){ injFilter = f.dataset.injf; drawInjuries(); return; }
+  const tm = e.target.closest('[data-injt]'); if (tm){ closeInjuries(); pastSeason = null; setTeam(tm.dataset.injt); drawTimebar(); setView('team'); return; }
+  const g = e.target.closest('[data-injg]'); if (g){ closeInjuries(); openScores(g.dataset.injg); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#injuries').hidden) closeInjuries(); });
+// both teams' injuries for one game: a card on the Game info tab and a line above the tabs
+function gameInjuries(cs, compact){
+  const sides = cs.map(x => ({x, L: teamInj(String(x.team.id))})).filter(s => s.L.length);
+  if (!INJ_LIST.length) return '';
+  if (compact){
+    if (!sides.length) return '';
+    const bits = sides.map(({x, L}) => { const out = L.filter(i => i.out && injKey(i.id)), q = L.filter(i => !i.out && injKey(i.id));
+      const names = [...out.map(i => esc(lastName(i.n))), ...q.map(i => `${esc(lastName(i.n))} <em>${esc(injShort(i))}</em>`)].slice(0, 4);
+      return names.length ? `<span><b>${esc(x.team.abbreviation)}</b> ${names.join(', ')}</span>` : ''; }).filter(Boolean);
+    const n = sides.reduce((a, s) => a + s.L.length, 0);
+    return `<button type="button" class="ginj" data-gt="info"><span class="injtag out">INJ</span>${bits.length ? bits.join('') : `<span>${n} on the injury report, no starters</span>`}<i>All ${n}</i></button>`;
+  }
+  return `<section class="sect k-health ginjs"><h3>Injuries<span>ESPN, live</span></h3>${cs.map(x => { const L = teamInj(String(x.team.id));
+    return `<div class="ginjt"><div class="ginjh"><img src="${x.team.logos?.[0]?.href || x.team.logo || logoOf(x.team.abbreviation)}" alt=""><b>${esc(x.team.shortDisplayName || x.team.abbreviation)}</b></div>
+      ${L.length ? L.map(i => injRow(i)).join('') : '<p class="note" style="margin:4px 0 0">Nobody listed.</p>'}</div>`; }).join('')}</section>`;
+}
 
 function fmtDate(s){ if (!s) return ''; const d = new Date(s.replace(' EDT','-04:00').replace(' EST','-05:00').replace(' ','T')); return isNaN(d) ? s : d.toLocaleDateString([], {month:'short', day:'numeric'}); }
 if (!Object.keys(T).length){
