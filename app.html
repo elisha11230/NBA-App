@@ -393,6 +393,25 @@ table.tb{width:100%;border-collapse:collapse;font-size:12.5px}
 .gsc div.lv{color:#F2B0B0}
 .gtabs{display:flex;gap:1px;background:var(--line);border-radius:var(--r);overflow:hidden;margin:12px 0}
 .gtabs{flex-wrap:wrap}
+.tsbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 14px 10px}
+.tshead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0 10px;border-bottom:1px solid var(--rule);margin-bottom:4px}
+.tsh{display:flex;align-items:center;gap:8px;font-family:'Archivo Black',sans-serif;font-size:16px;color:var(--strong)}
+.tsh.r{flex-direction:row-reverse}
+.tsh img{width:30px;height:30px;object-fit:contain}
+.tsvs{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.tsr{display:grid;grid-template-columns:minmax(72px,1fr) minmax(120px,2fr) minmax(72px,1fr);align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 50%,transparent)}
+.tsr:last-child{border-bottom:0}
+.tsv{font-family:'Archivo Black',sans-serif;font-size:16px;color:var(--chalk);line-height:1.15}
+.tsv.r{text-align:right}
+.tsv.win{color:var(--strong)}
+.tsv small{display:block;font-family:'Barlow',sans-serif;font-size:11.5px;color:var(--dim);letter-spacing:.02em;margin-top:2px}
+.tsm{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.tsl{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);text-align:center}
+.tsb{display:flex;width:100%;height:6px;border-radius:4px;overflow:hidden;gap:2px;background:transparent}
+.tsb i{display:block;height:100%;border-radius:3px}
+.tsnote{margin-top:8px}
+@media (max-width:640px){.tsr{grid-template-columns:minmax(60px,1fr) minmax(120px,2fr) minmax(60px,1fr);gap:8px}.tsv{font-size:15px}.tsl{font-size:11.5px;letter-spacing:.05em}}
+
 .gtabs button{flex:1 1 0;min-width:88px;padding:8px;background:var(--panel);font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
 .gtabs button[aria-pressed="true"]{background:var(--team);color:var(--team2)}
 .pfilt{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
@@ -2030,7 +2049,9 @@ a.pf{display:inline-flex}
 button.gh2n{background:none;border:0;padding:0;margin:0;text-align:inherit;color:inherit;font:inherit;cursor:pointer}
 button.gh2n:hover b{text-decoration:underline;text-underline-offset:3px}
 .lsc2 .lt a{color:inherit;text-decoration:none}
-@media (min-width:641px){#scbody .gtabs button{min-width:0;padding:8px 6px;letter-spacing:.05em;white-space:nowrap}}
+@media (min-width:641px){#scbody .gtabs button{min-width:0;padding:8px 4px;letter-spacing:.03em;white-space:nowrap;font-size:12.5px;flex:1 1 auto}}
+@media (min-width:641px) and (max-width:1599px){#scbody .gtabs button{font-size:11.5px;letter-spacing:.01em;padding:8px 3px}}
+@media (min-width:641px){#scbody .gtabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}#scbody .gtabs::-webkit-scrollbar{display:none}#scbody .gtabs button{flex-shrink:0}}
 
 /* win chance scrubber */
 .wpsc{position:relative;touch-action:pan-y;cursor:crosshair}
@@ -3360,10 +3381,10 @@ function drawGame(s, quiet){
   if (live) head += floorView(s, cs);
   if (!wideG) head += clipH + heatH;
   if (!quiet && st.state === 'pre' && gameTab === 'pbp') gameTab = 'preview';
-  h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="avg" aria-pressed="${gameTab === 'avg'}">Vs average</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
+  h += `<div class="gtabs"><button data-gt="preview" aria-pressed="${gameTab === 'preview'}">Preview</button><button data-gt="pbp" aria-pressed="${gameTab === 'pbp'}">Play by play</button><button data-gt="shots" aria-pressed="${gameTab === 'shots'}">Shot chart</button><button data-gt="box" aria-pressed="${gameTab === 'box'}">Box score</button><button data-gt="tstats" aria-pressed="${gameTab === 'tstats'}">Team stats</button><button data-gt="avg" aria-pressed="${gameTab === 'avg'}">Vs average</button><button data-gt="info" aria-pressed="${gameTab === 'info'}">Game info</button></div>`;
   const covered = noSpoil && !SPOIL_OK.has(String(gameId)) && st.state !== 'pre';
-  if (covered && ['pbp', 'box', 'shots', 'avg'].includes(gameTab)) h += `<div class="spcover"><b>Scores are hidden</b><span>Play by play, the box score, the shot chart and tonight's numbers give the score away.</span><button class="pbtn" id="spreveal" type="button">Show this game</button></div>`;
-  else h += gameTab === 'preview' ? whySection(s) + previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'avg' ? vsAvgView(s, cs) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
+  if (covered && ['pbp', 'box', 'tstats', 'shots', 'avg'].includes(gameTab)) h += `<div class="spcover"><b>Scores are hidden</b><span>Play by play, the box score, team stats, the shot chart and tonight's numbers give the score away.</span><button class="pbtn" id="spreveal" type="button">Show this game</button></div>`;
+  else h += gameTab === 'preview' ? whySection(s) + previewView(s, cs) : gameTab === 'box' ? boxView(s) : gameTab === 'tstats' ? teamStatsView(s, cs) : gameTab === 'avg' ? vsAvgView(s, cs) : gameTab === 'shots' ? shotsView(s, cs) : gameTab === 'info' ? infoView(s, cs) : playsView(s, cs, quiet);
   if (wideG && clipH) h += `<div class="clipbelow">${clipH}</div>`;
   if (live) h += `<p class="gnote">Live. Updates every 15 seconds while this is open.</p>`;
   const slug = liveWindow(st.state, comp.date || s.header?.competitions?.[0]?.date) ? fixtureSlug(comp.date || s.header?.competitions?.[0]?.date, cs[0].team.abbreviation, cs[1].team.abbreviation) : null;
@@ -7775,6 +7796,82 @@ function vsAvgView(s, cs){
     <div class="vgrid">${cs.map(card).join('')}</div>
     <p class="note">Green is better than their norm, red is worse; pace and three point volume are style, so they stay gray. Built from the play by play, so it keeps pace with your feed delay. Paint points are counted from shot locations and are approximate.</p>`;
 }
+/* ---------- live games: the two teams side by side ---------- */
+// ESPN's team box when it has one (it follows the feed delay through the delayed snapshot),
+// otherwise counted from the play by play, which is always in step with the stream.
+function gameTeamStats(s, cs){
+  const ids = cs.map(x => String(x.team.id)), out = {};
+  const teams = s.boxscore?.teams || [];
+  const val = (t, n) => { const x = (t.statistics || []).find(z => z.name === n); return x ? x.displayValue : null; };
+  const pair = v => { const m = String(v || '').split('-').map(Number); return m.length === 2 && m.every(x => !isNaN(x)) ? m : null; };
+  const espnOk = teams.length === 2 && teams.every(t => (pair(val(t, 'fieldGoalsMade-fieldGoalsAttempted')) || [0, 0])[1] > 0);
+  // bench points from the player box
+  const bench = {};
+  for (const t of (s.boxscore?.players || [])){ const st = t.statistics?.[0], ix = (st?.names || st?.labels || []).indexOf('PTS');
+    if (ix >= 0) bench[String(t.team?.id)] = (st.athletes || []).filter(x => !x.starter).reduce((a, x) => a + (+x.stats?.[ix] || 0), 0); }
+  // lead, lead changes and fouls from the plays
+  const plays = s.plays || [], home = cs.find(x => x.homeAway === 'home'), hid = String(home?.team?.id || '');
+  const ll = Object.fromEntries(ids.map(i => [i, 0])), pf = Object.fromEntries(ids.map(i => [i, 0])); let lc = 0, side = 0;
+  for (const p of plays){
+    const d = (+p.homeScore || 0) - (+p.awayScore || 0), aid = ids.find(i => i !== hid);
+    if (d > 0) ll[hid] = Math.max(ll[hid], d); else if (d < 0) ll[aid] = Math.max(ll[aid], -d);
+    const sd = Math.sign(d); if (sd && side && sd !== side) lc++; if (sd) side = sd;
+    const tid = String(p.team?.id || ''); if (/foul/i.test(p.type?.text || '') && !/technical/i.test(p.type?.text || '') && pf[tid] != null) pf[tid]++;
+  }
+  if (espnOk){
+    for (const t of teams){ const id = String(t.team.id), n = k => { const v = val(t, k); return v == null ? null : +v; };
+      out[id] = {fg: pair(val(t, 'fieldGoalsMade-fieldGoalsAttempted')), tp: pair(val(t, 'threePointFieldGoalsMade-threePointFieldGoalsAttempted')), ft: pair(val(t, 'freeThrowsMade-freeThrowsAttempted')),
+        reb: n('totalRebounds'), oreb: n('offensiveRebounds'), dreb: n('defensiveRebounds'), ast: n('assists'), stl: n('steals'), blk: n('blocks'),
+        tov: n('totalTurnovers') ?? n('turnovers'), pip: n('pointsInPaint'), fb: n('fastBreakPoints'), conceded: n('turnoverPoints'), pf: n('fouls'),
+        ll: n('largestLead'), lc: n('leadChanges'), lpct: n('leadPercentage'), bench: bench[id] ?? null}; }
+    for (const id of ids){ const o = out[ids.find(i => i !== id)]; if (out[id]) out[id].pot = o ? o.conceded : null; }
+    return {T: out, src: 'espn'};
+  }
+  const {R} = teamTonight(s);
+  for (const id of ids){ const g = R[id]; if (!g) continue;
+    out[id] = {fg: [g.fgm, g.fga], tp: [g.tpm, g.tpa], ft: [g.ftm, g.fta], reb: g.oreb + g.dreb, oreb: g.oreb, dreb: g.dreb, ast: g.ast, stl: g.stl, blk: g.blk, tov: g.tov,
+      pip: g.paint, fb: null, pot: null, pf: pf[id], ll: ll[id], lc, lpct: null, bench: bench[id] ?? null}; }
+  return {T: out, src: 'pbp'};
+}
+function teamStatsView(s, cs){
+  const st = s.header?.competitions?.[0]?.status?.type?.state;
+  if (st === 'pre') return `<div class="empty">Team stats fill in from tip off.</div>`;
+  const {T: S, src} = gameTeamStats(s, cs), ids = cs.map(x => String(x.team.id)), A = S[ids[0]], B = S[ids[1]];
+  if (!A || !B) return `<div class="empty">No team stats yet.</div>`;
+  const col = cs.map(x => sideColor(x.team).c), pc = m => m && m[1] ? Math.round(m[0] / m[1] * 1000) / 10 : null;
+  // [label, away value, home value, how to show it, lower is better, sub line]
+  const rows = [
+    ['Field goals', pc(A.fg), pc(B.fg), (v, m) => `${m[0]}-${m[1]}<small>${v == null ? '—' : v.toFixed(1) + '%'}</small>`, false, [A.fg, B.fg]],
+    ['Three pointers', pc(A.tp), pc(B.tp), (v, m) => `${m[0]}-${m[1]}<small>${v == null ? '—' : v.toFixed(1) + '%'}</small>`, false, [A.tp, B.tp]],
+    ['Free throws', pc(A.ft), pc(B.ft), (v, m) => `${m[0]}-${m[1]}<small>${v == null ? '—' : v.toFixed(1) + '%'}</small>`, false, [A.ft, B.ft]],
+    ['Rebounds', A.reb, B.reb, (v, m, o) => `${v}<small>${o.oreb ?? '—'} off · ${o.dreb ?? '—'} def</small>`],
+    ['Offensive rebounds', A.oreb, B.oreb],
+    ['Assists', A.ast, B.ast],
+    ['Steals', A.stl, B.stl],
+    ['Blocks', A.blk, B.blk],
+    ['Turnovers', A.tov, B.tov, null, true],
+    ['Points off turnovers', A.pot, B.pot],
+    ['Points in the paint', A.pip, B.pip],
+    ['Fast break points', A.fb, B.fb],
+    ['Bench points', A.bench, B.bench],
+    ['Fouls', A.pf, B.pf, null, true],
+    ['Largest lead', A.ll, B.ll],
+    ['Time in the lead', A.lpct, B.lpct, v => `${v}%`],
+  ].filter(r => r[1] != null && r[2] != null && !(isNaN(r[1]) || isNaN(r[2])));
+  const one = (r, i) => { const v = r[i + 1], m = r[5] ? r[5][i] : null, o = i ? B : A; return r[3] ? r[3](v, m, o) : esc(String(v)); };
+  const line = r => {
+    const a_ = +r[1], b_ = +r[2], tot = Math.abs(a_) + Math.abs(b_), wa = tot ? Math.abs(a_) / tot * 100 : 50;
+    const win = a_ === b_ ? -1 : (r[4] ? a_ < b_ : a_ > b_) ? 0 : 1;
+    return `<div class="tsr"><span class="tsv${win === 0 ? ' win' : ''}" style="--tc:${col[0]}">${one(r, 0)}</span>
+      <span class="tsm"><span class="tsl">${r[0]}</span><span class="tsb"><i style="width:${wa.toFixed(1)}%;background:${col[0]}${win === 1 ? ';opacity:.45' : ''}"></i><i style="width:${(100 - wa).toFixed(1)}%;background:${col[1]}${win === 0 ? ';opacity:.45' : ''}"></i></span></span>
+      <span class="tsv r${win === 1 ? ' win' : ''}" style="--tc:${col[1]}">${one(r, 1)}</span></div>`;
+  };
+  const head = cs.map((x, i) => `<button type="button" class="tsh${i ? ' r' : ''}" data-gteam="${esc(String(x.team.id))}" style="--tc:${col[i]}"><img src="${x.team.logos?.[0]?.href || x.team.logo || logoOf(x.team.abbreviation)}" alt=""><b>${esc(x.team.abbreviation)}</b></button>`);
+  const lcRow = A.lc != null ? `<p class="note tsnote">${A.lc} lead change${A.lc === 1 ? '' : 's'}.</p>` : '';
+  return `<div class="tsbox"><div class="tshead">${head[0]}<span class="tsvs">Team stats</span>${head[1]}</div>${rows.map(line).join('')}</div>${lcRow}
+    <p class="note">${src === 'espn' ? "From ESPN's team box score" : 'Counted from the play by play'}${liveDelay && st === 'in' ? ', held back by your feed delay' : ''}. The brighter bar marks who is ahead in each.</p>`;
+}
+
 // team names in a game open the team; player names in the play by play open the player
 function openTeamFromGame(tid){ if (!T[tid]) return; closeScores(); pastSeason = null; setTeam(String(tid)); drawTimebar(); drawHeaderPast(); renderFloor(); renderBench(); setView('team');
   if (matchMedia('(max-width:1100px)').matches) scrollTo({top: 0, behavior: 'smooth'}); }
