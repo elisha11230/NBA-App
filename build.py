@@ -1053,7 +1053,9 @@ def build_leaders(src, playoffs=False, top=25):
         return None
     if not playoffs:
         tg_ = g.groupby("team_abbreviation").game_id.nunique()
-        g = g[g.team_abbreviation.isin(tg_[tg_ >= 20].index)]
+        # drop All-Star and exhibition teams: real teams have played at least half as many games
+        # as the busiest team (a fixed 20 games emptied the board for the first weeks of a season)
+        g = g[g.team_abbreviation.isin(tg_[tg_ >= max(1, tg_.max() * .5)].index)]
         if g.empty:
             return None
     g["pm"] = pd.to_numeric(g.plus_minus.astype(str).str.replace("+", "", regex=False), errors="coerce")

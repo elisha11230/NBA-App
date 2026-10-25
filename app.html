@@ -7274,10 +7274,26 @@ renderPlayer = function(){ const r = _renderPlayer0.apply(this, arguments); cons
 
 /* ---------- what his production is worth (a simple market model from last season) ---------- */
 let VALUE = null;
+// Early in a season a player has a few games, so production comes from his last full season
+// (last_season.json) until he has 25 games in this one.
+let VALUE_IDS = null;
+// last season's file and the swap state live further down the script; read them safely
+const lastSafe = () => { try { return LAST; } catch (e){ return null; } };
+const swapSafe = () => { try { return SWAP; } catch (e){ return 0; } };
+function valueSrc(p){
+  if (p.s && p.s.gp >= 25 && p.adv) return {x: p, season: M.stats};
+  const LAST = lastSafe(); if (!LAST) return null;
+  let id = VALUE_IDS && VALUE_IDS.get(p);
+  if (id == null){ VALUE_IDS = new Map(Object.entries(P).map(([k, q]) => [q, k])); id = VALUE_IDS.get(p); }
+  const L = id ? LAST.players[id] : null;
+  return L && L.s && L.s.gp >= 25 && L.adv ? {x: {...L, rapm: L.rapm || p.rapm}, season: LAST.meta.stats} : null;
+}
 function valueModel(){
   if (VALUE) return VALUE;
-  const prod = p => { const a = p.adv, s = p.s; if (!a || !s || s.gp < 25) return null; const k = Math.min(72 / s.gp, 1.5);
-    return [Math.max(0, (a.vorp || 0) * k), Math.max(0, (a.ws || 0) * k), Math.max(-5, Math.min(10, p.rapm ? p.rapm[1] || 0 : 0))]; };
+  const young = !lastSafe() && Object.values(T).some(t => teamSeasonGp(t).gp < 25);
+  if (young) try { loadLast().then(j => { if (j){ VALUE = null; VALUE_IDS = null; if (!$('#deals').hidden) drawDeals(); } }); } catch (e){}
+  const prod = p => { const src = valueSrc(p); if (!src) return null; const {adv: a, s, rapm} = src.x; const k = Math.min(72 / s.gp, 1.5);
+    return [Math.max(0, (a.vorp || 0) * k), Math.max(0, (a.ws || 0) * k), Math.max(-5, Math.min(10, rapm ? rapm[1] || 0 : 0))]; };
   const rows = [];
   for (const id in P){ const p = P[id], c = p['$'], sal = c?.y?.[0]?.[0], x = prod(p); if (!sal || !x || (p.exp ?? 0) < 4) continue; rows.push([[1, ...x], sal / 1e6]); }
   // least squares through the normal equations
@@ -7287,8 +7303,9 @@ function valueModel(){
     for (let r = 0; r < n; r++){ if (r === i || !A[i][i]) continue; const f = A[r][i] / A[i][i]; for (let c = i; c < n; c++) A[r][c] -= f * A[i][c]; b[r] -= f * b[i]; } }
   const coef = b.map((v, i) => A[i][i] ? v / A[i][i] : 0);
   const cap = M.cap?.rules?.cap || 155e6, minSal = 1.3, maxSal = cap * .35 / 1e6;
-  VALUE = {coef, n: rows.length, fair: p => { const x = prod(p); if (!x) return null; const v = coef[0] + coef.slice(1).reduce((a, c, i) => a + c * x[i], 0); return Math.max(minSal, Math.min(maxSal, v)) * 1e6; }};
-  return VALUE;
+  const V = {coef, n: rows.length, fair: p => { const x = prod(p); if (!x) return null; const v = coef[0] + coef.slice(1).reduce((a, c, i) => a + c * x[i], 0); return Math.max(minSal, Math.min(maxSal, v)) * 1e6; }};
+  if (!young && !swapSafe()) VALUE = V;   // keep it once last season is in, or once the season is old enough not to need it
+  return V;
 }
 // first round picks are on a 4 year rookie scale deal from their draft year
 const capYear = () => +(M.cap?.seasons?.[0] || M.roster).slice(0, 4);
@@ -7302,7 +7319,8 @@ function valueLine(p){
 }
 const _pms0 = playerMoneySection;
 playerMoneySection = function(p){ const h = _pms0(p); if (!h) return h; const v = valueLine(p);
-  return v ? h.replace(/<\/section>$/, `${v}<p class="note">What teams pay for that kind of ${esc(M.stats)} season (value over replacement, win shares and impact), from every veteran contract. It ignores age, injuries and fit.</p></section>`) : h; };
+  const src = valueSrc(p), yr = src ? src.season : M.stats;
+  return v ? h.replace(/<\/section>$/, `${v}<p class="note">What teams pay for that kind of ${esc(yr)} season (value over replacement, win shares and impact), from every veteran contract. It ignores age, injuries and fit.${yr !== M.stats ? ` Based on ${esc(yr)}, his last full season, since he has only ${p.s ? p.s.gp : 0} game${p.s && p.s.gp === 1 ? '' : 's'} in ${esc(M.stats)}.` : ''}</p></section>`) : h; };
 
 /* ---------- contracts page: bargains, overpaid, next summer's free agents ---------- */
 let dlTab = 'bargain', dlRookie = false, dlFa = 'all';
@@ -7316,9 +7334,9 @@ function faType(p){
   return rookieYear(p) === 3 ? ['rfa', 'Restricted'] : ['ufa', 'Unrestricted'];
 }
 function dealRow(id, i, right){
-  const p = P[id], t = T[p.t], col = t ? sideColor({abbreviation: t.abbr}).c : 'var(--mute)', s = p.s;
+  const p = P[id], t = T[p.t], col = t ? sideColor({abbreviation: t.abbr}).c : 'var(--mute)', src = valueSrc(p), s = src ? src.x.s : p.s, yrTag = src && src.season !== M.stats ? ` in ${src.season.slice(2)}` : '';
   return `<button class="awr dlr" type="button" data-dlp="${esc(id)}" style="--tc:${col}"><span class="awk">${i + 1}</span><span class="awph">${photo(id, p.n, 'ini', 'awini')}</span>
-    <span class="awn"><b>${esc(p.n)}</b><small>${t ? `<img src="${t.logo}" alt="">${esc(t.abbr)} · ` : ''}${p.age ? `age ${p.age} · ` : ''}${s ? `${f1(s.pts)} pts, ${f1(s.reb)} reb, ${f1(s.ast)} ast` : ''}</small></span>${right}</button>`;
+    <span class="awn"><b>${esc(p.n)}</b><small>${t ? `<img src="${t.logo}" alt="">${esc(t.abbr)} · ` : ''}${p.age ? `age ${p.age} · ` : ''}${s ? `${f1(s.pts)} pts, ${f1(s.reb)} reb, ${f1(s.ast)} ast${yrTag}` : ''}</small></span>${right}</button>`;
 }
 function drawDeals(){
   for (const b of document.querySelectorAll('[data-dlt]')) b.setAttribute('aria-pressed', String(b.dataset.dlt === dlTab));
