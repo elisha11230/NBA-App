@@ -29,15 +29,14 @@ TEAM_CODES = {
 # ---------------------------------------------------------------- second stream
 # A second player you can switch to on any live game ("Stream 2"). Its address is
 #   <STREAM2_BASE><STREAM2_PATH>
-# where {home} and {away} are the team names below, for example
-#   /embed/admin/ppv-new-york-knicks-vs-philadelphia-76-ers/1
-# If the away team should come first, swap {home} and {away} in STREAM2_PATH.
-# {date} (like 2026-10-20) is also available if a source needs it.
+# where {homeNick} and {awayNick} are team nicknames (celtics, knicks, trail-blazers, 76ers),
+# for example /iframe/nba/knicks/ for a Knicks home game. {home} and {away} are the full
+# team names below (new-york-knicks), and {date} (like 2026-10-20) is also available.
 
 # Host for the second stream. None uses the same host as EMBED_BASE.
 STREAM2_BASE = "https://embed.st"
 
-STREAM2_PATH = "/embed/admin/ppv-{away}-vs-{home}/1"
+STREAM2_PATH = "/iframe/nba/{homeNick}/"
 
 # Team names used in the second stream's address. Change any one if the source spells it
 # differently (for example "los-angeles-clippers").

@@ -4500,16 +4500,21 @@ function fixtureSlug(when, awayAb, homeAb){
 const siteHost = k => (OPT.hosts && OPT.hosts[k]) || (D.site && D.site[k]) || '';
 const streamUrl = sl => sl ? `${siteHost('streamBase')}/live/nba/${sl}` : null;
 // Second stream: <s2Base><s2Path> with {home}, {away} and {date} filled in (site_config.py)
+// a team's nickname for addresses: celtics, knicks, trail-blazers, 76ers
+const nickSlug = ab => { const n = T[byAbbr[ab]]?.name; if (!n) return ''; return (n.endsWith('Trail Blazers') ? 'Trail Blazers' : n.split(' ').slice(-1)[0]).toLowerCase().replace(/\s+/g, '-'); };
 function stream2Url(awayAb, homeAb, when, away){
-  const S = D.site || {}, N = S.names || {};
-  if (!S.s2Path || !N[awayAb] || !N[homeAb]) return null;
-  const path = S.s2Path.replace(/\{home\}/g, N[homeAb]).replace(/\{away\}/g, N[awayAb]).replace(/\{date\}/g, when ? etDay(when) : '');
+  const S = D.site || {}, N = S.names || {}, p0 = S.s2Path || '';
+  if (!p0) return null;
+  if (/\{(home|away)\}/.test(p0) && (!N[awayAb] || !N[homeAb])) return null;
+  if (/\{(home|away)Nick\}/.test(p0) && (!nickSlug(awayAb) || !nickSlug(homeAb))) return null;
+  const path = p0.replace(/\{homeNick\}/g, nickSlug(homeAb)).replace(/\{awayNick\}/g, nickSlug(awayAb))
+    .replace(/\{home\}/g, N[homeAb] || '').replace(/\{away\}/g, N[awayAb] || '').replace(/\{date\}/g, when ? etDay(when) : '');
   return withOpts(siteHost('s2Base') + (away ? path.replace(/\/$/, '') + '/away' : path), S.s2Opts);
 }
 let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : v === 1 || v === 2 || v === 4 ? v : 2; } catch (e){ return 2; } })();
 // Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
 const feedUrl = (sl, side) => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}${side === 'away' ? '/away' : ''}`, D.site?.embedOpts) : null;
-// Alt stream: <s2Base>/embed/admin/ppv-{away}-vs-{home}/1
+// Alt stream: <s2Base>/iframe/nba/<home team nickname>/
 // Home feed: <embedBase>/embed/nba/<date>/<away>-<home>, Away feed: the same with /away
 function streamSources(sl, awayAb, homeAb, when){
   const L = [];
@@ -7740,7 +7745,7 @@ function drawOpts(){
         <div class="optfadd"><input type="search" id="optfavq" placeholder="Add a player" autocomplete="off" spellcheck="false"><div class="optfres" id="optfavres"></div></div>`, true)}
     </section>
     <section class="optsec"><h3>Streams</h3>
-      ${optHostRow('s2Base', 'Alt stream site', 'The player site for the alt stream: <code>/embed/admin/ppv-&lt;away&gt;-vs-&lt;home&gt;/1</code>. Paste just the site, like embedsite.st.')}
+      ${optHostRow('s2Base', 'Alt stream site', 'The player site for the alt stream: <code>/iframe/nba/&lt;home team&gt;/</code>, like /iframe/nba/knicks/. Paste just the site, like embedsite.st.')}
       ${optHostRow('embedBase', 'Home and away feed site', 'The home feed is <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>; the away feed is the same with <code>/away</code> on the end.')}
       ${optHostRow('streamBase', 'Open button site', 'Where Open takes you for the home feed: <code>/live/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>.')}
       ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[2, 'Home feed'], [4, 'Away feed'], [1, 'Alt stream']], streamPick), true)}
