@@ -2779,6 +2779,7 @@ try:
     _s2 = getattr(_sc, "STREAM2_BASE", None)
     site_settings = {"streamBase": str(getattr(_sc, "STREAM_BASE", "") or "").rstrip("/"),
                      "embedBase": _eb,
+                     "feed2Base": str(getattr(_sc, "FEED2_BASE", "") or "").rstrip("/"),
                      "codes": dict(getattr(_sc, "TEAM_CODES", {}) or {}),
                      # second stream: its own address pattern and full team names
                      "s2Base": (_eb if _s2 is None else str(_s2 or "")).rstrip("/"),

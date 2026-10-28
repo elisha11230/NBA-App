@@ -16,6 +16,12 @@ STREAM_BASE = "https://ppv.to"
 # Where the embedded player on a live game loads from.
 EMBED_BASE = "https://embedindia.st"
 
+# ---------------------------------------------------------------- home 2 and away 2
+# A second home and away feed on another site, same addresses as the feeds above:
+#   <FEED2_BASE>/embed/nba/<date>/<away>-<home>/   and   .../away
+# Leave empty ("") to hide them until a site is set (it can also be set in the app's Settings).
+FEED2_BASE = ""
+
 # Team codes used in the links, lowercased. These are the NBA's own three letter
 # codes. Change any one here if your stream site uses a different code for a team.
 TEAM_CODES = {
@@ -34,7 +40,7 @@ TEAM_CODES = {
 # team names below (new-york-knicks), and {date} (like 2026-10-20) is also available.
 
 # Host for the second stream. None uses the same host as EMBED_BASE.
-STREAM2_BASE = "https://embed.st"
+STREAM2_BASE = "https://topstreamer.site"
 
 STREAM2_PATH = "/iframe/nba/{homeNick}/"
 

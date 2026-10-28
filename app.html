@@ -1476,7 +1476,7 @@ a.more.replay{display:block;text-align:center;text-decoration:none;margin:0 0 4p
 .pseg .pbtn[aria-pressed="true"]{background:color-mix(in srgb,var(--team) 28%,transparent);color:var(--strong);border-color:var(--team-accent)}
 .pspace{flex:1 1 auto}
 .pbar .pbtn{white-space:nowrap}
-@media (max-width:480px){.pbar{gap:5px}.pbar .pbtn{padding:4px 8px;letter-spacing:.06em}}
+@media (max-width:480px){.pbar{gap:5px;flex-wrap:wrap;row-gap:6px}.pbar .pbtn{padding:4px 8px;letter-spacing:.06em}.pbar .pseg .pbtn{padding:4px 7px}}
 #foot{flex:0 0 auto;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 18px calc(7px + env(safe-area-inset-bottom,0px));
   border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--bg1)}
 
@@ -4511,7 +4511,7 @@ function stream2Url(awayAb, homeAb, when, away){
     .replace(/\{home\}/g, N[homeAb] || '').replace(/\{away\}/g, N[awayAb] || '').replace(/\{date\}/g, when ? etDay(when) : '');
   return withOpts(siteHost('s2Base') + (away ? path.replace(/\/$/, '') + '/away' : path), S.s2Opts);
 }
-let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : v === 1 || v === 2 || v === 4 ? v : 2; } catch (e){ return 2; } })();
+let streamPick = (() => { try { const v = +localStorage.getItem('nba_stream'); return v === 3 ? 2 : [1, 2, 4, 5, 6].includes(v) ? v : 2; } catch (e){ return 2; } })();
 // Streams 3 and 4: the same player site's home and away broadcasts, /embed/nba/<date>/<away>-<home>/ and .../away
 const feedUrl = (sl, side) => sl ? withOpts(`${siteHost('embedBase')}/embed/nba/${sl}${side === 'away' ? '/away' : ''}`, D.site?.embedOpts) : null;
 // Alt stream: <s2Base>/iframe/nba/<home team nickname>/
@@ -4522,6 +4522,10 @@ function streamSources(sl, awayAb, homeAb, when){
   if (sl){ const h = embedUrl(sl), a_ = feedUrl(sl, 'away');
     L.push({n: 2, label: 'Home feed', short: 'Home', title: `The ${homeAb} home broadcast`, src: h, open: streamUrl(sl) || h});
     L.push({n: 4, label: 'Away feed', short: 'Away', title: `The ${awayAb} away broadcast`, src: a_, open: a_}); }
+  const f2 = siteHost('feed2Base');
+  if (sl && f2){ const h2 = withOpts(`${f2}/embed/nba/${sl}/`, D.site?.embedOpts), a2 = withOpts(`${f2}/embed/nba/${sl}/away`, D.site?.embedOpts);
+    L.push({n: 5, label: 'Home 2', short: 'H2', title: `The ${homeAb} home broadcast, second source`, src: h2, open: h2});
+    L.push({n: 6, label: 'Away 2', short: 'A2', title: `The ${awayAb} away broadcast, second source`, src: a2, open: a2}); }
   if (s1) L.push({n: 1, label: 'Alt stream', short: 'Alt', title: 'Backup stream', src: s1, open: s1});
   return L;
 }
@@ -7747,8 +7751,9 @@ function drawOpts(){
     <section class="optsec"><h3>Streams</h3>
       ${optHostRow('s2Base', 'Alt stream site', 'The player site for the alt stream: <code>/iframe/nba/&lt;home team&gt;/</code>, like /iframe/nba/knicks/. Paste just the site, like embedsite.st.')}
       ${optHostRow('embedBase', 'Home and away feed site', 'The home feed is <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>; the away feed is the same with <code>/away</code> on the end.')}
+      ${optHostRow('feed2Base', 'Home 2 and away 2 site', 'A second home and away feed: <code>/embed/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;/</code>, and the same with <code>/away</code>. They show once a site is set here.')}
       ${optHostRow('streamBase', 'Open button site', 'Where Open takes you for the home feed: <code>/live/nba/&lt;date&gt;/&lt;away&gt;-&lt;home&gt;</code>.')}
-      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[2, 'Home feed'], [4, 'Away feed'], [1, 'Alt stream']], streamPick), true)}
+      ${optRow('Start on', 'The stream a game opens with. You can switch any time in the player.', optSeg('stream', [[2, 'Home feed'], [4, 'Away feed'], [5, 'Home 2'], [6, 'Away 2'], [1, 'Alt stream']], streamPick), true)}
     </section>
     <section class="optsec"><h3>Look</h3>
       ${optRow('Theme', '"Match phone" follows your phone\'s light or dark setting.', optSeg('theme', [['auto', 'Match phone'], ['dark', 'Dark'], ['light', 'Light']], thm))}
