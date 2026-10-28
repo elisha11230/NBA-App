@@ -36,13 +36,13 @@ TEAM_CODES = {
 # A second player you can switch to on any live game ("Stream 2"). Its address is
 #   <STREAM2_BASE><STREAM2_PATH>
 # where {homeNick} and {awayNick} are team nicknames (celtics, knicks, trail-blazers, 76ers),
-# for example /iframe/nba/knicks/ for a Knicks home game. {home} and {away} are the full
+# for example /iframe/nba/knicks for a Knicks home game. {home} and {away} are the full
 # team names below (new-york-knicks), and {date} (like 2026-10-20) is also available.
 
 # Host for the second stream. None uses the same host as EMBED_BASE.
 STREAM2_BASE = "https://topstreamer.site"
 
-STREAM2_PATH = "/iframe/nba/{homeNick}/"
+STREAM2_PATH = "/iframe/nba/{homeNick}"
 
 # Team names used in the second stream's address. Change any one if the source spells it
 # differently (for example "los-angeles-clippers").
