@@ -42,5 +42,7 @@ jobs:
           for f in last_season.json nba2k.json nba2k_history.json nba2k_players.json salaries.json coaches.json draft_picks.json awards.json bios.json transactions.json bbref_history.json prospects.json photos.json nba_games.json onoff.json draft_history.json playstyle.json clutch.json rapm.json; do if [ -f "$f" ]; then git add "$f"; fi; done
           git diff --cached --quiet && exit 0
           git commit -m "Update NBA data"
-          for i in 1 2 3; do git pull --rebase -q && git push && exit 0; sleep 5; done
+          # Another run may have pushed fresh data while this one built. Rebase onto it and,
+          # where both changed the same data file, keep this run's (it was built just now).
+          for i in 1 2 3; do git pull --rebase -X theirs -q && git push && exit 0; git rebase --abort 2>/dev/null; sleep 5; done
           exit 1
