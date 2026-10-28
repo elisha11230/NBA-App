@@ -20,7 +20,7 @@ EMBED_BASE = "https://embedindia.st"
 # A second home and away feed on another site, same addresses as the feeds above:
 #   <FEED2_BASE>/embed/nba/<date>/<away>-<home>/   and   .../away
 # Leave empty ("") to hide them until a site is set (it can also be set in the app's Settings).
-FEED2_BASE = ""
+FEED2_BASE = "https://taifood-blog.asia"
 
 # Team codes used in the links, lowercased. These are the NBA's own three letter
 # codes. Change any one here if your stream site uses a different code for a team.
