@@ -3169,7 +3169,7 @@ function wtTags(g, opts = {}){
     let ca = 0, ch = 0;
     for (let i = 0; i < Math.min(A.ls.length, H.ls.length) - 1; i++){ ca += A.ls[i]; ch += H.ls[i]; L.a = Math.max(L.a, ca - ch); L.h = Math.max(L.h, ch - ca); }
     L.a = Math.max(L.a, margin); L.h = Math.max(L.h, -margin);
-    const back = [[A, L.h, -margin], [H, L.a, margin]].find(([t_, was, now]) => was >= 15 && now >= -6 && now < was);   // trailing side has cut a 15+ deficit to 6 or less
+    const back = [[A, L.h, margin], [H, L.a, -margin]].find(([t_, was, now]) => was >= 15 && now >= -6 && now < was);   // trailing side has cut a 15+ deficit to 6 or less
     if (back) add('comeback', 2.5, [`<b>${esc(back[0].abbr)}</b> were down ${back[1]}${back[2] >= 0 ? (back[2] ? `, now lead by ${back[2]}` : ', now tied') : `, now within ${-back[2]}`}`], {live: true});
     // big nights: on pace for 40, or a triple double
     const el = Math.min(1, Math.max(.05, ((Math.min(g.period, 4) - 1) * 720 + (720 - (g.clock ?? 720))) / 2880));
@@ -3234,7 +3234,7 @@ function xiCalc(s){
   const late = ot || (at2 ? Math.abs((+at2.awayScore || 0) - (+at2.homeScore || 0)) <= 5 : false);
   const lp = lastP ? +lastP.period?.number || period : period, lcl = lastP ? clockToSecs(lastP.clock?.displayValue) ?? 0 : 0;
   const frac = final ? 1 : Math.min(1, Math.max(.02, ((Math.min(lp, 4) - 1) * 720 + (720 - (lp > 4 ? 0 : lcl))) / 2880));
-  const wp = (s.winprobability || []).map(w => +w.homeWinPercentage).filter(Number.isFinite);
+  const wp = wpOrdered(s).map(w => +w.homeWinPercentage).filter(Number.isFinite);
   const step = Math.max(1, Math.round(wp.length / Math.max(1, 48 * frac)));
   let swing = 0; for (let i = step; i < wp.length; i += step) swing += Math.abs(wp[i] - wp[i - step]);
   const unc = a => a.length ? a.reduce((x, p) => x + 2 * Math.min(p, 1 - p), 0) / a.length : 0;
@@ -3471,9 +3471,19 @@ function drawGame(s, quiet){
   }
   if (STREAM.slug) redockIfHere();
 }
+// ESPN lists win chances in the order plays reached its feed. A play logged late (a turnover
+// added minutes after it happened) lands in the wrong place and drew a spike in the chart, so
+// put each one back where its play sits in the game.
+function wpOrdered(s){
+  const W = s.winprobability || [], at = {};
+  (s.plays || []).forEach((p, i) => { at[String(p.id)] = i; });
+  let prev = -1;
+  return W.map((w, k) => { const i = at[String(w.playId)]; if (i != null) prev = i; return {w, i: i ?? prev + .5, k}; })
+    .sort((x, y) => x.i - y.i || x.k - y.k).map(x => x.w);
+}
 function winChance(s, cs){
   let wp = '';
-  const W = s.winprobability || [];
+  const W = wpOrdered(s);
   if (W.length > 5){
     // win chance as two colored areas: above the middle is the home team, below is the away team
     const w = 600, ht = 84, mid = ht / 2;
