@@ -3637,9 +3637,10 @@ function playsView(s, cs, quiet){
     <p class="note">${nb && nb.gid ? 'Tap ▶ on any play to watch that exact clip on NBA.com (opens a new tab).' : nb ? 'Clips were not found for this game.' : 'Finding NBA.com clips for this game…'}</p>` : '';
   return wp + rlink + filt + (out || '<div class="empty">No plays match this filter yet.</div>');
 }
-const openQ = new Set();
+const openQ = new Set(), OCLUS_OPEN = new Set();   // what you opened stays open through the live refresh
 document.addEventListener('toggle', e => {
-  const d = e.target; if (!d.matches || !d.matches('details.qtr')) return;
+  const d = e.target; if (d.matches && d.matches('details.oclus')){ const k = gameId + ':' + d.dataset.tid; d.open ? OCLUS_OPEN.add(k) : OCLUS_OPEN.delete(k); return; }
+  if (!d.matches || !d.matches('details.qtr')) return;
   const k = gameId + ':' + d.dataset.q; d.open ? openQ.add(k) : openQ.delete(k);
 }, true);
 // ---------- NBA.com clips ----------
@@ -7676,7 +7677,7 @@ function lineupLine(oc, tid){
   const nm = a => { const x = oc.R[tid]?.ath[a]; return esc(((x?.short || x?.name || '')).replace(/^[A-Z][a-z]?\.\s+/, '')); };
   const pmv = x => { const d = x.f - x.a; return `<b class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d > 0 ? '+' : ''}${d}</b>`; };
   return `<div class="oclu"><div class="oclu1"><span>This five tonight</span>${u ? `${pmv(u)}<small>${u.f} to ${u.a} in ${mmss(u.secs)} together</small>` : '<small>just came in</small>'}</div>
-    ${list.length > 1 ? `<details class="oclus"><summary>Most used lineups tonight</summary>${list.map(x => `<div class="oclr${x === u ? ' now' : ''}"><span>${x.ids.map(nm).join(', ')}</span><small>${mmss(x.secs)}</small>${pmv(x)}</div>`).join('')}</details>` : ''}</div>`;
+    ${list.length > 1 ? `<details class="oclus" data-tid="${esc(String(tid))}"${OCLUS_OPEN.has(gameId + ':' + tid) ? ' open' : ''}><summary>Most used lineups tonight</summary>${list.map(x => `<div class="oclr${x === u ? ' now' : ''}"><span>${x.ids.map(nm).join(', ')}</span><small>${mmss(x.secs)}</small>${pmv(x)}</div>`).join('')}</details>` : ''}</div>`;
 }
 const _floorView0 = floorView;
 floorView = function(s, cs){ const h = _floorView0(s, cs); if (!h || courtHidden) return h;
